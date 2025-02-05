@@ -1,0 +1,3 @@
+[submodule "graphMatching"]
+	path = graphMatching
+	url = https://github.com/SchaeferJ/graphMatching.git
