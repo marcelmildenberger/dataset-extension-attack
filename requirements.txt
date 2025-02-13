@@ -1,0 +1,26 @@
+torch>=1.13.0
+torchvision>=0.14.0
+ipywidgets==8.1.0
+#Not working for Apple M2 PRO chip: mkl==2024.0
+numpy~=1.24.3
+pandas~=2.0.1
+clkhash~=0.18.3
+scipy~=1.10.1 
+pecanpy~=2.0.8
+gensim~=4.3.1
+networkx~=3.1
+tqdm~=4.65.0
+scikit-learn~=1.2.2
+POT~=0.9.0
+typing-extensions~=4.6.3
+aesara~=2.9.1
+sparse_dot_mkl~=0.8.3
+hickle~=5.0.2
+bitarray~=2.7.3
+matplotlib~=3.10.0
+joblib~=1.2.0
+textual~=0.76.0
+textual-fspicker~=0.0.11
+#Not working for Apple M2 PRO chip:mkl-service~=2.4.1
+galois~=0.4.4
+primality=0.0.6
