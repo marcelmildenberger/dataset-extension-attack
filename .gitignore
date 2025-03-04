@@ -2,3 +2,4 @@
 /.idea/
 *.tsv
 *.h5
+*.pyc
