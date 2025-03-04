@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from datasets.dataset_utils import *
 from torch.utils.data import Dataset
 
 class TwoStepHashDatasetFrequencyString(Dataset):
@@ -12,8 +13,8 @@ class TwoStepHashDatasetFrequencyString(Dataset):
 
         if self.isLabeled:
             # For reidentified data, extract labels (2-grams) from values except last two columns
-            self.data['label'] = self.data.apply(lambda row: self.extract_two_grams("".join(row.iloc[:-2].astype(str))), axis=1)
-            self.label_tensors = self.data['label'].apply(lambda row: self.label_to_tensor(row))
+            self.data['label'] = self.data.apply(lambda row: extract_two_grams("".join(row.iloc[:-2].astype(str))), axis=1)
+            self.label_tensors = self.data['label'].apply(lambda row: label_to_tensor(row, self.allTwoGrams))
 
     def __len__(self):
         return len(self.data)
@@ -30,16 +31,3 @@ class TwoStepHashDatasetFrequencyString(Dataset):
         for val in hash_array:
             hash_tensor[val-1] = hash_tensor[val-1] + 1
         return torch.tensor(hash_tensor)
-
-    def extract_two_grams(self, input_string):
-        input_string_preprocessed = input_string.replace('"', '').replace('.', '').replace('/', '').strip()
-        input_string_lower = input_string_preprocessed.lower()
-        return [input_string_lower[i:i+2] for i in range(len(input_string_lower) - 1) if ' ' not in input_string_lower[i:i+2]]
-
-    def label_to_tensor(self, label_two_grams):
-        label_vector = np.zeros(len(self.allTwoGrams), dtype=np.float32)
-        for gram in label_two_grams:
-            if gram in self.allTwoGrams:
-                index = self.allTwoGrams.index(gram)
-                label_vector[index] = 1
-        return torch.tensor(label_vector)
