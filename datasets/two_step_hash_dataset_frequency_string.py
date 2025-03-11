@@ -4,26 +4,30 @@ from datasets.dataset_utils import *
 from torch.utils.data import Dataset
 
 class TwoStepHashDatasetFrequencyString(Dataset):
-    def __init__(self, data, isLabeled=False, all_two_grams=None, max_length=None):
-        self.isLabeled = isLabeled
+    def __init__(self, data, is_labeled=False, all_two_grams=None, frequency_string_length=None, dev_mode=False):
+        self.isLabeled = is_labeled
         self.allTwoGrams = all_two_grams
-        self.data = data
-        self.max_length = max_length
-        self.hash_tensors = self.data['twostephash'].apply(lambda row: self.hash_list_to_tensor(list(row)))
+        self.frequencyStringLength = frequency_string_length
+        self.devMode = dev_mode
+
+        self.hashTensors = data['twostephash'].apply(lambda row: self.hash_list_to_tensor(list(row)))
 
         if self.isLabeled:
-            # For reidentified data, extract labels (2-grams) from values except last two columns
-            self.data['label'] = self.data.apply(lambda row: extract_two_grams("".join(row.iloc[:-2].astype(str))), axis=1)
-            self.label_tensors = self.data['label'].apply(lambda row: label_to_tensor(row, self.allTwoGrams))
+            self.labelTensors = data.apply(lambda row: label_to_tensor(extract_two_grams("".join(row.iloc[:-2].astype(str))), self.allTwoGrams))
+
+        if self.devMode:
+            self.data = data
+            if self.isLabeled:
+                self.data['label'] = self.data.apply(lambda row: extract_two_grams("".join(row.iloc[:-2].astype(str))), axis=1)
 
     def __len__(self):
-        return len(self.data)
+        return len(self.labelTensors)
 
     def __getitem__(self, idx):
         if self.isLabeled:
-            return self.hash_tensors[idx], self.label_tensors[idx]
+            return self.hashTensors[idx], self.labelTensors[idx]
         else:
-            return self.hash_tensors[idx]
+            return self.hashTensors[idx]
 
     def hash_list_to_tensor(self, hash_list):
         hash_array = [int(entry) for entry in hash_list]

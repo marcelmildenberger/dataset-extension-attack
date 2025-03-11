@@ -2,25 +2,27 @@ from datasets.dataset_utils import *
 from torch.utils.data import Dataset
 
 class TabMinHashDataset(Dataset):
-    def __init__(self, data, isLabeled=False, all_two_grams=None):
+    def __init__(self, data, isLabeled=False, all_two_grams=None, dev_mode=False):
         self.isLabeled = isLabeled
         self.allTwoGrams = all_two_grams
-        self.data = data
+        self.devMode = dev_mode
+
+        self.bitStringTensors = data['tabminhash'].apply(lambda row: bit_string_to_tensor(list(row)))
+
         if self.isLabeled:
-            # For reidentified data, extract labels (2-grams) from values except last two columns which are encoding and uid
-            self.data['label'] = self.data.apply(lambda row: extract_two_grams("".join(row.iloc[:-2].astype(str))), axis=1)
+            self.labelTensors = data.apply(lambda row: label_to_tensor(extract_two_grams("".join(row.iloc[:-2].astype(str))), self.allTwoGrams))
+
+        if dev_mode:
+            self.data = data
+            if self.isLabeled:
+                self.data['label'] = self.data.apply(lambda row: extract_two_grams("".join(row.iloc[:-2].astype(str))), axis=1)
 
     def __len__(self):
-        return len(self.data)
+        return len(self.labelTensors)
 
     def __getitem__(self, idx):
-        tabminhash = self.data.iloc[idx]['tabminhash']
-        tabminhash_tensor = bit_string_to_tensor(tabminhash)
-
         if self.isLabeled:
-            label = self.data.iloc[idx]['label']
-            label_tensor = label_to_tensor(label, self.allTwoGrams)
-            return tabminhash_tensor, label_tensor
+            return self.bitStringTensors[idx], self.labelTensors[idx]
         else:
             # For unlabeled data, just return the TabMinHash
-            return tabminhash_tensor
+            return self.bitStringTensors[idx]

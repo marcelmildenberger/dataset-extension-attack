@@ -1,5 +1,6 @@
 import csv
 from typing import Sequence
+from hashlib import md5
 
 def read_tsv(path: str, skip_header: bool = True, as_dict: bool = False, delim: str = "\t") -> Sequence[Sequence[str]]:
     data = {} if as_dict else []
@@ -26,3 +27,50 @@ def save_tsv(data, path: str, delim: str = "\t", mode="w", write_header: bool = 
         if(write_header):
             csvwriter.writerow(header)
         csvwriter.writerows(data)
+
+
+def get_hashes(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG):
+     # Compute hashes of configuration to store/load data and thus avoid redundant computations.
+    # Using MD5 because Python's native hash() is not stable across processes
+    if GLOBAL_CONFIG["DropFrom"] == "Alice":
+
+        eve_enc_hash = md5(
+            ("%s-%s-DropAlice" % (str(ENC_CONFIG), GLOBAL_CONFIG["Data"])).encode()).hexdigest()
+        alice_enc_hash = md5(
+            ("%s-%s-%s-DropAlice" % (str(ENC_CONFIG), GLOBAL_CONFIG["Data"],
+                                     GLOBAL_CONFIG["Overlap"])).encode()).hexdigest()
+
+        eve_emb_hash = md5(
+            ("%s-%s-%s-DropAlice" % (str(EMB_CONFIG), str(ENC_CONFIG), GLOBAL_CONFIG["Data"])).encode()).hexdigest()
+
+        alice_emb_hash = md5(("%s-%s-%s-%s-DropAlice" % (str(EMB_CONFIG), str(ENC_CONFIG), GLOBAL_CONFIG["Data"],
+                                                         GLOBAL_CONFIG["Overlap"])).encode()).hexdigest()
+    elif GLOBAL_CONFIG["DropFrom"] == "Eve":
+
+        eve_enc_hash = md5(
+            ("%s-%s-%s-DropEve" % (str(ENC_CONFIG), GLOBAL_CONFIG["Data"],
+                                   GLOBAL_CONFIG["Overlap"])).encode()).hexdigest()
+
+        alice_enc_hash = md5(("%s-%s-DropEve" % (str(ENC_CONFIG), GLOBAL_CONFIG["Data"])).encode()).hexdigest()
+
+        eve_emb_hash = md5(("%s-%s-%s-%s-DropEve" % (str(EMB_CONFIG), str(ENC_CONFIG), GLOBAL_CONFIG["Data"],
+                                                     GLOBAL_CONFIG["Overlap"])).encode()).hexdigest()
+
+        alice_emb_hash = md5(("%s-%s-%s-DropEve" % (str(EMB_CONFIG), str(ENC_CONFIG),
+                                                    GLOBAL_CONFIG["Data"])).encode()).hexdigest()
+    else:
+        eve_enc_hash = md5(
+            ("%s-%s-%s-DropBoth" % (str(ENC_CONFIG), GLOBAL_CONFIG["Data"],
+                                    GLOBAL_CONFIG["Overlap"])).encode()).hexdigest()
+
+        alice_enc_hash = md5(
+            ("%s-%s-%s-DropBoth" % (str(ENC_CONFIG), GLOBAL_CONFIG["Data"],
+                                    GLOBAL_CONFIG["Overlap"])).encode()).hexdigest()
+
+        eve_emb_hash = md5(("%s-%s-%s-%s-DropBoth" % (str(EMB_CONFIG), str(ENC_CONFIG), GLOBAL_CONFIG["Data"],
+                                                      GLOBAL_CONFIG["Overlap"])).encode()).hexdigest()
+
+        alice_emb_hash = md5(("%s-%s-%s-%s-DropBoth" % (str(EMB_CONFIG), str(ENC_CONFIG), GLOBAL_CONFIG["Data"],
+                                                        GLOBAL_CONFIG["Overlap"])).encode()).hexdigest()
+
+    return eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash

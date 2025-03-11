@@ -4,30 +4,30 @@ from datasets.dataset_utils import *
 from torch.utils.data import Dataset
 
 class TwoStepHashDatasetPadding(Dataset):
-    def __init__(self, data, isLabeled=False, all_two_grams=None, max_length=None):
+    def __init__(self, data, isLabeled=False, all_two_grams=None, max_set_size=None, dev_mode=False):
         self.isLabeled = isLabeled
         self.allTwoGrams = all_two_grams
-        self.data = data
-        self.max_length = max_length
+        self.devMode = dev_mode
+        self.maxSetSize = max_set_size
+
+        self.hashTensors = data['twostephash'].apply(lambda row: self.hash_list_to_tensor(list(row)))
 
         if self.isLabeled:
-            # For reidentified data, extract labels (2-grams) from values except last two columns
-            self.data['label'] = self.data.apply(lambda row: extract_two_grams("".join(row.iloc[:-2].astype(str))), axis=1)
+            self.labelTensors = data.apply(lambda row: label_to_tensor(extract_two_grams("".join(row.iloc[:-2].astype(str))), self.allTwoGrams))
+
+        if dev_mode:
+            self.data = data
+            if self.isLabeled:
+                self.data['label'] = self.data.apply(lambda row: extract_two_grams("".join(row.iloc[:-2].astype(str))), axis=1)
 
     def __len__(self):
-        return len(self.data)
+        return len(self.labelTensors)
 
     def __getitem__(self, idx):
-        tsh_encoding = self.data.iloc[idx]['twostephash']
-        # Parse the string (e.g., "{273928, 1785355, ...}") into a list of integers
-        hash_tensor = self.hash_list_to_tensor(list(tsh_encoding))
-
         if self.isLabeled:
-            label = self.data.iloc[idx]['label']
-            label_tensor = label_to_tensor(label, self.allTwoGrams)
-            return hash_tensor, label_tensor
+            return self.hashTensors[idx], self.labelTensors[idx]
         else:
-            return hash_tensor
+            return self.hashTensors[idx]
 
     def hash_list_to_tensor(self, hash_list):
         hash_array = np.array(hash_list, dtype=np.float32)
