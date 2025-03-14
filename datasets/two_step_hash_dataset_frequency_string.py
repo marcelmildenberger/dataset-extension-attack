@@ -13,7 +13,7 @@ class TwoStepHashDatasetFrequencyString(Dataset):
         self.hashTensors = data['twostephash'].apply(lambda row: self.hash_list_to_tensor(list(row)))
 
         if self.isLabeled:
-            self.labelTensors = data.apply(lambda row: label_to_tensor(extract_two_grams("".join(row.iloc[:-2].astype(str))), self.allTwoGrams))
+            self.labelTensors = data.apply(lambda row: label_to_tensor(extract_two_grams("".join(row.iloc[:-2].astype(str))), self.allTwoGrams),  axis=1)
 
         if self.devMode:
             self.data = data
@@ -31,7 +31,7 @@ class TwoStepHashDatasetFrequencyString(Dataset):
 
     def hash_list_to_tensor(self, hash_list):
         hash_array = [int(entry) for entry in hash_list]
-        hash_tensor = np.zeros(self.max_length, dtype=np.float32)
+        hash_tensor = np.zeros(self.frequencyStringLength, dtype=np.float32)
         for val in hash_array:
             hash_tensor[val-1] = hash_tensor[val-1] + 1
         return torch.tensor(hash_tensor)

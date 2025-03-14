@@ -2,8 +2,8 @@ from datasets.dataset_utils import *
 from torch.utils.data import Dataset
 
 class BloomFilterDataset(Dataset):
-    def __init__(self, data, isLabeled=False, all_two_grams=None, dev_mode=False):
-        self.isLabeled = isLabeled
+    def __init__(self, data, is_labeled=False, all_two_grams=None, dev_mode=False):
+        self.isLabeled = is_labeled
         self.allTwoGrams = all_two_grams
         self.devMode = dev_mode
 
