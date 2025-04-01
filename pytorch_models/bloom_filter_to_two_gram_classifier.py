@@ -8,10 +8,10 @@ class BloomFilterToTwoGramClassifier(nn.Module):
         self.model = nn.Sequential(
         nn.Linear(input_dim, hidden_layer),  # Input => first hidden layer
         nn.ReLU(),
-        #nn.Dropout(0.2),
+        nn.Dropout(0.2),
         nn.Linear(hidden_layer, hidden_layer),  # First hidden layer => second hidden layer
         nn.ReLU(),
-        #nn.Dropout(0.2),
+        nn.Dropout(0.2),
         nn.Linear(hidden_layer, num_two_grams),  # Second hidden layer => output layer
         )
 

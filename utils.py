@@ -74,3 +74,36 @@ def get_hashes(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG):
                                                         GLOBAL_CONFIG["Overlap"])).encode()).hexdigest()
 
     return eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash
+
+def reconstruct_words(decoded_ngrams):
+    # Sort n-grams by confidence (descending order)
+    sorted_ngrams = sorted(decoded_ngrams.items(), key=lambda x: x[1], reverse=True)
+
+    # Reconstruct words
+    words = []
+    used = set()
+
+    for ngram, confidence in sorted_ngrams:
+        if ngram in used:
+            continue
+
+        word = ngram
+        used.add(ngram)
+        extended = True
+
+        while extended:
+            extended = False
+            for next_ngram, next_conf in sorted_ngrams:
+                if next_ngram in used:
+                    continue
+
+                # If the next n-gram overlaps, extend the word
+                if word[-1] == next_ngram[0]:
+                    word += next_ngram[1]
+                    used.add(next_ngram)
+                    extended = True
+                    break
+
+        words.append(word)
+
+    return words

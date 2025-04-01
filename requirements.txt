@@ -5,7 +5,7 @@ ipywidgets==8.1.0
 numpy~=1.24.3
 pandas~=2.0.1
 clkhash~=0.18.3
-scipy~=1.10.1 
+scipy~=1.10.1
 pecanpy~=2.0.8
 gensim~=4.3.1
 networkx~=3.1
@@ -24,3 +24,4 @@ textual-fspicker~=0.0.11
 #Not working for Apple M2 PRO chip:mkl-service~=2.4.1
 galois~=0.4.4
 primality=0.0.6
+tensorboard

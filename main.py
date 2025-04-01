@@ -29,6 +29,7 @@ from datasets.bloom_filter_dataset import BloomFilterDataset
 from datasets.tab_min_hash_dataset import TabMinHashDataset
 from datasets.two_step_hash_dataset_padding import TwoStepHashDatasetPadding
 from datasets.two_step_hash_dataset_frequency_string import TwoStepHashDatasetFrequencyString
+from datasets.two_step_hash_dataset_one_hot_encoding import TwoStepHashDatasetOneHotEncoding
 
 from pytorch_models.bloom_filter_to_two_gram_classifier import BloomFilterToTwoGramClassifier
 from pytorch_models.tab_min_hash_to_two_gram_classifier import TabMinHashToTwoGramClassifier
@@ -58,17 +59,18 @@ GLOBAL_CONFIG = {
     "DevMode": True,
 }
 
+# For TSH: Padding / FrequencyString / OneHotEncoding
 DEA_CONFIG = {
-    "TSHPadding": True,
-    "DevMode": True,
+    "TSHMode": "OneHotEncoding",
+    "DevMode": False,
 }
 
 ENC_CONFIG = {
-    "AliceAlgo": "BloomFilter",
+    "AliceAlgo": "TwoStepHash",
     "AliceSecret": "SuperSecretSalt1337",
     "AliceN": 2,
     "AliceMetric": "dice",
-    "EveAlgo": "BloomFilter",
+    "EveAlgo": "None",
     "EveSecret": "ATotallyDifferentString42",
     "EveN": 2,
     "EveMetric": "dice",
@@ -152,23 +154,17 @@ eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash = get_hashes(GLOBAL_C
 if(os.path.isfile("./data/available_to_eve/reidentified_individuals_%s_%s_%s_%s.tsv" % (eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash)) & os.path.isfile("./data/available_to_eve/not_reidentified_individuals_%s_%s_%s_%s.h5" % (eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash))):
     #Load Disk From Data
     #TODO: Replace pd.read_csv with hkl.load
-    reidentified_individuals = pd.read_csv('./data/available_to_eve/reidentified_individuals_%s_%s_%s_%s.tsv' % (eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash), delimiter='\t')
-    df_reidentified_individuals = reidentified_individuals
+    reidentified_individuals = hkl.load('./data/available_to_eve/reidentified_individuals_%s_%s_%s_%s.h5' % (eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash))
+    df_reidentified_individuals = pd.DataFrame(reidentified_individuals[1:], columns=reidentified_individuals[0])
 
     not_reidentified_individuals = hkl.load('./data/available_to_eve/not_reidentified_individuals_%s_%s_%s_%s.h5' % (eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash))
     df_not_reidentified_individuals = pd.DataFrame(not_reidentified_individuals[1:], columns=not_reidentified_individuals[0])
 
 else:
-    reidentified_individuals, not_reidentified_individuals = run_gma(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash)
+    reidentified_individuals, not_reidentified_individuals = run_gma(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG, eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash)
 
     df_reidentified_individuals = pd.DataFrame(reidentified_individuals[1:], columns=reidentified_individuals[0])
     df_not_reidentified_individuals = pd.DataFrame(not_reidentified_individuals[1:], columns=not_reidentified_individuals[0])
-
-# %%
-print('Reidentified Individuals:')
-print(df_reidentified_individuals.head())
-print('Not Reidentified Individuals:')
-print(df_not_reidentified_individuals.head())
 
 # %% [markdown]
 # ## Create Datasets
@@ -199,28 +195,36 @@ two_gram_dict = {i: two_gram for i, two_gram in enumerate(all_two_grams)}
 # %%
 # Create Datasets based on chosen encoding
 if ENC_CONFIG["AliceAlgo"] == "BloomFilter":
-    data_labeled = BloomFilterDataset(df_reidentified_individuals, isLabeled=True, all_two_grams=all_two_grams, dev_mode=GLOBAL_CONFIG["DevMode"])
-    data_not_labeled = BloomFilterDataset(df_not_reidentified_individuals, isLabeled=False, all_two_grams=all_two_grams, dev_mode=GLOBAL_CONFIG["DevMode"])
+    data_labeled = BloomFilterDataset(df_reidentified_individuals, is_labeled=True, all_two_grams=all_two_grams, dev_mode=GLOBAL_CONFIG["DevMode"])
+    data_not_labeled = BloomFilterDataset(df_not_reidentified_individuals, is_labeled=False, all_two_grams=all_two_grams, dev_mode=GLOBAL_CONFIG["DevMode"])
     bloomfilter_length = len(df_reidentified_individuals["bloomfilter"][0])
 
 if ENC_CONFIG["AliceAlgo"] == "TabMinHash":
-    data_labeled = TabMinHashDataset(df_reidentified_individuals, isLabeled=True, all_two_grams=all_two_grams, dev_mode=GLOBAL_CONFIG["DevMode"])
-    data_not_labeled = TabMinHashDataset(df_not_reidentified_individuals, isLabeled=False, all_two_grams=all_two_grams, dev_mode=GLOBAL_CONFIG["DevMode"])
-    tabminhash_length = len(data_labeled[0][0])
+    data_labeled = TabMinHashDataset(df_reidentified_individuals, is_labeled=True, all_two_grams=all_two_grams, dev_mode=GLOBAL_CONFIG["DevMode"])
+    data_not_labeled = TabMinHashDataset(df_not_reidentified_individuals, is_labeled=False, all_two_grams=all_two_grams, dev_mode=GLOBAL_CONFIG["DevMode"])
+    tabminhash_length = len(df_reidentified_individuals["tabminhash"][0])
 
-if (ENC_CONFIG["AliceAlgo"] == "TwoStepHash") & DEA_CONFIG["TSHPadding"]:
+if (ENC_CONFIG["AliceAlgo"] == "TwoStepHash") & (DEA_CONFIG["TSHMode"] == "Padding"):
     max_length_reidentified = df_reidentified_individuals["twostephash"].apply(lambda x: len(list(x))).max()
     max_length_not_reidentified = df_not_reidentified_individuals["twostephash"].apply(lambda x: len(list(x))).max()
     max_twostephash_length = max(max_length_reidentified, max_length_not_reidentified)
-    data_labeled = TwoStepHashDatasetPadding(df_reidentified_individuals, isLabeled=True, all_two_grams=all_two_grams, max_set_size=max_twostephash_length, dev_mode=GLOBAL_CONFIG["DevMode"])
-    data_not_labeled = TwoStepHashDatasetPadding(df_not_reidentified_individuals, isLabeled=False, all_two_grams=all_two_grams, max_set_size=max_twostephash_length, dev_mode=GLOBAL_CONFIG["DevMode"])
+    data_labeled = TwoStepHashDatasetPadding(df_reidentified_individuals, is_labeled=True, all_two_grams=all_two_grams, max_set_size=max_twostephash_length, dev_mode=GLOBAL_CONFIG["DevMode"])
+    data_not_labeled = TwoStepHashDatasetPadding(df_not_reidentified_individuals, is_labeled=False, all_two_grams=all_two_grams, max_set_size=max_twostephash_length, dev_mode=GLOBAL_CONFIG["DevMode"])
 
-if (ENC_CONFIG["AliceAlgo"] == "TwoStepHash") &  (not DEA_CONFIG["TSHPadding"]):
+if (ENC_CONFIG["AliceAlgo"] == "TwoStepHash") & (DEA_CONFIG["TSHMode"] == "FrequencyString"):
     max_length_reidentified = df_reidentified_individuals["twostephash"].apply(lambda x: max(x)).max()
     max_length_not_reidentified = df_not_reidentified_individuals["twostephash"].apply(lambda x: max(x)).max()
     max_twostephash_length = max(max_length_reidentified, max_length_not_reidentified)
-    data_labeled = TwoStepHashDatasetFrequencyString(df_reidentified_individuals, isLabeled=True, all_two_grams=all_two_grams, frequency_string_length=max_twostephash_length, dev_mode=GLOBAL_CONFIG["DevMode"])
-    data_not_labeled = TwoStepHashDatasetFrequencyString(df_not_reidentified_individuals, isLabeled=False, all_two_grams=all_two_grams, max_length=max_twostephash_length, dev_mode=GLOBAL_CONFIG["DevMode"])
+    data_labeled = TwoStepHashDatasetFrequencyString(df_reidentified_individuals, is_labeled=True, all_two_grams=all_two_grams, frequency_string_length=max_twostephash_length, dev_mode=GLOBAL_CONFIG["DevMode"])
+    data_not_labeled = TwoStepHashDatasetFrequencyString(df_not_reidentified_individuals, is_labeled=False, all_two_grams=all_two_grams, frequency_string_length=max_twostephash_length, dev_mode=GLOBAL_CONFIG["DevMode"])
+
+if (ENC_CONFIG["AliceAlgo"] == "TwoStepHash") & (DEA_CONFIG["TSHMode"] == "OneHotEncoding"):
+    unique_integers_reidentified = set().union(*df_reidentified_individuals["twostephash"])
+    unique_integers_not_reidentified = set().union(*df_not_reidentified_individuals["twostephash"])
+    unique_integers_sorted = sorted(unique_integers_reidentified.union(unique_integers_not_reidentified))
+    unique_integers_dict = {i: val for i, val in enumerate(unique_integers_sorted)}
+    data_labeled = TwoStepHashDatasetOneHotEncoding(df_reidentified_individuals, is_labeled=True, all_integers=unique_integers_sorted, all_two_grams=all_two_grams, dev_mode=GLOBAL_CONFIG["DevMode"])
+    data_not_labeled = TwoStepHashDatasetOneHotEncoding(df_not_reidentified_individuals, is_labeled=False, all_integers=unique_integers_sorted, all_two_grams=all_two_grams, dev_mode=GLOBAL_CONFIG["DevMode"])
 
 # %% [markdown]
 # ## Create Dataloader
@@ -233,11 +237,10 @@ val_size = len(data_labeled) - train_size  # 20% validation
 #Split dataset of reidentified individuals
 data_train, data_val = random_split(data_labeled, [train_size, val_size])
 
-# %%
 # Create dataloader
 dataloader_train = DataLoader(data_train, batch_size=32, shuffle=True)
 dataloader_val = DataLoader(data_val, batch_size=32, shuffle=True)
-dataloader_test = DataLoader(data_not_labeled, batch_size=32, shuffle=False)
+dataloader_test = DataLoader(data_not_labeled, batch_size=1, shuffle=False)
 
 # %% [markdown]
 # ## Pytorch Model
@@ -250,11 +253,14 @@ if ENC_CONFIG["AliceAlgo"] == "BloomFilter":
 if ENC_CONFIG["AliceAlgo"] == "TabMinHash":
     model = TabMinHashToTwoGramClassifier(input_dim=tabminhash_length, num_two_grams=len(all_two_grams))
 
-if (ENC_CONFIG["AliceAlgo"] == "TwoStepHash") & DEA_CONFIG["TSHPadding"]:
+if (ENC_CONFIG["AliceAlgo"] == "TwoStepHash") & (DEA_CONFIG["TSHMode"] == "Padding"):
     model = TwoStepHashToTwoGramClassifier(input_dim=max_twostephash_length, num_two_grams=len(all_two_grams))
 
-if (ENC_CONFIG["AliceAlgo"] == "TwoStepHash") & (not DEA_CONFIG["TSHPadding"]):
-    model = TabMinHashToTwoGramClassifier(input_dim=tabminhash_length, num_two_grams=len(all_two_grams))
+if (ENC_CONFIG["AliceAlgo"] == "TwoStepHash") & (DEA_CONFIG["TSHMode"] == "FrequencyString"):
+    model = TabMinHashToTwoGramClassifier(input_dim=max_twostephash_length, num_two_grams=len(all_two_grams))
+
+if (ENC_CONFIG["AliceAlgo"] == "TwoStepHash") & (DEA_CONFIG["TSHMode"] == "OneHotEncoding"):
+    model = TabMinHashToTwoGramClassifier(input_dim=len(unique_integers_sorted), num_two_grams=len(all_two_grams))
 
 
 # %% [markdown]
@@ -271,7 +277,15 @@ model.to(device)
 criterion = nn.BCEWithLogitsLoss()
 
 # Optimizer
-optimizer = optim.Adam(model.parameters(), lr=0.0001)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+# %%
+for data, labels in dataloader_train:
+    data, labels = data.to(device), labels.to(device)
+    print(data.shape)
+    print(labels.shape)
+    print(data)
+    break
 
 # %%
 # Number of epochs
@@ -293,6 +307,8 @@ for epoch in range(num_epochs):
         running_loss += loss.item() * labels.size(0)
     train_loss = running_loss / len(dataloader_train.dataset)
     train_losses.append(train_loss)
+
+    #Calculate true training loss?
 
     #Validation
     model.eval()
@@ -325,104 +341,5 @@ plt.show()
 # %% [markdown]
 # ## Visualize Performance for Re-Identification
 
-# %% [markdown]
-# ## Testing Area
-
 # %%
-# First entry for reference (labeled data):
-# surname                                                  Hegarty
-# firstname                                    Miss. Hanora "Nora"
-# bloomfilter    0000000010100011000100000101000000000000100000001000000000100111011000001001100100000100000000001000000000000000001000100000000000010010000000000000100010001110110111000000000000100000000100000001010000000000100101000011000010001010000001000000000000000000001000011010011001000100000011100100000000000011000100100000110011000000000010000000000010000000000000110000000110000000000010000000011100000001000000100000001100101011001000000000010000001000000000001000010110110000000001001000100001010111010000000010000000111000000000010010110000000000001000000101010001000000001000001000010000100110000111001110000000001010011110000100000000000100000001100001100000000000010000000000000000000000100000000010000001000000000011100000000000001000101000010100001001000011000000000010001100000000100000001000001000000000100000101000000000000000000010000000100000000100001000000100000000000000011100000001001000000001100010000001000001000000000000010100100000000110101110010000010000010100000000011000001000000001110000101001000010101111
-# uid                                                          654
-# Name: 0, dtype: object
-#print('Length Labeled data:', len(data_labeled))
-#print('Length Unlabeled data:', len(data_not_labeled))
-
-#bloomfilter_tensor, label_tensor = data_labeled[0]
-
-#print('Bloom Filter Tensor:', bloomfilter_tensor)
-#print('Bloom Filter Tensor Shape:', bloomfilter_tensor.shape)
-#print('Label Tensor:', label_tensor)
-#print('Label Tensor Shape:', label_tensor.shape)
-
-#for bloomfilter_tensors, label_tensors in dataloader_train:
-#    print('Bloom Filter Tensor Shape:', bloomfilter_tensors.shape)
-#    print('Label Tensor Shape:', label_tensors.shape)
-#    print(label_tensors)
-#    break
-
-#print(str(model)[:500])
-#example_bloom, example_label = data_train[0]
-#example_out = model(example_bloom)
-#print(example_out.shape)
-#loss_function_applied = criterion(example_out, example_label)
-#print(loss_function_applied)
-#print(example_out)
-
-print(data_labeled[0])
-
-# Apply model
-result = model(bloomfilter_tensor)
-# Result = Tensor of shape 676 with prob. for each 2gram
-two_gram_scores = {two_gram_dict[i]: score.item() for i, score in enumerate(result)}
-
-threshold = 0.000000001
-filtered_two_gram_scores = {two_gram: score for two_gram, score in two_gram_scores.items() if score > threshold}
-filtered_two_gram_scores
-
-# %%
-print("To Decode: ",df_not_reidentified_individuals.iloc[1])
-#torch.set_printoptions(profile="full")
-#torch.set_printoptions(profile="default")
-print("BF Tensor: ", data_not_labeled[1])
-# Apply model
-model.eval()
-logits = model(data_not_labeled[1])
-probabilities = torch.sigmoid(logits)
-print("Prob: ", probabilities)
-two_gram_scores = {two_gram_dict[i]: score.item() for i, score in enumerate(probabilities)}
-threshold = 0.00000001
-filtered_two_gram_scores = {two_gram: score for two_gram, score in two_gram_scores.items() if score > threshold}
-print("Decoded 2grams: ", filtered_two_gram_scores)
-
-# person is: Roy	Jeon	9/19/1975
-# to or re
-# at tt
-
-# %%
-for bloom_filters, labels in dataloader_train:
-    print("Bloom Filters Batch Shape:", bloom_filters.shape)
-    print("Labels Batch Shape:", labels.shape)
-    break
-
-# %%
-model = nn.Linear(20, 5) # predict logits for 5 classes
-x = torch.randn(1, 20)
-print(x.shape)
-y = torch.tensor([[1., 0., 1., 0., 0.]]) # get classA and classC as active
-print(y.shape)
-
-criterion = nn.BCEWithLogitsLoss()
-optimizer = optim.SGD(model.parameters(), lr=1e-1)
-
-for epoch in range(20):
-    optimizer.zero_grad()
-    output = model(x)
-    loss = criterion(output, y)
-    loss.backward()
-    optimizer.step()
-    print('Loss: {:.3f}'.format(loss.item()))
-
-# %%
-for bloom_filters, labels in dataloader_train:
-    print("Bloom Filters Batch Shape:", bloom_filters[0])
-    print("Labels Batch Shape:", labels[0])
-    break
-
-# %%
-len(data_labeled)
-
-# %%
-
-
-
+sys.exit("Stopping execution at this cell.")

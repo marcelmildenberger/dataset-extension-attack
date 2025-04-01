@@ -18,10 +18,10 @@ class TwoStepHashDatasetFrequencyString(Dataset):
         if self.devMode:
             self.data = data
             if self.isLabeled:
-                self.data['label'] = self.data.apply(lambda row: extract_two_grams("".join(row.iloc[:-2].astype(str))), axis=1)
+                self.data['label'] = self.data.apply(lambda row: extract_two_grams("".join(row.iloc[:-2].astype(str)), self.allTwoGrams), axis=1)
 
     def __len__(self):
-        return len(self.labelTensors)
+        return len(self.hashTensors)
 
     def __getitem__(self, idx):
         if self.isLabeled:
