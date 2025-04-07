@@ -107,3 +107,32 @@ def reconstruct_words(decoded_ngrams):
         words.append(word)
 
     return words
+
+def extract_two_grams(input_string, remove_spaces=False):
+    input_string_preprocessed = input_string.replace('"', '').replace('.', '').replace('/', '').strip()
+    if(remove_spaces):
+        input_string_preprocessed = input_string_preprocessed.replace(' ', '')
+    input_string_lower = input_string_preprocessed.lower()  # Normalize to lowercase for consistency
+    return [input_string_lower[i:i+2] for i in range(len(input_string_lower)-1) if ' ' not in input_string_lower[i:i+2]]
+
+def dice_coefficient(set1: set, set2: set) -> float:
+    """
+    Computes the Dice Coefficient between two sets of 2-grams.
+
+    Args:
+        set1 (set): First set of 2-grams.
+        set2 (set): Second set of 2-grams.
+
+    Returns:
+        float: Dice similarity score between 0 and 1.
+    """
+    if isinstance(set1, list):
+        set1 = set(set1)
+    if isinstance(set2, list):
+        set2 = set(set2)
+    if not set1 and not set2:
+        return 1.0  # both empty sets → full similarity
+    intersection = len(set1 & set2)
+    return round((2 * intersection) / (len(set1) + len(set2)),4)
+
+

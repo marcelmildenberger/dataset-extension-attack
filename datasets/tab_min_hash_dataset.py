@@ -8,6 +8,7 @@ class TabMinHashDataset(Dataset):
         self.devMode = dev_mode
 
         self.bitStringTensors = data['tabminhash'].apply(lambda row: bit_string_to_tensor(list(row)))
+        self.uids = data['uid']
 
         if self.isLabeled:
             self.labelTensors = data.apply(lambda row: label_to_tensor(extract_two_grams("".join(row.iloc[:-2].astype(str))), self.allTwoGrams),  axis=1)
@@ -22,7 +23,7 @@ class TabMinHashDataset(Dataset):
 
     def __getitem__(self, idx):
         if self.isLabeled:
-            return self.bitStringTensors[idx], self.labelTensors[idx]
+            return self.bitStringTensors[idx], self.labelTensors[idx], self.uids[idx]
         else:
             # For unlabeled data, just return the TabMinHash
-            return self.bitStringTensors[idx]
+            return self.bitStringTensors[idx], self.uids[idx]

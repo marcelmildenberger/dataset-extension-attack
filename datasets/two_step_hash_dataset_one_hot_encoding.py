@@ -11,6 +11,7 @@ class TwoStepHashDatasetOneHotEncoding(Dataset):
         self.devMode = dev_mode
 
         self.hashTensors = data['twostephash'].apply(lambda row: self.hash_list_to_tensor(list(row)))
+        self.uids = data['uid']
 
         if self.isLabeled:
             self.labelTensors = data.apply(lambda row: label_to_tensor(extract_two_grams("".join(row.iloc[:-2].astype(str))), self.allTwoGrams),  axis=1)
@@ -25,9 +26,9 @@ class TwoStepHashDatasetOneHotEncoding(Dataset):
 
     def __getitem__(self, idx):
         if self.isLabeled:
-            return self.hashTensors[idx], self.labelTensors[idx]
+            return self.hashTensors[idx], self.labelTensors[idx], self.uids[idx]
         else:
-            return self.hashTensors[idx]
+            return self.hashTensors[idx], self.uids[idx]
 
     def hash_list_to_tensor(self, hash_list):
         hash_array = np.zeros(len(self.allIntegers), dtype=np.float32)
