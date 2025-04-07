@@ -1,22 +1,20 @@
 import torch.nn as nn
 
 class BloomFilterToTwoGramClassifier(nn.Module):
-    def __init__(self, input_dim, num_two_grams, hidden_layer=256, num_layers=4, dropout_rate=0.4844135931365565):
+    def __init__(self, input_dim, num_two_grams, hidden_layer=256, num_layers=4, dropout_rate=0.2):
         super(BloomFilterToTwoGramClassifier, self).__init__()
 
         # Define the layers for multi-label classification of 2-grams
         layers = [
             nn.Linear(input_dim, hidden_layer),  # Input layer to first hidden layer
-            nn.GELU(),  # Activation function
+            nn.ReLU(),  # Activation function
             nn.Dropout(dropout_rate),
         ]
 
-        for _ in range(num_layers):  # Add dynamic hidden layers
-            layers.extend([
-                nn.Linear(hidden_layer, hidden_layer),  # Hidden layer to next hidden layer
-                nn.GELU(),  # Activation function
-                nn.Dropout(dropout_rate),
-            ])
+        for _ in range(num_layers - 1):  # Add dynamic hidden layers
+            layers.append(nn.Linear(hidden_layer, hidden_layer))  # Hidden layer to next hidden layer
+            layers.append(nn.ReLU())  # Activation function
+            layers.append(nn.Dropout(dropout_rate))  # Dropout layer
 
         layers.append(nn.Linear(hidden_layer, num_two_grams))  # Output layer
 

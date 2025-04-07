@@ -8,13 +8,13 @@ activation_functions = {
 
 class BaseModel(nn.Module):
     def __init__(self, input_dim, num_two_grams, num_layers, hidden_layer_size, dropout_rate, activation_fn):
-        super().__init__()
+        super(BaseModel, self).__init__()
         layers = []
         layers.append(nn.Linear(input_dim, hidden_layer_size)) # Input layer
         layers.append(activation_functions[activation_fn])
         layers.append(nn.Dropout(dropout_rate))
 
-        for _ in range(num_layers):  # Add dynamic hidden layers
+        for _ in range(num_layers - 1):  # Add dynamic hidden layers
             layers.append(nn.Linear(hidden_layer_size, hidden_layer_size))
             layers.append(activation_functions[activation_fn])
             layers.append(nn.Dropout(dropout_rate))
