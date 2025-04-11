@@ -1,9 +1,6 @@
 # %% [markdown]
 # # Hyperparameter Optimization
 
-# %% [markdown]
-# ## Setup
-
 # %%
 import os
 
@@ -13,6 +10,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 import torchvision
 import ray
+from ray.tune import Result
 
 from utils import *
 
@@ -45,22 +43,19 @@ print('Torchvision version', torchvision.__version__)
 print('Numpy version', np.__version__)
 print('Pandas version', pd.__version__)
 
-# %% [markdown]
-# ## Run GMA
-
 # %%
 # Parameters
 GLOBAL_CONFIG = {
-    "Data": "./data/datasets/fakename_5k.tsv",
-    "Overlap": 0.68,
-    "DropFrom": "Both",
+    "Data": "./data/datasets/fakename_1k.tsv",
+    "Overlap": 0.8,
+    "DropFrom": "Eve",
     "Verbose": True,  # Print Status Messages
     "MatchingMetric": "cosine",
     "Matching": "MinWeight",
     "Workers": -1,
     "SaveAliceEncs": False,
     "SaveEveEncs": False,
-    "DevMode": True,
+    "DevMode": False,
 }
 
 
@@ -68,20 +63,12 @@ DEA_CONFIG = {
     #Padding / FrequencyString / OneHotEncoding
     "TSHMode": "OneHotEncoding",
     "DevMode": False,
-    # BCEWithLogitsLoss / MultiLabelSoftMarginLoss
-    "LossFunction:": "BCEWithLogitsLoss",
-    # Adam / AdamW / SGD / RMSprop
-    "Optimizer": "AdamW",
-    "LearningRate": 0.001,
-    # SGD only
-    "Momentum": 0.9,
     "BatchSize": 32,
-    "Epochs": 10,
     # TestSize calculated accordingly
     "TrainSize": 0.8,
     "FilterThreshold": 0.5,
-    # ReLU / LeakyReLU
-    "ActivationFunction": "ReLU",
+    "Patience": 5,
+    "MinDelta": 0.001,
 }
 
 ENC_CONFIG = {
@@ -169,259 +156,414 @@ ALIGN_CONFIG = {
 }
 
 # %%
+# Get unique hash identifiers for the encoding and embedding configurations
 eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash = get_hashes(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG)
 
-if(os.path.isfile("./data/available_to_eve/reidentified_individuals_%s_%s_%s_%s.h5" % (eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash)) & os.path.isfile("./data/available_to_eve/not_reidentified_individuals_%s_%s_%s_%s.h5" % (eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash))):
-    #Load Disk From Data
-    reidentified_individuals = hkl.load('./data/available_to_eve/reidentified_individuals_%s_%s_%s_%s.h5' % (eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash))
-    df_reidentified_individuals = pd.DataFrame(reidentified_individuals[1:], columns=reidentified_individuals[0])
+# Define file paths based on the configuration hashes
+path_reidentified = f"./data/available_to_eve/reidentified_individuals_{eve_enc_hash}_{alice_enc_hash}_{eve_emb_hash}_{alice_emb_hash}.h5"
+path_not_reidentified = f"./data/available_to_eve/not_reidentified_individuals_{eve_enc_hash}_{alice_enc_hash}_{eve_emb_hash}_{alice_emb_hash}.h5"
+path_all = f"./data/dev/alice_data_complete_with_encoding_{eve_enc_hash}_{alice_enc_hash}_{eve_emb_hash}_{alice_emb_hash}.h5"
 
-    not_reidentified_individuals = hkl.load('./data/available_to_eve/not_reidentified_individuals_%s_%s_%s_%s.h5' % (eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash))
-    df_not_reidentified_individuals = pd.DataFrame(not_reidentified_individuals[1:], columns=not_reidentified_individuals[0])
-
-    all_individuals = hkl.load('./data/dev/alice_data_complete_with_encoding_%s_%s_%s_%s.h5' % (eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash))
-    df_all_individuals = pd.DataFrame(all_individuals[1:], columns=all_individuals[0])
+# Check if the output files already exist
+if os.path.isfile(path_reidentified) and os.path.isfile(path_not_reidentified) and os.path.isfile(path_all):
+    # Load previously saved attack results
+    reidentified_data = hkl.load(path_reidentified)
+    not_reidentified_data = hkl.load(path_not_reidentified)
+    all_data = hkl.load(path_all)
 
 else:
-    reidentified_individuals, not_reidentified_individuals, all_individuals = run_gma(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG, eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash)
+    # Run Graph Matching Attack if files are not found
+    reidentified_data, not_reidentified_data, all_data = run_gma(
+        GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG,
+        eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash
+    )
 
-    df_reidentified_individuals = pd.DataFrame(reidentified_individuals[1:], columns=reidentified_individuals[0])
-    df_not_reidentified_individuals = pd.DataFrame(not_reidentified_individuals[1:], columns=not_reidentified_individuals[0])
-    df_all_individuals = pd.DataFrame(all_individuals[1:], columns=all_individuals[0])
-
-# %% [markdown]
-# ## Create Datasets
+# Convert lists to DataFrames
+df_reidentified = pd.DataFrame(reidentified_data[1:], columns=reidentified_data[0])
+df_not_reidentified = pd.DataFrame(not_reidentified_data[1:], columns=not_reidentified_data[0])
+df_all = pd.DataFrame(all_data[1:], columns=all_data[0])
 
 # %%
-#Create the 2-grams with dictionary
+# --- Generate a dictionary of all possible 2-grams from letters and digits ---
 
-#Generate all 2-grams
+# Lowercase alphabet: 'a' to 'z'
 alphabet = string.ascii_lowercase
 
-# Generate all letter-letter 2-grams (aa-zz)
-alphabet = string.ascii_lowercase
+# Digits: '0' to '9'
+digits = string.digits
+
+# Generate all letter-letter 2-grams (e.g., 'aa', 'ab', ..., 'zz')
 letter_letter_grams = [a + b for a in alphabet for b in alphabet]
 
-# Generate all digit-digit 2-grams (00-99)
-digits = string.digits
+# Generate all digit-digit 2-grams (e.g., '00', '01', ..., '99')
 digit_digit_grams = [d1 + d2 for d1 in digits for d2 in digits]
 
-# Generate all letter-digit 2-grams (a0-z9)
+# Generate all letter-digit 2-grams (e.g., 'a0', 'a1', ..., 'z9')
 letter_digit_grams = [l + d for l in alphabet for d in digits]
 
-# Combine all sets
-all_two_grams = letter_letter_grams  + letter_digit_grams + digit_digit_grams
+# Combine all generated 2-grams into one list
+all_two_grams = letter_letter_grams + letter_digit_grams + digit_digit_grams
 
-# Get a dictionary associating each 2-gram with an index
+# Create a dictionary mapping index to each 2-gram
 two_gram_dict = {i: two_gram for i, two_gram in enumerate(all_two_grams)}
 
 # %%
-# Create Datasets based on chosen encoding
+# 1️⃣ Bloom Filter Encoding
 if ENC_CONFIG["AliceAlgo"] == "BloomFilter":
-    data_labeled = BloomFilterDataset(df_reidentified_individuals, is_labeled=True, all_two_grams=all_two_grams, dev_mode=GLOBAL_CONFIG["DevMode"])
-    data_not_labeled = BloomFilterDataset(df_not_reidentified_individuals, is_labeled=False, all_two_grams=all_two_grams, dev_mode=GLOBAL_CONFIG["DevMode"])
-    bloomfilter_length = len(df_reidentified_individuals["bloomfilter"][0])
+    data_labeled = BloomFilterDataset(
+        df_reidentified,
+        is_labeled=True,
+        all_two_grams=all_two_grams,
+        dev_mode=GLOBAL_CONFIG["DevMode"]
+    )
+    data_not_labeled = BloomFilterDataset(
+        df_not_reidentified,
+        is_labeled=False,
+        all_two_grams=all_two_grams,
+        dev_mode=GLOBAL_CONFIG["DevMode"]
+    )
+    input_layer_size = len(df_reidentified["bloomfilter"][0])
 
-if ENC_CONFIG["AliceAlgo"] == "TabMinHash":
-    data_labeled = TabMinHashDataset(df_reidentified_individuals, is_labeled=True, all_two_grams=all_two_grams, dev_mode=GLOBAL_CONFIG["DevMode"])
-    data_not_labeled = TabMinHashDataset(df_not_reidentified_individuals, is_labeled=False, all_two_grams=all_two_grams, dev_mode=GLOBAL_CONFIG["DevMode"])
-    tabminhash_length = len(df_reidentified_individuals["tabminhash"][0])
+# 2️⃣ Tabulation MinHash Encoding
+elif ENC_CONFIG["AliceAlgo"] == "TabMinHash":
+    data_labeled = TabMinHashDataset(
+        df_reidentified,
+        is_labeled=True,
+        all_two_grams=all_two_grams,
+        dev_mode=GLOBAL_CONFIG["DevMode"]
+    )
+    data_not_labeled = TabMinHashDataset(
+        df_not_reidentified,
+        is_labeled=False,
+        all_two_grams=all_two_grams,
+        dev_mode=GLOBAL_CONFIG["DevMode"]
+    )
+    input_layer_size = len(df_reidentified["tabminhash"][0])
 
-if (ENC_CONFIG["AliceAlgo"] == "TwoStepHash") & (DEA_CONFIG["TSHMode"] == "Padding"):
-    max_length_reidentified = df_reidentified_individuals["twostephash"].apply(lambda x: len(list(x))).max()
-    max_length_not_reidentified = df_not_reidentified_individuals["twostephash"].apply(lambda x: len(list(x))).max()
-    max_twostephash_length = max(max_length_reidentified, max_length_not_reidentified)
-    data_labeled = TwoStepHashDatasetPadding(df_reidentified_individuals, is_labeled=True, all_two_grams=all_two_grams, max_set_size=max_twostephash_length, dev_mode=GLOBAL_CONFIG["DevMode"])
-    data_not_labeled = TwoStepHashDatasetPadding(df_not_reidentified_individuals, is_labeled=False, all_two_grams=all_two_grams, max_set_size=max_twostephash_length, dev_mode=GLOBAL_CONFIG["DevMode"])
+# 3️⃣ Two-Step Hash Encoding (Padding Mode)
+elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash" and DEA_CONFIG["TSHMode"] == "Padding":
+    max_len_reid = df_reidentified["twostephash"].apply(lambda x: len(list(x))).max()
+    max_len_not_reid = df_not_reidentified["twostephash"].apply(lambda x: len(list(x))).max()
+    input_layer_size = max(max_len_reid, max_len_not_reid)
 
-if (ENC_CONFIG["AliceAlgo"] == "TwoStepHash") & (DEA_CONFIG["TSHMode"] == "FrequencyString"):
-    max_length_reidentified = df_reidentified_individuals["twostephash"].apply(lambda x: max(x)).max()
-    max_length_not_reidentified = df_not_reidentified_individuals["twostephash"].apply(lambda x: max(x)).max()
-    max_twostephash_length = max(max_length_reidentified, max_length_not_reidentified)
-    data_labeled = TwoStepHashDatasetFrequencyString(df_reidentified_individuals, is_labeled=True, all_two_grams=all_two_grams, frequency_string_length=max_twostephash_length, dev_mode=GLOBAL_CONFIG["DevMode"])
-    data_not_labeled = TwoStepHashDatasetFrequencyString(df_not_reidentified_individuals, is_labeled=False, all_two_grams=all_two_grams, frequency_string_length=max_twostephash_length, dev_mode=GLOBAL_CONFIG["DevMode"])
+    data_labeled = TwoStepHashDatasetPadding(
+        df_reidentified,
+        is_labeled=True,
+        all_two_grams=all_two_grams,
+        max_set_size=input_layer_size,
+        dev_mode=GLOBAL_CONFIG["DevMode"]
+    )
+    data_not_labeled = TwoStepHashDatasetPadding(
+        df_not_reidentified,
+        is_labeled=False,
+        all_two_grams=all_two_grams,
+        max_set_size=input_layer_size,
+        dev_mode=GLOBAL_CONFIG["DevMode"]
+    )
 
-if (ENC_CONFIG["AliceAlgo"] == "TwoStepHash") & (DEA_CONFIG["TSHMode"] == "OneHotEncoding"):
-    unique_integers_reidentified = set().union(*df_reidentified_individuals["twostephash"])
-    unique_integers_not_reidentified = set().union(*df_not_reidentified_individuals["twostephash"])
-    unique_integers_sorted = sorted(unique_integers_reidentified.union(unique_integers_not_reidentified))
-    unique_integers_dict = {i: val for i, val in enumerate(unique_integers_sorted)}
-    data_labeled = TwoStepHashDatasetOneHotEncoding(df_reidentified_individuals, is_labeled=True, all_integers=unique_integers_sorted, all_two_grams=all_two_grams, dev_mode=GLOBAL_CONFIG["DevMode"])
-    data_not_labeled = TwoStepHashDatasetOneHotEncoding(df_not_reidentified_individuals, is_labeled=False, all_integers=unique_integers_sorted, all_two_grams=all_two_grams, dev_mode=GLOBAL_CONFIG["DevMode"])
+# 4️⃣ Two-Step Hash Encoding (Frequency String Mode)
+elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash" and DEA_CONFIG["TSHMode"] == "FrequencyString":
+    max_len_reid = df_reidentified["twostephash"].apply(lambda x: max(x)).max()
+    max_len_not_reid = df_not_reidentified["twostephash"].apply(lambda x: max(x)).max()
+    input_layer_size = max(max_len_reid, max_len_not_reid)
 
-# %% [markdown]
-# ## Create Dataloader
+    data_labeled = TwoStepHashDatasetFrequencyString(
+        df_reidentified,
+        is_labeled=True,
+        all_two_grams=all_two_grams,
+        frequency_string_length=input_layer_size,
+        dev_mode=GLOBAL_CONFIG["DevMode"]
+    )
+    data_not_labeled = TwoStepHashDatasetFrequencyString(
+        df_not_reidentified,
+        is_labeled=False,
+        all_two_grams=all_two_grams,
+        frequency_string_length=input_layer_size,
+        dev_mode=GLOBAL_CONFIG["DevMode"]
+    )
+
+# 5️⃣ Two-Step Hash Encoding (One-Hot Encoding Mode)
+elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash" and DEA_CONFIG["TSHMode"] == "OneHotEncoding":
+    # Collect all unique integers across both reidentified and non-reidentified data
+    unique_ints_reid = set().union(*df_reidentified["twostephash"])
+    unique_ints_not_reid = set().union(*df_not_reidentified["twostephash"])
+    unique_ints_sorted = sorted(unique_ints_reid.union(unique_ints_not_reid))
+    unique_integers_dict = {i: val for i, val in enumerate(unique_ints_sorted)}
+    input_layer_size = len(unique_ints_sorted)
+
+    data_labeled = TwoStepHashDatasetOneHotEncoding(
+        df_reidentified,
+        is_labeled=True,
+        all_integers=unique_ints_sorted,
+        all_two_grams=all_two_grams,
+        dev_mode=GLOBAL_CONFIG["DevMode"]
+    )
+    data_not_labeled = TwoStepHashDatasetOneHotEncoding(
+        df_not_reidentified,
+        is_labeled=False,
+        all_integers=unique_ints_sorted,
+        all_two_grams=all_two_grams,
+        dev_mode=GLOBAL_CONFIG["DevMode"]
+    )
 
 # %%
-# Split proportions
+# Define dataset split proportions
 train_size = int(DEA_CONFIG["TrainSize"] * len(data_labeled))
 val_size = len(data_labeled) - train_size
 
-#Split dataset of reidentified individuals
+# Split the reidentified dataset into training and validation sets
 data_train, data_val = random_split(data_labeled, [train_size, val_size])
 
-# Create dataloader
-dataloader_train = DataLoader(data_train, batch_size=DEA_CONFIG["BatchSize"], shuffle=True)
-dataloader_val = DataLoader(data_val, batch_size=DEA_CONFIG["BatchSize"], shuffle=True)
-dataloader_test = DataLoader(data_not_labeled, batch_size=DEA_CONFIG["BatchSize"], shuffle=False)
+# Create DataLoaders for training, validation, and testing
+dataloader_train = DataLoader(
+    data_train,
+    batch_size=DEA_CONFIG["BatchSize"],
+    shuffle=True  # Important for training
+)
+
+dataloader_val = DataLoader(
+    data_val,
+    batch_size=DEA_CONFIG["BatchSize"],
+    shuffle=True  # Allows variation in validation batches
+)
+
+dataloader_test = DataLoader(
+    data_not_labeled,
+    batch_size=DEA_CONFIG["BatchSize"],
+    shuffle=True
+)
 
 # %% [markdown]
-# ## Pytorch Model
-
-# %% [markdown]
-# ## Training Loop
+# ## Hyperparameter Tuning Setup for Training
+#
+# This setup for hyperparameter tuning in a neural network model improves modularity, ensuring easy customization for experimentation.
+#
+# 1. **Model Initialization**:
+#    - The model is initialized using hyperparameters from the `config` dictionary, including the number of layers, hidden layer size, dropout rate, and activation function.
+#
+# 2. **Loss Function and Optimizer Selection**:
+#    - The loss function (`criterion`) and optimizer are selected dynamically from the `config` dictionary.
+#
+# 3. **Training & Validation Loop**:
+#    - The training and validation phases are handled in separate loops. The loss is computed at each step, and metrics are logged.
+#
+# 4. **Model Evaluation**:
+#    - After training, the model is evaluated on a test set, where 2-gram predictions are compared against the actual 2-grams.
+#    - **Dice similarity coefficient** is used as a metric to evaluate model performance.
+#
+# 5. **Custom Helper Functions**:
+#    - `extract_two_grams_batch()`: Extracts 2-grams for all samples in the batch.
+#    - `convert_to_two_gram_scores()`: Converts model output logits into 2-gram scores.
+#    - `filter_two_grams()`: Applies a threshold to filter 2-gram scores.
+#    - `filter_two_grams_per_uid()`: Filters and formats 2-gram predictions for each UID.
+#
+# 6. **Hyperparameter Tuning**:
+#    - The setup is integrated with **Ray Tune** (`tune.report`) to enable hyperparameter tuning by reporting the Dice similarity metric.
+#
 
 # %%
 def train_model(config):
+    # Initialize lists to store training and validation losses
     train_losses, val_losses = [], []
 
+    # Define and initialize model with hyperparameters from config
     model = BaseModel(
-    input_dim=bloomfilter_length,
-    num_two_grams=len(all_two_grams),
-    num_layers=config["num_layers"],
-    hidden_layer_size=config["hidden_layer_size"],
-    dropout_rate=config["dropout_rate"],
-    activation_fn=config["activation_fn"]
+        input_dim=input_layer_size,
+        num_two_grams=len(all_two_grams),
+        num_layers=config["num_layers"],
+        hidden_layer_size=config["hidden_layer_size"],
+        dropout_rate=config["dropout_rate"],
+        activation_fn=config["activation_fn"]
     )
 
-
+    # Set device for model (GPU or CPU)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    # Define possible loss functions
+    # Select loss function based on config
     loss_functions = {
-    "BCEWithLogitsLoss": nn.BCEWithLogitsLoss(),
-    "MultiLabelSoftMarginLoss": nn.MultiLabelSoftMarginLoss()
+        "BCEWithLogitsLoss": nn.BCEWithLogitsLoss(),
+        "MultiLabelSoftMarginLoss": nn.MultiLabelSoftMarginLoss()
     }
-
     criterion = loss_functions[config["loss_fn"]]
 
+    # Select optimizer based on config
     optimizers = {
         "Adam": optim.Adam(model.parameters(), lr=config["lr"]),
         "SGD": optim.SGD(model.parameters(), lr=config["lr"], momentum=0.9),
         "RMSprop": optim.RMSprop(model.parameters(), lr=config["lr"])
     }
-
     optimizer = optimizers[config["optimizer"]]
 
+    # Training loop
     for epoch in range(config["epochs"]):
-        # Training
+        # Training phase
         model.train()
-        running_loss = 0.0
-        for data, labels, _ in dataloader_train:
-            # Move data to device
-            data, labels = data.to(device), labels.to(device)
-            optimizer.zero_grad()
-            outputs = model(data)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item() * labels.size(0)
-        train_loss = running_loss / len(dataloader_train.dataset)
+        train_loss = run_epoch(model, dataloader_train, criterion, optimizer, device, is_training=True)
         train_losses.append(train_loss)
 
-        #Calculate true training loss?
-
-        #Validation
+        # Validation phase
         model.eval()
-        running_loss = 0.0
-        with torch.no_grad():
-            for data, labels, _ in dataloader_val:
-                # Move data to device
-                data, labels = data.to(device), labels.to(device)
+        val_loss = run_epoch(model, dataloader_val, criterion, optimizer, device, is_training=False)
+        val_losses.append(val_loss)
 
-                outputs = model(data)
-                loss = criterion(outputs, labels)
-                running_loss += loss.item() * labels.size(0)
-            val_loss = running_loss / len(dataloader_val.dataset)
-            val_losses.append(val_loss)
+        # Log metrics
+        log_metrics(train_loss, val_loss, epoch, config["epochs"])
 
-    # Switch to evaluation mode
+    # Test phase with reconstruction and evaluation
     model.eval()
-
-    # Define Threshhold
     threshold = DEA_CONFIG["FilterThreshold"]
+    sum_dice = 0
 
-    # Loop through the test dataloader
-    with torch.no_grad():  # No need to compute gradients during inference
+    with torch.no_grad():
         for data_batch, uids in dataloader_test:
-            # Filter relevant individuals from df_all_individuals
-            filtered_df = df_all_individuals[df_all_individuals["uid"].isin(uids)].drop(df_all_individuals.columns[-2], axis=1) # Drop encoding column
+            # Process the test data
+            filtered_df = df_all[df_all["uid"].isin(uids)].drop(df_all.columns[-2], axis=1)
+            actual_two_grams_batch = extract_two_grams_batch(filtered_df)
 
-            actual_two_grams_batch = []
-            for _, entry in filtered_df.iterrows():
-                row = entry[:-1] # Exclude UID
-                extracted_two_grams = extract_two_grams("".join(map(str, row)))
-                actual_two_grams_batch.append({"uid": entry["uid"], "two_grams": extracted_two_grams})
-
-            # Move data to device
+            # Move data to device and make predictions
             data_batch = data_batch.to(device)
-
-            # Apply model
             logits = model(data_batch)
-
-            # Convert logits to probabilities using sigmoid (for binary classification)
             probabilities = torch.sigmoid(logits)
 
-            # Convert probabilities into 2-gram scores (use two_gram_dict as before)
-            batch_two_gram_scores = [
-                {two_gram_dict[j]: score.item() for j, score in enumerate(probabilities[i])} #2: For each sample, go through all predicted probabilities (scores)
-                for i in range(probabilities.size(0))  # 1: Iterate over each sample in the batch
-            ]
+            # Convert probabilities into 2-gram scores
+            batch_two_gram_scores = convert_to_two_gram_scores(probabilities)
 
-            # Apply threshold to filter 2-gram scores (values above threshold are kept)
-            batch_filtered_two_gram_scores = [
-                {two_gram: score for two_gram, score in two_gram_scores.items() if score > threshold}
-                for two_gram_scores in batch_two_gram_scores
-            ]
+            # Filter out low-scoring 2-grams
+            batch_filtered_two_gram_scores = filter_two_grams(batch_two_gram_scores, threshold)
+            filtered_two_grams = combine_two_grams_with_uid(uids, batch_filtered_two_gram_scores)
 
-            filtered_two_grams = [
-            {"uid": uid, "two_grams": {key for key in two_grams.keys()}}
-            for uid, two_grams in zip(uids, batch_filtered_two_gram_scores)
-            ]
+            # Calculate Dice similarity for evaluation
+            sum_dice += calculate_dice_similarity(actual_two_grams_batch, filtered_two_grams)
 
-            sum_dice = 0
-            for entry_two_grams_batch in actual_two_grams_batch:  # Loop through each uid in the batch
-                for entry_filtered_two_grams in filtered_two_grams:
-                    if entry_two_grams_batch["uid"] == entry_filtered_two_grams["uid"]:
-                        dice_sim = dice_coefficient(entry_two_grams_batch["two_grams"], entry_filtered_two_grams["two_grams"])
-                        sum_dice += dice_sim
-    tune.report({"dice": sum(val_losses)})
+    # Report evaluation metric
+    tune.report({"dice": sum_dice})
 
+
+def run_epoch(model, dataloader, criterion, optimizer, device, is_training):
+    running_loss = 0.0
+    with torch.set_grad_enabled(is_training):
+        for data, labels, _ in dataloader:
+            data, labels = data.to(device), labels.to(device)
+            if is_training:
+                optimizer.zero_grad()
+
+            outputs = model(data)
+            loss = criterion(outputs, labels)
+
+            if is_training:
+                loss.backward()
+                optimizer.step()
+
+            running_loss += loss.item() * labels.size(0)
+
+    return running_loss / len(dataloader.dataset)
+
+
+def log_metrics(train_loss, val_loss, epoch, total_epochs):
+    print(f"Epoch {epoch + 1}/{total_epochs} - "
+          f"Train loss: {train_loss:.4f}, "
+          f"Validation loss: {val_loss:.4f}")
+
+
+def extract_two_grams_batch(df):
+    return [
+        {"uid": entry["uid"], "two_grams": extract_two_grams("".join(map(str, entry[:-1])))}
+        for _, entry in df.iterrows()
+    ]
+
+
+def convert_to_two_gram_scores(probabilities):
+    return [
+        {two_gram_dict[j]: score.item() for j, score in enumerate(probabilities[i])}
+        for i in range(probabilities.size(0))
+    ]
+
+
+def filter_two_grams(two_gram_scores, threshold):
+    return [
+        {two_gram: score for two_gram, score in two_gram_scores.items() if score > threshold}
+        for two_gram_scores in two_gram_scores
+    ]
+
+
+def combine_two_grams_with_uid(uids, filtered_two_gram_scores):
+    return [
+        {"uid": uid, "two_grams": {key for key in two_grams.keys()}}
+        for uid, two_grams in zip(uids, filtered_two_gram_scores)
+    ]
+
+def calculate_dice_similarity(actual_two_grams_batch, filtered_two_grams):
+    sum_dice = 0
+    for entry_two_grams_batch in actual_two_grams_batch:
+        for entry_filtered_two_grams in filtered_two_grams:
+            if entry_two_grams_batch["uid"] == entry_filtered_two_grams["uid"]:
+                sum_dice += dice_coefficient(entry_two_grams_batch["two_grams"], entry_filtered_two_grams["two_grams"])
+    return sum_dice
 
 # %%
-# Define extended search space
+# Define search space for hyperparameter optimization
 search_space = {
-    "num_layers": tune.randint(1, 8),  # Vary number of layers
-    "hidden_layer_size": tune.choice([128, 256, 512, 1024, 2048]),  # Size of hidden layers
-    "dropout_rate": tune.uniform(0.1, 0.4),  # Dropout
-    "activation_fn": tune.choice(["relu", "leaky_relu", "gelu"]),  # Activation function
-    "optimizer": tune.choice(["Adam", "SGD", "RMSprop"]),  # Optimizer selection
-    "loss_fn": tune.choice(["BCEWithLogitsLoss"]),  # Loss function selection
-    # "loss_fn": tune.choice(["BCEWithLogitsLoss", "MultiLabelSoftMarginLoss"]),  # Loss function selection
-    "lr": tune.loguniform(1e-5, 1e-2),  # Learning rate
-    "epochs": tune.randint(10, 20),  # Fixed number of epochs
+    "num_layers": tune.randint(1, 8),  # Vary the number of layers in the model
+    "hidden_layer_size": tune.choice([128, 256, 512, 1024, 2048]),  # Different sizes for hidden layers
+    "dropout_rate": tune.uniform(0.1, 0.4),  # Dropout rate between 0.1 and 0.4
+    "activation_fn": tune.choice(["relu", "leaky_relu", "gelu"]),  # Activation functions to choose from
+    "optimizer": tune.choice(["Adam", "SGD", "RMSprop"]),  # Optimizer options
+    "loss_fn": tune.choice(["BCEWithLogitsLoss"]),  # Loss function (currently using BCEWithLogitsLoss)
+    "lr": tune.loguniform(1e-5, 1e-2),  # Learning rate in a log-uniform range
+    "epochs": tune.randint(5, 30),  # Number of epochs between 10 and 20
 }
 
-# Run Ray Tune with Optuna
+# Initialize Ray for hyperparameter optimization
 ray.init(ignore_reinit_error=True)
 
+# Optuna Search Algorithm for optimizing the hyperparameters
 optuna_search = OptunaSearch(metric="dice", mode="max")
+
+# Use ASHAScheduler to manage trials and early stopping
 scheduler = ASHAScheduler(metric="dice", mode="max")
 
+# Define and configure the Tuner for Ray Tune
 tuner = tune.Tuner(
-    train_model,
+    train_model,  # The function to optimize (training function)
     tune_config=tune.TuneConfig(
-        search_alg=optuna_search,
-        scheduler=scheduler,
-        num_samples=50  # Number of trials
+        search_alg=optuna_search,  # Search strategy using Optuna
+        scheduler=scheduler,  # Use ASHA to manage the trials
+        num_samples=250  # Number of trials to run
     ),
-    param_space=search_space
+    param_space=search_space  # Pass in the defined hyperparameter search space
 )
 
+# Run the tuner
 results = tuner.fit()
-print("Best hyperparameters:", results.get_best_result(metric="dice", mode="max").config)
 
+# Output the best configuration based on the 'dice' metric
+best_config = results.get_best_result(metric="dice", mode="max").config
+print("Best hyperparameters:", best_config)
+
+# Shut down Ray after finishing the optimization
 ray.shutdown()
+
+# %%
+experiment_path = ""
+print(f"Loading results from {experiment_path}...")
+
+restored_tuner = tune.Tuner.restore(experiment_path, trainable=train_model)
+result_grid = restored_tuner.get_results()
+print(f"Restored {len(result_grid)} trials from the experiment.")
+
+# Get the result with the maximum `dice` metric
+best_result: Result = result_grid.get_best_result(metric="dice", mode="max")
+
+# Get the result with the minimum `mean_accuracy`
+worst_performing_result: Result = result_grid.get_best_result(
+    metric="dice", mode="min"
+)
+
+print(f"Best result: {best_result}")
+print(f"Worst performing result: {worst_performing_result}")
+
+# %%
+
 
 
