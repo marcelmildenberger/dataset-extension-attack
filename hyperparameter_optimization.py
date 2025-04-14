@@ -10,7 +10,6 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 import torchvision
 import ray
-from ray.tune import Result
 
 from utils import *
 
@@ -46,7 +45,7 @@ print('Pandas version', pd.__version__)
 # %%
 # Parameters
 GLOBAL_CONFIG = {
-    "Data": "./data/datasets/fakename_1k.tsv",
+    "Data": "./data/datasets/fakename_10k.tsv",
     "Overlap": 0.8,
     "DropFrom": "Eve",
     "Verbose": True,  # Print Status Messages
@@ -545,25 +544,19 @@ print("Best hyperparameters:", best_config)
 ray.shutdown()
 
 # %%
-experiment_path = ""
+experiment_path = "/Users/I538952/ray_results/train_model_2025-04-11_12-58-14"
 print(f"Loading results from {experiment_path}...")
 
+# Restore the tuner from a previous experiment
 restored_tuner = tune.Tuner.restore(experiment_path, trainable=train_model)
 result_grid = restored_tuner.get_results()
 print(f"Restored {len(result_grid)} trials from the experiment.")
 
-# Get the result with the maximum `dice` metric
-best_result: Result = result_grid.get_best_result(metric="dice", mode="max")
-
-# Get the result with the minimum `mean_accuracy`
-worst_performing_result: Result = result_grid.get_best_result(
-    metric="dice", mode="min"
-)
+# Get the best and worst result based on the "dice" metric
+best_result = result_grid.get_best_result(metric="dice", mode="max")
+worst_result = result_grid.get_best_result(metric="dice", mode="min")
 
 print(f"Best result: {best_result}")
-print(f"Worst performing result: {worst_performing_result}")
-
-# %%
-
+print(f"Worst result: {worst_result}")
 
 
