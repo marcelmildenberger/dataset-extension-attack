@@ -468,7 +468,7 @@ tuner = tune.Tuner(
     tune_config=tune.TuneConfig(
         search_alg=optuna_search,  # Search strategy using Optuna
         scheduler=scheduler,  # Use ASHA to manage the trials
-        num_samples=5  # Number of trials to run
+        num_samples=250  # Number of trials to run
     ),
     param_space=search_space  # Pass in the defined hyperparameter search space
 )
