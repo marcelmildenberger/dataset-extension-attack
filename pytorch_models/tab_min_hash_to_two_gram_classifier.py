@@ -1,7 +1,7 @@
 import torch.nn as nn
 
 class TabMinHashToTwoGramClassifier(nn.Module):
-    def __init__(self, input_dim, num_two_grams, hidden_layer=512):
+    def __init__(self, input_dim, output_dim, hidden_layer=512):
         super(TabMinHashToTwoGramClassifier, self).__init__()
 
         # Define the layers for multi-label classification of 2-grams
@@ -12,7 +12,7 @@ class TabMinHashToTwoGramClassifier(nn.Module):
         nn.Linear(hidden_layer, hidden_layer),  # First hidden layer => second hidden layer
         nn.ReLU(),
         nn.Dropout(0.2),
-        nn.Linear(hidden_layer, num_two_grams),  # Second hidden layer => output layer
+        nn.Linear(hidden_layer, output_dim),  # Second hidden layer => output layer
         )
 
     def forward(self, x):

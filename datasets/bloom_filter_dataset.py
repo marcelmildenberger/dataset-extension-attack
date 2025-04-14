@@ -2,10 +2,11 @@ from datasets.dataset_utils import *
 from torch.utils.data import Dataset
 
 class BloomFilterDataset(Dataset):
-    def __init__(self, data, is_labeled=False, all_two_grams=None, dev_mode=False):
+    def __init__(self, data, is_labeled=False, all_two_grams=None, dev_mode=False, reversed=False):
         self.isLabeled = is_labeled
         self.allTwoGrams = all_two_grams
         self.devMode = dev_mode
+        self.reveresed = reversed
 
         self.bitStringTensors = data['bloomfilter'].apply(lambda row: bit_string_to_tensor(list(row)))
         self.uids = data['uid']

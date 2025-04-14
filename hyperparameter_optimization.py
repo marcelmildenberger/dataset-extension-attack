@@ -32,7 +32,7 @@ from datasets.bloom_filter_dataset import BloomFilterDataset
 from datasets.tab_min_hash_dataset import TabMinHashDataset
 from datasets.two_step_hash_dataset_padding import TwoStepHashDatasetPadding
 from datasets.two_step_hash_dataset_frequency_string import TwoStepHashDatasetFrequencyString
-from datasets.two_step_hash_dataset_one_hot_encoding import TwoStepHashDatasetOneHotEncoding
+from datasets.two_step_hash_dataset import TwoStepHashDatasetOneHotEncoding
 
 from pytorch_models_hyperparameter_optimization.base_model import BaseModel
 

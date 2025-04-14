@@ -7,7 +7,7 @@ activation_functions = {
 }
 
 class BaseModel(nn.Module):
-    def __init__(self, input_dim, num_two_grams, num_layers, hidden_layer_size, dropout_rate, activation_fn):
+    def __init__(self, input_dim, output_dim, num_layers, hidden_layer_size, dropout_rate, activation_fn):
         super(BaseModel, self).__init__()
         layers = []
         layers.append(nn.Linear(input_dim, hidden_layer_size)) # Input layer
@@ -19,7 +19,7 @@ class BaseModel(nn.Module):
             layers.append(activation_functions[activation_fn])
             layers.append(nn.Dropout(dropout_rate))
 
-        layers.append(nn.Linear(hidden_layer_size, num_two_grams))  # Output layer
+        layers.append(nn.Linear(hidden_layer_size, output_dim))  # Output layer
         self.model = nn.Sequential(*layers)
 
     def forward(self, x):
