@@ -36,13 +36,12 @@ from graphMatching.gma import run_gma
 
 from datasets.bloom_filter_dataset import BloomFilterDataset
 from datasets.tab_min_hash_dataset import TabMinHashDataset
-from datasets.two_step_hash_dataset_padding import TwoStepHashDatasetPadding
-from datasets.two_step_hash_dataset_frequency_string import TwoStepHashDatasetFrequencyString
-from datasets.two_step_hash_dataset import TwoStepHashDatasetOneHotEncoding
+from datasets.two_step_hash_dataset import TwoStepHashDataset
 
 from pytorch_models.bloom_filter_to_two_gram_classifier import BloomFilterToTwoGramClassifier
 from pytorch_models.tab_min_hash_to_two_gram_classifier import TabMinHashToTwoGramClassifier
 from pytorch_models.two_step_hash_to_two_gram_classifier import TwoStepHashToTwoGramClassifier
+from pytorch_models.test_model import TestModel
 
 from early_stopping.early_stopping import EarlyStopping
 
@@ -61,8 +60,8 @@ print('Pandas version', pd.__version__)
 # Parameters
 GLOBAL_CONFIG = {
     "Data": "./data/datasets/fakename_1k.tsv",
-    "Overlap": 0.9985,
-    "DropFrom": "Both",
+    "Overlap": 0.8,
+    "DropFrom": "Eve",
     "Verbose": True,  # Print Status Messages
     "MatchingMetric": "cosine",
     "Matching": "MinWeight",
@@ -74,8 +73,6 @@ GLOBAL_CONFIG = {
 
 
 DEA_CONFIG = {
-    #Padding / FrequencyString / OneHotEncoding
-    "TSHMode": "OneHotEncoding",
     "DevMode": False,
     # BCEWithLogitsLoss / MultiLabelSoftMarginLoss
     "LossFunction:": "BCEWithLogitsLoss",
@@ -288,15 +285,7 @@ two_gram_dict = {i: two_gram for i, two_gram in enumerate(all_two_grams)}
 # - Loads `TabMinHashDataset`.
 # - Captures the length of each encoded vector.
 #
-# ### 3. Two-Step Hash with Padding Mode (`"TwoStepHash"` + `"Padding"`)
-# - Determines the **maximum set size** (i.e., number of hash values) to pad sets to equal length.
-# - Initializes datasets using `TwoStepHashDatasetPadding`.
-#
-# ### 4. Two-Step Hash with Frequency String Mode (`"TwoStepHash"` + `"FrequencyString"`)
-# - Finds the **maximum frequency value** for any hashed token.
-# - Initializes frequency-based vector datasets using `TwoStepHashDatasetFrequencyString`.
-#
-# ### 5. Two-Step Hash with One-Hot Encoding (`"TwoStepHash"` + `"OneHotEncoding"`)
+# ### 3. Two-Step Hash with One-Hot Encoding (`"TwoStepHash"`)
 # - Extracts all **unique hash values** to build a consistent one-hot vector space.
 # - Constructs datasets using `TwoStepHashDatasetOneHotEncoding`.
 #
@@ -308,7 +297,7 @@ two_gram_dict = {i: two_gram for i, two_gram in enumerate(all_two_grams)}
 #
 
 # %%
-# 1️⃣ Bloom Filter Encoding
+# 1️ Bloom Filter Encoding
 if ENC_CONFIG["AliceAlgo"] == "BloomFilter":
     data_labeled = BloomFilterDataset(
         df_reidentified,
@@ -324,7 +313,7 @@ if ENC_CONFIG["AliceAlgo"] == "BloomFilter":
     )
     bloomfilter_length = len(df_reidentified["bloomfilter"][0])
 
-# 2️⃣ Tabulation MinHash Encoding
+# 2️ Tabulation MinHash Encoding
 elif ENC_CONFIG["AliceAlgo"] == "TabMinHash":
     data_labeled = TabMinHashDataset(
         df_reidentified,
@@ -340,64 +329,22 @@ elif ENC_CONFIG["AliceAlgo"] == "TabMinHash":
     )
     tabminhash_length = len(df_reidentified["tabminhash"][0])
 
-# 3️⃣ Two-Step Hash Encoding (Padding Mode)
-elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash" and DEA_CONFIG["TSHMode"] == "Padding":
-    max_len_reid = df_reidentified["twostephash"].apply(lambda x: len(list(x))).max()
-    max_len_not_reid = df_not_reidentified["twostephash"].apply(lambda x: len(list(x))).max()
-    max_twostephash_length = max(max_len_reid, max_len_not_reid)
-
-    data_labeled = TwoStepHashDatasetPadding(
-        df_reidentified,
-        is_labeled=True,
-        all_two_grams=all_two_grams,
-        max_set_size=max_twostephash_length,
-        dev_mode=GLOBAL_CONFIG["DevMode"]
-    )
-    data_not_labeled = TwoStepHashDatasetPadding(
-        df_not_reidentified,
-        is_labeled=False,
-        all_two_grams=all_two_grams,
-        max_set_size=max_twostephash_length,
-        dev_mode=GLOBAL_CONFIG["DevMode"]
-    )
-
-# 4️⃣ Two-Step Hash Encoding (Frequency String Mode)
-elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash" and DEA_CONFIG["TSHMode"] == "FrequencyString":
-    max_len_reid = df_reidentified["twostephash"].apply(lambda x: max(x)).max()
-    max_len_not_reid = df_not_reidentified["twostephash"].apply(lambda x: max(x)).max()
-    max_twostephash_length = max(max_len_reid, max_len_not_reid)
-
-    data_labeled = TwoStepHashDatasetFrequencyString(
-        df_reidentified,
-        is_labeled=True,
-        all_two_grams=all_two_grams,
-        frequency_string_length=max_twostephash_length,
-        dev_mode=GLOBAL_CONFIG["DevMode"]
-    )
-    data_not_labeled = TwoStepHashDatasetFrequencyString(
-        df_not_reidentified,
-        is_labeled=False,
-        all_two_grams=all_two_grams,
-        frequency_string_length=max_twostephash_length,
-        dev_mode=GLOBAL_CONFIG["DevMode"]
-    )
-
-# 5️⃣ Two-Step Hash Encoding (One-Hot Encoding Mode)
-elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash" and DEA_CONFIG["TSHMode"] == "OneHotEncoding":
+# 3 Two-Step Hash Encoding (One-Hot Encoding Mode)
+elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash":
     # Collect all unique integers across both reidentified and non-reidentified data
     unique_ints_reid = set().union(*df_reidentified["twostephash"])
     unique_ints_not_reid = set().union(*df_not_reidentified["twostephash"])
     unique_ints_sorted = sorted(unique_ints_reid.union(unique_ints_not_reid))
     unique_integers_dict = {i: val for i, val in enumerate(unique_ints_sorted)}
 
-    data_labeled = TwoStepHashDatasetOneHotEncoding(
+    data_labeled = TwoStepHashDataset(
         df_reidentified,
         is_labeled=True,
         all_integers=unique_ints_sorted,
         all_two_grams=all_two_grams,
         dev_mode=GLOBAL_CONFIG["DevMode"]
     )
-    data_not_labeled = TwoStepHashDatasetOneHotEncoding(
+    data_not_labeled = TwoStepHashDataset(
         df_not_reidentified,
         is_labeled=False,
         all_integers=unique_ints_sorted,
@@ -468,44 +415,37 @@ dataloader_test = DataLoader(
 #   - Input: Tabulated MinHash signature
 #   - Output: 2-gram prediction
 #
-# - **TwoStepHash**
-#   - **Padding Mode** → `TwoStepHashToTwoGramClassifier`
-#   - **FrequencyString** → `TabMinHashToTwoGramClassifier`
-#   - **OneHotEncoding** → `TabMinHashToTwoGramClassifier`
+# - **TwoStepHash** → `TwoStepHashToTwoGramClassifier`
+#   - Input: Length of the unique integers present
+#   - Output: 2-gram predicition
 #
 # Each model outputs predictions over the set of all possible 2-grams (`all_two_grams`), and the input dimension is dynamically configured based on the dataset.
 #
+
+# %%
+model = TestModel(
+    input_dim=bloomfilter_length,
+    output_dim=len(all_two_grams),
+)
 
 # %%
 # Instantiate model based on selected encoding scheme
 if ENC_CONFIG["AliceAlgo"] == "BloomFilter":
     model = BloomFilterToTwoGramClassifier(
         input_dim=bloomfilter_length,
-        num_two_grams=len(all_two_grams)
+        output_dim=len(all_two_grams)
     )
 
 elif ENC_CONFIG["AliceAlgo"] == "TabMinHash":
     model = TabMinHashToTwoGramClassifier(
         input_dim=tabminhash_length,
-        num_two_grams=len(all_two_grams)
+        output_dim=len(all_two_grams)
     )
 
-elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash" and DEA_CONFIG["TSHMode"] == "Padding":
+elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash":
     model = TwoStepHashToTwoGramClassifier(
-        input_dim=max_twostephash_length,
-        num_two_grams=len(all_two_grams)
-    )
-
-elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash" and DEA_CONFIG["TSHMode"] == "FrequencyString":
-    model = TabMinHashToTwoGramClassifier(
-        input_dim=max_twostephash_length,
-        num_two_grams=len(all_two_grams)
-    )
-
-elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash" and DEA_CONFIG["TSHMode"] == "OneHotEncoding":
-    model = TabMinHashToTwoGramClassifier(
         input_dim=len(unique_ints_sorted),
-        num_two_grams=len(all_two_grams)
+        output_dim=len(all_two_grams)
     )
 
 # %% [markdown]
@@ -517,7 +457,6 @@ elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash" and DEA_CONFIG["TSHMode"] == "OneH
 #     - Loss function type
 #     - Optimizer choice
 #     - Alice's algorithm
-#     - TSH mode
 #     - Initializes TensorBoard writer in runs directory
 # 2. Device Configuration
 #     - Automatically selects GPU if available, falls back to CPU
@@ -537,7 +476,6 @@ run_name = "".join([
     DEA_CONFIG["LossFunction:"],
     DEA_CONFIG["Optimizer"],
     ENC_CONFIG["AliceAlgo"],
-    DEA_CONFIG["TSHMode"]
 ])
 tb_writer = SummaryWriter(f"runs/{run_name}")
 

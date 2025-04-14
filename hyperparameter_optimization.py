@@ -30,9 +30,7 @@ from graphMatching.gma import run_gma
 
 from datasets.bloom_filter_dataset import BloomFilterDataset
 from datasets.tab_min_hash_dataset import TabMinHashDataset
-from datasets.two_step_hash_dataset_padding import TwoStepHashDatasetPadding
-from datasets.two_step_hash_dataset_frequency_string import TwoStepHashDatasetFrequencyString
-from datasets.two_step_hash_dataset import TwoStepHashDatasetOneHotEncoding
+from datasets.two_step_hash_dataset import TwoStepHashDataset
 
 from pytorch_models_hyperparameter_optimization.base_model import BaseModel
 
@@ -59,8 +57,6 @@ GLOBAL_CONFIG = {
 
 
 DEA_CONFIG = {
-    #Padding / FrequencyString / OneHotEncoding
-    "TSHMode": "OneHotEncoding",
     "DevMode": False,
     "BatchSize": 32,
     # TestSize calculated accordingly
@@ -239,50 +235,8 @@ elif ENC_CONFIG["AliceAlgo"] == "TabMinHash":
     )
     input_layer_size = len(df_reidentified["tabminhash"][0])
 
-# 3️⃣ Two-Step Hash Encoding (Padding Mode)
-elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash" and DEA_CONFIG["TSHMode"] == "Padding":
-    max_len_reid = df_reidentified["twostephash"].apply(lambda x: len(list(x))).max()
-    max_len_not_reid = df_not_reidentified["twostephash"].apply(lambda x: len(list(x))).max()
-    input_layer_size = max(max_len_reid, max_len_not_reid)
-
-    data_labeled = TwoStepHashDatasetPadding(
-        df_reidentified,
-        is_labeled=True,
-        all_two_grams=all_two_grams,
-        max_set_size=input_layer_size,
-        dev_mode=GLOBAL_CONFIG["DevMode"]
-    )
-    data_not_labeled = TwoStepHashDatasetPadding(
-        df_not_reidentified,
-        is_labeled=False,
-        all_two_grams=all_two_grams,
-        max_set_size=input_layer_size,
-        dev_mode=GLOBAL_CONFIG["DevMode"]
-    )
-
-# 4️⃣ Two-Step Hash Encoding (Frequency String Mode)
-elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash" and DEA_CONFIG["TSHMode"] == "FrequencyString":
-    max_len_reid = df_reidentified["twostephash"].apply(lambda x: max(x)).max()
-    max_len_not_reid = df_not_reidentified["twostephash"].apply(lambda x: max(x)).max()
-    input_layer_size = max(max_len_reid, max_len_not_reid)
-
-    data_labeled = TwoStepHashDatasetFrequencyString(
-        df_reidentified,
-        is_labeled=True,
-        all_two_grams=all_two_grams,
-        frequency_string_length=input_layer_size,
-        dev_mode=GLOBAL_CONFIG["DevMode"]
-    )
-    data_not_labeled = TwoStepHashDatasetFrequencyString(
-        df_not_reidentified,
-        is_labeled=False,
-        all_two_grams=all_two_grams,
-        frequency_string_length=input_layer_size,
-        dev_mode=GLOBAL_CONFIG["DevMode"]
-    )
-
-# 5️⃣ Two-Step Hash Encoding (One-Hot Encoding Mode)
-elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash" and DEA_CONFIG["TSHMode"] == "OneHotEncoding":
+# 3 Two-Step Hash Encoding (One-Hot Encoding Mode)
+elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash":
     # Collect all unique integers across both reidentified and non-reidentified data
     unique_ints_reid = set().union(*df_reidentified["twostephash"])
     unique_ints_not_reid = set().union(*df_not_reidentified["twostephash"])
@@ -290,14 +244,14 @@ elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash" and DEA_CONFIG["TSHMode"] == "OneH
     unique_integers_dict = {i: val for i, val in enumerate(unique_ints_sorted)}
     input_layer_size = len(unique_ints_sorted)
 
-    data_labeled = TwoStepHashDatasetOneHotEncoding(
+    data_labeled = TwoStepHashDataset(
         df_reidentified,
         is_labeled=True,
         all_integers=unique_ints_sorted,
         all_two_grams=all_two_grams,
         dev_mode=GLOBAL_CONFIG["DevMode"]
     )
-    data_not_labeled = TwoStepHashDatasetOneHotEncoding(
+    data_not_labeled = TwoStepHashDataset(
         df_not_reidentified,
         is_labeled=False,
         all_integers=unique_ints_sorted,
@@ -368,7 +322,7 @@ def train_model(config):
     # Define and initialize model with hyperparameters from config
     model = BaseModel(
         input_dim=input_layer_size,
-        num_two_grams=len(all_two_grams),
+        output_dim=len(all_two_grams),
         num_layers=config["num_layers"],
         hidden_layer_size=config["hidden_layer_size"],
         dropout_rate=config["dropout_rate"],
