@@ -355,9 +355,6 @@ def train_model(config):
         val_loss = run_epoch(model, dataloader_val, criterion, optimizer, device, is_training=False)
         val_losses.append(val_loss)
 
-        # Log metrics
-        log_metrics(train_loss, val_loss, epoch, config["epochs"])
-
     # Test phase with reconstruction and evaluation
     model.eval()
     threshold = DEA_CONFIG["FilterThreshold"]
