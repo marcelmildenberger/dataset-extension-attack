@@ -26,4 +26,4 @@ galois~=0.4.4
 primality~=0.0.6
 ray[tune]~=2.9.3
 optuna~=3.6.1
-tensorboard
+tensorboard~=2.13.0

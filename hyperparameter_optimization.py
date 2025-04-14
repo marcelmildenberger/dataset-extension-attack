@@ -9,7 +9,14 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 import torchvision
+
 import ray
+from ray.air import session
+from ray import tune
+from ray import train
+from ray.tune.search.optuna import OptunaSearch
+from ray.tune.schedulers import ASHAScheduler
+
 
 from utils import *
 
@@ -20,12 +27,6 @@ import numpy as np
 import string
 import sys
 
-from ray.air import session
-
-from ray import tune
-from ray.tune.search.optuna import OptunaSearch
-from ray.tune.schedulers import ASHAScheduler
-
 from graphMatching.gma import run_gma
 
 from datasets.bloom_filter_dataset import BloomFilterDataset
@@ -33,12 +34,6 @@ from datasets.tab_min_hash_dataset import TabMinHashDataset
 from datasets.two_step_hash_dataset import TwoStepHashDataset
 
 from pytorch_models_hyperparameter_optimization.base_model import BaseModel
-
-print('System Version:', sys.version)
-print('PyTorch version', torch.__version__)
-print('Torchvision version', torchvision.__version__)
-print('Numpy version', np.__version__)
-print('Pandas version', pd.__version__)
 
 # %%
 # Parameters
@@ -390,7 +385,7 @@ def train_model(config):
             sum_dice += calculate_dice_similarity(actual_two_grams_batch, filtered_two_grams)
 
     # Report evaluation metric
-    tune.report({"dice": sum_dice})
+    train.report({"dice": sum_dice})
 
 
 def run_epoch(model, dataloader, criterion, optimizer, device, is_training):
@@ -411,12 +406,6 @@ def run_epoch(model, dataloader, criterion, optimizer, device, is_training):
             running_loss += loss.item() * labels.size(0)
 
     return running_loss / len(dataloader.dataset)
-
-
-def log_metrics(train_loss, val_loss, epoch, total_epochs):
-    print(f"Epoch {epoch + 1}/{total_epochs} - "
-          f"Train loss: {train_loss:.4f}, "
-          f"Validation loss: {val_loss:.4f}")
 
 
 def extract_two_grams_batch(df):
@@ -482,7 +471,7 @@ tuner = tune.Tuner(
     tune_config=tune.TuneConfig(
         search_alg=optuna_search,  # Search strategy using Optuna
         scheduler=scheduler,  # Use ASHA to manage the trials
-        num_samples=250  # Number of trials to run
+        num_samples=5  # Number of trials to run
     ),
     param_space=search_space  # Pass in the defined hyperparameter search space
 )
@@ -498,19 +487,14 @@ print("Best hyperparameters:", best_config)
 ray.shutdown()
 
 # %%
-experiment_path = "/Users/I538952/ray_results/train_model_2025-04-11_12-58-14"
-print(f"Loading results from {experiment_path}...")
+experiment_path = ""
 
 # Restore the tuner from a previous experiment
 restored_tuner = tune.Tuner.restore(experiment_path, trainable=train_model)
 result_grid = restored_tuner.get_results()
-print(f"Restored {len(result_grid)} trials from the experiment.")
 
 # Get the best and worst result based on the "dice" metric
 best_result = result_grid.get_best_result(metric="dice", mode="max")
 worst_result = result_grid.get_best_result(metric="dice", mode="min")
-
-print(f"Best result: {best_result}")
-print(f"Worst result: {worst_result}")
 
 
