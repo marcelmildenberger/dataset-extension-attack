@@ -135,4 +135,19 @@ def dice_coefficient(set1: set, set2: set) -> float:
     intersection = len(set1 & set2)
     return round((2 * intersection) / (len(set1) + len(set2)),4)
 
+def precision_recall_f1(y_true, y_pred):
+    true_set = set(y_true)
+    pred_set = set(y_pred)
+
+    tp = len(true_set & pred_set)
+    fp = len(pred_set - true_set)
+    fn = len(true_set - pred_set)
+
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    f1 = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+
+    return precision, recall, f1
+
+
 

@@ -4,6 +4,9 @@
 # %%
 import os
 
+from datetime import datetime
+import seaborn as sns
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -63,7 +66,7 @@ DEA_CONFIG = {
 
 ENC_CONFIG = {
     # TwoStepHash / TabMinHash / BloomFilter
-    "AliceAlgo": "BloomFilter",
+    "AliceAlgo": "TabMinHash",
     "AliceSecret": "SuperSecretSalt1337",
     "AliceN": 2,
     "AliceMetric": "dice",
@@ -313,6 +316,7 @@ dataloader_test = DataLoader(
 def train_model(config):
     # Initialize lists to store training and validation losses
     train_losses, val_losses = [], []
+    total_precision = total_recall = total_f1 = total_dice = 0.0
 
     # Define and initialize model with hyperparameters from config
     model = BaseModel(
@@ -358,7 +362,6 @@ def train_model(config):
     # Test phase with reconstruction and evaluation
     model.eval()
     threshold = DEA_CONFIG["FilterThreshold"]
-    sum_dice = 0
 
     with torch.no_grad():
         for data_batch, uids in dataloader_test:
@@ -378,11 +381,26 @@ def train_model(config):
             batch_filtered_two_gram_scores = filter_two_grams(batch_two_gram_scores, threshold)
             filtered_two_grams = combine_two_grams_with_uid(uids, batch_filtered_two_gram_scores)
 
-            # Calculate Dice similarity for evaluation
-            sum_dice += calculate_dice_similarity(actual_two_grams_batch, filtered_two_grams)
 
-    # Report evaluation metric
-    train.report({"dice": sum_dice})
+            dice, precision, recall, f1 = calculate_performance_metrics(
+                actual_two_grams_batch, filtered_two_grams)
+            # Calculate Dice similarity for evaluation
+            total_dice += dice
+            total_precision += precision
+            total_recall += recall
+            total_f1 += f1
+        n = len(dataloader_test)
+        train.report({
+                "precision": total_precision,
+                "recall": total_recall,
+                "f1": total_f1,
+                "dice": total_dice,
+                "average_dice": total_dice / n,
+                "average_precision": total_precision / n,
+                "average_recall": total_recall / n,
+                "average_f1": total_f1 / n,
+            })
+
 
 
 def run_epoch(model, dataloader, criterion, optimizer, device, is_training):
@@ -432,13 +450,21 @@ def combine_two_grams_with_uid(uids, filtered_two_gram_scores):
         for uid, two_grams in zip(uids, filtered_two_gram_scores)
     ]
 
-def calculate_dice_similarity(actual_two_grams_batch, filtered_two_grams):
+def calculate_performance_metrics(actual_two_grams_batch, filtered_two_grams):
+    sum_precision = 0
+    sum_recall = 0
+    sum_f1 = 0
     sum_dice = 0
     for entry_two_grams_batch in actual_two_grams_batch:
         for entry_filtered_two_grams in filtered_two_grams:
             if entry_two_grams_batch["uid"] == entry_filtered_two_grams["uid"]:
+                precision, recall, f1 = precision_recall_f1(entry_two_grams_batch["two_grams"], entry_filtered_two_grams["two_grams"])
                 sum_dice += dice_coefficient(entry_two_grams_batch["two_grams"], entry_filtered_two_grams["two_grams"])
-    return sum_dice
+                sum_precision += precision
+                sum_recall += recall
+                sum_f1 += f1
+    return sum_dice, sum_precision, sum_recall, sum_f1
+
 
 # %%
 # Define search space for hyperparameter optimization
@@ -469,7 +495,7 @@ tuner = tune.Tuner(
         search_alg=optuna_search,  # Search strategy using Optuna
         scheduler=scheduler,  # Use ASHA to manage the trials
         num_samples=250,  # Number of trials to run
-        max_concurrent_trials=2  # or 1 if your models are heavy
+        max_concurrent_trials=4  # or 1 if your models are heavy
     ),
     param_space=search_space  # Pass in the defined hyperparameter search space
 )
@@ -477,22 +503,85 @@ tuner = tune.Tuner(
 # Run the tuner
 results = tuner.fit()
 
-# Output the best configuration based on the 'dice' metric
-best_config = results.get_best_result(metric="dice", mode="max").config
-print("Best hyperparameters:", best_config)
-
 # Shut down Ray after finishing the optimization
 ray.shutdown()
 
 # %%
-experiment_path = ""
+experiment_tag = "experiment_" + ENC_CONFIG["AliceAlgo"] + "_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+save_to = f"experiment_results/{experiment_tag}"
+os.makedirs(save_to, exist_ok=True)
+result_grid = results
 
-# Restore the tuner from a previous experiment
-restored_tuner = tune.Tuner.restore(experiment_path, trainable=train_model)
-result_grid = restored_tuner.get_results()
-
-# Get the best and worst result based on the "dice" metric
+# Best and worst result based on dice
 best_result = result_grid.get_best_result(metric="dice", mode="max")
 worst_result = result_grid.get_best_result(metric="dice", mode="min")
+
+# Combine configs and metrics into a DataFrame
+df = pd.DataFrame([
+    {
+        **result.config,
+        **{k: result.metrics.get(k) for k in ["precision", "recall", "f1", "dice", "average_dice", "average_precision", "average_recall", "average_f1"]},
+    }
+    for result in result_grid
+])
+
+# Save to CSV
+df.to_csv(f"{save_to}/all_trial_results.csv", index=False)
+print("✅ Results saved to all_trial_results.csv")
+
+def print_result(label, result):
+    print(f"\n🔍 {label}")
+    print("-" * 40)
+    print(f"Config: {result.config}")
+    print(f"Dice Score: {result.metrics.get('dice'):.4f}")
+    print(f"Precision:  {result.metrics.get('precision'):.4f}")
+    print(f"Recall:     {result.metrics.get('recall'):.4f}")
+    print(f"F1 Score:   {result.metrics.get('f1'):.4f}")
+    print(f"Average Dice: {result.metrics.get('average_dice'):.4f}")
+    print(f"Average Precision: {result.metrics.get('average_precision'):.4f}")
+    print(f"Average Recall: {result.metrics.get('average_recall'):.4f}")
+    print(f"Average F1: {result.metrics.get('average_f1'):.4f}")
+
+    result_dict = {**result.config, **result.metrics}
+    result_dict.pop("config", None)
+    result_dict.pop("checkpoint_dir_name", None)
+    result_dict.pop("experiment_tag", None)
+    # Convert to a DataFrame and save
+    df = pd.DataFrame([result_dict])
+    df.to_csv(f"{save_to}/{label}.csv", index=False)
+
+print_result("Best_Result", best_result)
+print_result("Worst_Result", worst_result)
+
+# Compute and print average metrics
+print("\n📊 Average Metrics Across All Trials")
+avg_metrics = df[["precision", "recall", "f1", "dice", "average_dice", "average_precision", "average_recall", "average_f1"]].mean()
+print("-" * 40)
+for key, value in avg_metrics.items():
+    print(f"{key.capitalize()}: {value:.4f}")
+
+# --- 📈 Plotting performance metrics ---
+plt.figure(figsize=(12, 6))
+sns.boxplot(data=df[["precision", "recall", "f1", "dice"]])
+plt.title("Distribution of Performance Metrics Across Trials")
+plt.grid(True)
+plt.savefig(f"{save_to}/metric_distributions.png")
+plt.show()
+print("📊 Saved plot: metric_distributions.png")
+
+# --- 📌 Correlation between config params and performance ---
+# Only include numeric config columns
+numeric_config_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
+correlation_df = df[numeric_config_cols].corr()
+
+# Plot heatmap
+plt.figure(figsize=(12, 8))
+sns.heatmap(correlation_df, annot=True, cmap="coolwarm", fmt=".2f")
+plt.title("Correlation Between Parameters and Metrics")
+plt.tight_layout()
+plt.savefig(f"{save_to}/correlation_heatmap.png")
+plt.show()
+print("📌 Saved heatmap: correlation_heatmap.png")
+
 
 

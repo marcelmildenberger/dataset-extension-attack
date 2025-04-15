@@ -59,7 +59,7 @@ print('Pandas version', pd.__version__)
 # %%
 # Parameters
 GLOBAL_CONFIG = {
-    "Data": "./data/datasets/fakename_1k.tsv",
+    "Data": "./data/datasets/fakename_5k.tsv",
     "Overlap": 0.8,
     "DropFrom": "Eve",
     "Verbose": True,  # Print Status Messages
@@ -78,16 +78,17 @@ DEA_CONFIG = {
     "LossFunction:": "BCEWithLogitsLoss",
     # Adam / AdamW / SGD / RMSprop
     "Optimizer": "Adam",
-    "LearningRate": 0.001,
+    "LearningRate": 0.0005149157768571977,
     # SGD only
     "Momentum": 0.9,
     "BatchSize": 16,
-    "Epochs": 20,
+    "Epochs": 27,
     # TestSize calculated accordingly
     "TrainSize": 0.8,
     "FilterThreshold": 0.5,
     "Patience": 5,
     "MinDelta": 0.001,
+    "TestModel": True
 }
 
 ENC_CONFIG = {
@@ -423,14 +424,18 @@ dataloader_test = DataLoader(
 #
 
 # %%
-model = TestModel(
-    input_dim=bloomfilter_length,
-    output_dim=len(all_two_grams),
-)
-
-# %%
 # Instantiate model based on selected encoding scheme
-if ENC_CONFIG["AliceAlgo"] == "BloomFilter":
+
+if DEA_CONFIG["TestModel"]:
+    model = TestModel(
+        input_dim=bloomfilter_length,
+        output_dim=len(all_two_grams),
+        hidden_layer=2048,
+        num_layers=1,
+        dropout_rate=0.220451802221184,
+    )
+
+elif ENC_CONFIG["AliceAlgo"] == "BloomFilter":
     model = BloomFilterToTwoGramClassifier(
         input_dim=bloomfilter_length,
         output_dim=len(all_two_grams)
@@ -662,6 +667,7 @@ plt.show()
 # List to store decoded 2-gram scores for all test samples
 decoded_test_results_words = []
 combined_results_performance = []
+total_precision = total_recall = total_f1 = total_dice = 0.0
 
 # Switch to evaluation mode (no gradient computation during inference)
 model.eval()
@@ -722,15 +728,42 @@ with torch.no_grad():  # No need to compute gradients during inference
             for entry_filtered_two_grams in filtered_two_grams:
                 if entry_two_grams_batch["uid"] == entry_filtered_two_grams["uid"]:
                     # Calculate Dice similarity between actual and predicted 2-grams
+                    precision, recall, f1 = precision_recall_f1(
+                        entry_two_grams_batch["two_grams"],
+                        entry_filtered_two_grams["two_grams"]
+                    )
+                    dice = dice_coefficient(
+                        entry_two_grams_batch["two_grams"],
+                        entry_filtered_two_grams["two_grams"]
+                    )
+                    total_precision += precision
+                    total_recall += recall
+                    total_f1 += f1
+                    total_dice += dice
+
                     combined_results_performance.append({
                         "uid": entry_two_grams_batch["uid"],
                         "actual_two_grams": entry_two_grams_batch["two_grams"],  # Get actual 2-grams for this UID
                         "predicted_two_grams": entry_filtered_two_grams["two_grams"],  # Get predicted 2-grams for this UID
-                        "dice_similarity": dice_coefficient(entry_two_grams_batch["two_grams"], entry_filtered_two_grams["two_grams"]),
+                        "dice_similarity": dice,
+                        "precision": precision,
+                        "recall": recall,
+                        "f1_score": f1,
                     })
+        n = len(combined_results_performance)
+
+        average_precision = total_precision / n
+        average_recall = total_recall / n
+        average_f1 = total_f1 / n
+        average_dice = total_dice / n
+
 
 # Now `combined_results_performance` contains detailed comparison for all test samples
 print(combined_results_performance)
+print (f"Average Precision: {average_precision}")
+print (f"Average Recall: {average_recall}")
+print (f"Average F1 Score: {average_f1}")
+print (f"Average Dice Similarity: {average_dice}")
 
 
 # %%
@@ -741,59 +774,5 @@ sys.exit("Stopping execution at this cell.")
 
 # %% [markdown]
 # ## Testing Area
-
-# %%
-print('Reidentified Individuals:')
-print(df_reidentified.head())
-print('Not Reidentified Individuals:')
-print(df_not_reidentified.head())
-
-# %%
-data_labeled.labelTensors[1]
-
-# %%
-for data, labels in dataloader_train:
-    data, labels = data.to(compute_device), labels.to(compute_device)
-    print(data.shape)
-    print(labels.shape)
-    break
-
-# %%
-print("To Decode: ",df_not_reidentified.iloc[1])
-torch.set_printoptions(profile="full")
-#torch.set_printoptions(profile="default")
-print("Tensor: ", data_not_labeled[1])
-# Apply model
-model.eval()
-logits = model(data_not_labeled[1])
-probabilities = torch.sigmoid(logits)
-print("Prob: ", probabilities)
-two_gram_scores = {two_gram_dict[i]: score.item() for i, score in enumerate(probabilities)}
-threshold = 0.5
-filtered_two_gram_scores = {two_gram: score for two_gram, score in two_gram_scores.items() if score > threshold}
-print("Decoded 2grams: ", filtered_two_gram_scores)
-
-print(reconstruct_words(filtered_two_gram_scores))
-
-# person is: Ray Haywood 9/27/1959
-# ra -
-
-# %%
-model = nn.Linear(20, 5) # predict logits for 5 classes
-x = torch.randn(1, 20)
-print(x.shape)
-y = torch.tensor([[1., 0., 1., 0., 0.]]) # get classA and classC as active
-print(y.shape)
-
-criterion = nn.BCEWithLogitsLoss()
-optimizer = optim.SGD(model.parameters(), lr=1e-1)
-
-for epoch in range(20):
-    optimizer.zero_grad()
-    output = model(x)
-    loss = criterion(output, y)
-    loss.backward()
-    optimizer.step()
-    print('Loss: {:.3f}'.format(loss.item()))
 
 

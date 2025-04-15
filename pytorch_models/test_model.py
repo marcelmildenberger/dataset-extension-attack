@@ -26,4 +26,4 @@ class TestModel(nn.Module):
         return output
 
 
-# Best hyperparameters: {'num_layers': 4, 'hidden_layer_size': 256, 'dropout_rate': 0.4844135931365565, 'activation_fn': 'gelu', 'optimizer': 'SGD', 'loss_fn': 'MultiLabelSoftMarginLoss', 'lr': 1.5087644320080698e-05, 'epochs': 29}
+# Best hyperparameters BF 250 trial: {'num_layers': 1, 'hidden_layer_size': 2048, 'dropout_rate': 0.220451802221184, 'activation_fn': 'relu', 'optimizer': 'Adam', 'loss_fn': 'BCEWithLogitsLoss', 'lr': 0.0005149157768571977, 'epochs': 27}
