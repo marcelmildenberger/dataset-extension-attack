@@ -66,7 +66,7 @@ DEA_CONFIG = {
 
 ENC_CONFIG = {
     # TwoStepHash / TabMinHash / BloomFilter
-    "AliceAlgo": "TabMinHash",
+    "AliceAlgo": "TwoStepHash",
     "AliceSecret": "SuperSecretSalt1337",
     "AliceN": 2,
     "AliceMetric": "dice",
@@ -317,6 +317,7 @@ def train_model(config):
     # Initialize lists to store training and validation losses
     train_losses, val_losses = [], []
     total_precision = total_recall = total_f1 = total_dice = 0.0
+    n = 0
 
     # Define and initialize model with hyperparameters from config
     model = BaseModel(
@@ -379,27 +380,28 @@ def train_model(config):
 
             # Filter out low-scoring 2-grams
             batch_filtered_two_gram_scores = filter_two_grams(batch_two_gram_scores, threshold)
-            filtered_two_grams = combine_two_grams_with_uid(uids, batch_filtered_two_gram_scores)
+            filtered_two_grams_with_uid = combine_two_grams_with_uid(uids, batch_filtered_two_gram_scores)
 
 
             dice, precision, recall, f1 = calculate_performance_metrics(
-                actual_two_grams_batch, filtered_two_grams)
+                actual_two_grams_batch, filtered_two_grams_with_uid)
             # Calculate Dice similarity for evaluation
             total_dice += dice
             total_precision += precision
             total_recall += recall
             total_f1 += f1
-        n = len(dataloader_test)
-        train.report({
-                "precision": total_precision,
-                "recall": total_recall,
-                "f1": total_f1,
-                "dice": total_dice,
-                "average_dice": total_dice / n,
-                "average_precision": total_precision / n,
-                "average_recall": total_recall / n,
-                "average_f1": total_f1 / n,
-            })
+            n += data_batch.size(0)
+
+    train.report({
+            "precision": total_precision,
+            "recall": total_recall,
+            "f1": total_f1,
+            "dice": total_dice,
+            "average_dice": total_dice / n,
+            "average_precision": total_precision / n,
+            "average_recall": total_recall / n,
+            "average_f1": total_f1 / n,
+        })
 
 
 
