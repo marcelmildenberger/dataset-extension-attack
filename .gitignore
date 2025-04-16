@@ -6,3 +6,5 @@
 /runs/*
 /experiment_results/*
 !/experiment_results/ignore_me
+/runs/*
+!/runs/ignore_me
