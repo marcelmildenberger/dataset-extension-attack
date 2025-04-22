@@ -2,6 +2,9 @@ import csv
 from typing import Sequence
 from hashlib import md5
 
+import torch
+from tqdm import tqdm
+
 def read_tsv(path: str, skip_header: bool = True, as_dict: bool = False, delim: str = "\t") -> Sequence[Sequence[str]]:
     data = {} if as_dict else []
     uid = []
@@ -75,15 +78,11 @@ def get_hashes(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG):
 
     return eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash
 
-def reconstruct_words(decoded_ngrams):
-    # Sort n-grams by confidence (descending order)
-    sorted_ngrams = sorted(decoded_ngrams.items(), key=lambda x: x[1], reverse=True)
-
-    # Reconstruct words
+def reconstruct_words(ngrams):
     words = []
     used = set()
 
-    for ngram, confidence in sorted_ngrams:
+    for ngram in ngrams:
         if ngram in used:
             continue
 
@@ -93,11 +92,10 @@ def reconstruct_words(decoded_ngrams):
 
         while extended:
             extended = False
-            for next_ngram, next_conf in sorted_ngrams:
+            for next_ngram in ngrams:
                 if next_ngram in used:
                     continue
 
-                # If the next n-gram overlaps, extend the word
                 if word[-1] == next_ngram[0]:
                     word += next_ngram[1]
                     used.add(next_ngram)
@@ -107,6 +105,7 @@ def reconstruct_words(decoded_ngrams):
         words.append(word)
 
     return words
+
 
 def extract_two_grams(input_string, remove_spaces=False):
     input_string_preprocessed = input_string.replace('"', '').replace('.', '').replace('/', '').strip()
@@ -149,5 +148,60 @@ def precision_recall_f1(y_true, y_pred):
 
     return precision, recall, f1
 
+def run_epoch(model, dataloader, criterion, optimizer, device, is_training, verbose):
+    running_loss = 0.0
+    with torch.set_grad_enabled(is_training):
+        for data, labels, _ in tqdm(dataloader,
+                                  desc="Training" if is_training else "Validation") if verbose else dataloader:
+            data, labels = data.to(device), labels.to(device)
+
+            if is_training:
+                optimizer.zero_grad()
+
+            outputs = model(data)
+            loss = criterion(outputs, labels)
+
+            if is_training:
+                loss.backward()
+                optimizer.step()
+
+            running_loss += loss.item() * labels.size(0)
+
+    return running_loss / len(dataloader.dataset)
+
+
+def convert_to_two_gram_scores(two_gram_dict, probabilities):
+    return [
+        {two_gram_dict[j]: score.item() for j, score in enumerate(probabilities[i])}
+        for i in range(probabilities.size(0))
+    ]
+
+
+def filter_two_grams(two_gram_scores, threshold):
+    return [
+        [two_gram for two_gram, score in two_gram_score.items() if score > threshold]
+        for two_gram_score in two_gram_scores
+    ]
+
+def calculate_performance_metrics(actual_two_grams_batch, filtered_two_grams):
+    sum_precision = 0
+    sum_recall = 0
+    sum_f1 = 0
+    sum_dice = 0
+
+    for actual_two_grams, filtered_two_grams in zip(actual_two_grams_batch, filtered_two_grams):
+        precision, recall, f1 = precision_recall_f1(actual_two_grams, filtered_two_grams)
+        sum_dice += dice_coefficient(actual_two_grams, filtered_two_grams)
+        sum_precision += precision
+        sum_recall += recall
+        sum_f1 += f1
+    return sum_dice, sum_precision, sum_recall, sum_f1
+
+def label_tensors_to_two_grams(two_gram_dict, labels):
+    batch_selected_2grams = []
+    for label_tensor in labels:  # Loop through each batch element (1D tensor)
+        selected_2grams = [two_gram_dict[i] for i, val in enumerate(label_tensor) if val == 1]
+        batch_selected_2grams.append(selected_2grams)
+    return batch_selected_2grams
 
 
