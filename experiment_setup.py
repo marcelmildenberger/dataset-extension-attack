@@ -1,7 +1,10 @@
 from hyperparameter_optimization import hyperparameter_optimization
 # Parameters
+
+# %%
+# Parameters
 GLOBAL_CONFIG = {
-    "Data": "./data/datasets/titantic_full.tsv",
+    "Data": "./data/datasets/fakename_10k.tsv",
     "Overlap": 0.8,
     "DropFrom": "Eve",
     "Verbose": False,  # Print Status Messages
@@ -20,9 +23,10 @@ DEA_CONFIG = {
     # TestSize calculated accordingly
     "TrainSize": 0.8,
     "FilterThreshold": 0.5,
-    "Patience": 5,
-    "MinDelta": 0.001,
-    "NumSamples": 150
+    "Patience": 10,
+    "MinDelta": 1e-4,
+    "NumSamples": 500,
+    "Epochs": 20,
 }
 
 ENC_CONFIG = {
@@ -110,21 +114,21 @@ ALIGN_CONFIG = {
 }
 
 # Encodings to iterate over
-encs = ["TwoStepHash", "BloomFilter", "TabMinHash"]
+#encs = ["TwoStepHash", "BloomFilter", "TabMinHash"]
 
 #datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv",
 #           "fakename_20k.tsv", "fakename_50k.tsv", "euro_full.tsv", "ncvoter.tsv"]
-datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv",
-           "fakename_20k.tsv"]
+#datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv", "fakename_20k.tsv"]
 
 # drop = ["Alice", "Eve", "Both"]
 # Overlaps overlap = [i/100 for i in range(5, 105, 5)]
 
-for encoding in encs:
-    ENC_CONFIG["AliceAlgo"] = encoding
-    if encoding == 'BloomFilter':
-        ENC_CONFIG["EveAlgo"] = encoding
-    for dataset in datasets:
-        GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
-        hyperparameter_optimization(GLOBAL_CONFIG.copy(), ENC_CONFIG.copy(), EMB_CONFIG.copy(), ALIGN_CONFIG.copy(), DEA_CONFIG.copy())
+#for encoding in encs:
+#    ENC_CONFIG["AliceAlgo"] = encoding
+#    if encoding == 'BloomFilter':
+#        ENC_CONFIG["EveAlgo"] = encoding
+#    for dataset in datasets:
+#        GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
+#        hyperparameter_optimization(GLOBAL_CONFIG.copy(), ENC_CONFIG.copy(), EMB_CONFIG.copy(), ALIGN_CONFIG.copy(), DEA_CONFIG.copy())
+hyperparameter_optimization(GLOBAL_CONFIG.copy(), ENC_CONFIG.copy(), EMB_CONFIG.copy(), ALIGN_CONFIG.copy(), DEA_CONFIG.copy())
 print("✅ Skript abgeschlossen!")

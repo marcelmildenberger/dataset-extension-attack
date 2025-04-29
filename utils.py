@@ -148,7 +148,7 @@ def precision_recall_f1(y_true, y_pred):
 
     return precision, recall, f1
 
-def run_epoch(model, dataloader, criterion, optimizer, device, is_training, verbose):
+def run_epoch(model, dataloader, criterion, optimizer, device, is_training, verbose, scheduler):
     running_loss = 0.0
     with torch.set_grad_enabled(is_training):
         for data, labels, _ in tqdm(dataloader,
@@ -164,6 +164,8 @@ def run_epoch(model, dataloader, criterion, optimizer, device, is_training, verb
             if is_training:
                 loss.backward()
                 optimizer.step()
+                if scheduler is not None and not isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    scheduler.step()
 
             running_loss += loss.item() * labels.size(0)
 

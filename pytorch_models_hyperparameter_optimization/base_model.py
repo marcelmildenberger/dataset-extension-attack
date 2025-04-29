@@ -4,6 +4,9 @@ activation_functions = {
     "relu": nn.ReLU(),
     "leaky_relu": nn.LeakyReLU(),
     "gelu": nn.GELU(),
+    "elu": nn.ELU(),
+    "selu": nn.SELU(),
+    "tanh": nn.Tanh(),
 }
 
 class BaseModel(nn.Module):
