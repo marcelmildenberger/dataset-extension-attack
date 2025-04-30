@@ -8,3 +8,5 @@
 !/experiment_results/ignore_me
 /runs/*
 !/runs/ignore_me
+/ray_results/*
+!/ray_results/ignore_me

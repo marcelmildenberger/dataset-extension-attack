@@ -1,7 +1,5 @@
 from hyperparameter_optimization import hyperparameter_optimization
-# Parameters
 
-# %%
 # Parameters
 GLOBAL_CONFIG = {
     "Data": "./data/datasets/fakename_10k.tsv",
@@ -25,7 +23,7 @@ DEA_CONFIG = {
     "FilterThreshold": 0.5,
     "Patience": 10,
     "MinDelta": 1e-4,
-    "NumSamples": 500,
+    "NumSamples": 100,
     "Epochs": 20,
 }
 

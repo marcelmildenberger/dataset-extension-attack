@@ -115,16 +115,6 @@ def extract_two_grams(input_string, remove_spaces=False):
     return [input_string_lower[i:i+2] for i in range(len(input_string_lower)-1) if ' ' not in input_string_lower[i:i+2]]
 
 def dice_coefficient(set1: set, set2: set) -> float:
-    """
-    Computes the Dice Coefficient between two sets of 2-grams.
-
-    Args:
-        set1 (set): First set of 2-grams.
-        set2 (set): Second set of 2-grams.
-
-    Returns:
-        float: Dice similarity score between 0 and 1.
-    """
     if isinstance(set1, list):
         set1 = set(set1)
     if isinstance(set2, list):
