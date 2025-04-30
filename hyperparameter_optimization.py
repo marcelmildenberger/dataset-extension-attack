@@ -1,5 +1,5 @@
 def hyperparameter_optimization(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
-       # %% [markdown]
+        # %% [markdown]
     # # Hyperparameter Optimization
 
     # %%
@@ -14,7 +14,7 @@ def hyperparameter_optimization(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CON
     from torch.utils.data import DataLoader, random_split, Subset
 
     import ray
-    from ray import tune, air
+    from ray import tune
     from ray import train
     from ray.tune.search.optuna import OptunaSearch
     from ray.tune.schedulers import ASHAScheduler
@@ -342,8 +342,6 @@ def hyperparameter_optimization(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CON
 
     experiment_tag = "experiment_" + ENC_CONFIG["AliceAlgo"] + "_" + selected_dataset + "_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-    local_dir = os.path.abspath("./ray_results")
-
     # Initialize Ray for hyperparameter optimization
     ray.init(ignore_reinit_error=True)
 
@@ -360,11 +358,7 @@ def hyperparameter_optimization(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CON
             search_alg=optuna_search,  # Search strategy using Optuna
             scheduler=scheduler,  # Use ASHA to manage the trials
             num_samples=DEA_CONFIG["NumSamples"],  # Number of trials to run
-            max_concurrent_trials=5  # or 1 if your models are heavy
-        ),
-        run_config=air.RunConfig(
-            name=experiment_tag,
-            local_dir=local_dir
+            max_concurrent_trials=8  # or 1 if your models are heavy
         ),
         param_space=search_space  # Pass in the defined hyperparameter search space
     )
