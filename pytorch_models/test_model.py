@@ -4,6 +4,7 @@ activation_functions = {
     "relu": nn.ReLU(),
     "leaky_relu": nn.LeakyReLU(),
     "gelu": nn.GELU(),
+    "selu": nn.SELU(),
 }
 
 class TestModel(nn.Module):
