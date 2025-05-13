@@ -8,13 +8,15 @@ def hyperparameter_optimization(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CON
     from datetime import datetime
     import seaborn as sns
 
+    from functools import partial  # Import partial from functools
+
     import torch
     import torch.nn as nn
     import torch.optim as optim
     from torch.utils.data import DataLoader, random_split, Subset
 
     import ray
-    from ray import tune
+    from ray import tune, air
     from ray import train
     from ray.tune.search.optuna import OptunaSearch
     from ray.tune.schedulers import ASHAScheduler
@@ -38,34 +40,7 @@ def hyperparameter_optimization(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CON
 
     from pytorch_models_hyperparameter_optimization.base_model import BaseModel
 
-    print('PyTorch version', torch.__version__)
-
-    # %%
-    # Get unique hash identifiers for the encoding and embedding configurations
-    eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash = get_hashes(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG)
-
-    # Define file paths based on the configuration hashes
-    path_reidentified = f"./data/available_to_eve/reidentified_individuals_{eve_enc_hash}_{alice_enc_hash}_{eve_emb_hash}_{alice_emb_hash}.h5"
-    path_all = f"./data/dev/alice_data_complete_with_encoding_{eve_enc_hash}_{alice_enc_hash}_{eve_emb_hash}_{alice_emb_hash}.h5"
-
-    # Check if the output files already exist
-    if os.path.isfile(path_reidentified) and os.path.isfile(path_all):
-        # Load previously saved attack results
-        reidentified_data = hkl.load(path_reidentified)
-        all_data = hkl.load(path_all)
-
-    else:
-        # Run Graph Matching Attack if files are not found
-        reidentified_data, _, all_data = run_gma(
-            GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG,
-            eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash
-        )
-
-    # Convert lists to DataFrames
-    df_reidentified = pd.DataFrame(reidentified_data[1:], columns=reidentified_data[0])
-    df_all = pd.DataFrame(all_data[1:], columns=all_data[0])
-
-    # %%
+    print('PyTorch version', torch.__version__)    # %%
     # --- Generate a dictionary of all possible 2-grams from letters and digits ---
 
     # Lowercase alphabet: 'a' to 'z'
@@ -90,48 +65,74 @@ def hyperparameter_optimization(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CON
     two_gram_dict = {i: two_gram for i, two_gram in enumerate(all_two_grams)}
 
     # %%
-    # 1️⃣ Bloom Filter Encoding
-    if ENC_CONFIG["AliceAlgo"] == "BloomFilter":
-        data_labeled = BloomFilterDataset(
-            df_reidentified,
-            is_labeled=True,
-            all_two_grams=all_two_grams,
-            dev_mode=GLOBAL_CONFIG["DevMode"]
-        )
-        input_layer_size = len(df_reidentified["bloomfilter"][0])
+    data_dir = os.path.abspath("./data")
 
-    # 2️⃣ Tabulation MinHash Encoding
-    elif ENC_CONFIG["AliceAlgo"] == "TabMinHash":
-        data_labeled = TabMinHashDataset(
-            df_reidentified,
-            is_labeled=True,
-            all_two_grams=all_two_grams,
-            dev_mode=GLOBAL_CONFIG["DevMode"]
-        )
-        input_layer_size = len(df_reidentified["tabminhash"][0])
+    eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash = get_hashes(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG)
 
-    # 3 Two-Step Hash Encoding (One-Hot Encoding Mode)
-    elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash":
-        # Collect all unique integers across both reidentified and non-reidentified data
-        unique_ints = sorted(set().union(*df_all["twostephash"]))
-        unique_integers_dict = {i: val for i, val in enumerate(unique_ints)}
-        input_layer_size = len(unique_ints)
+    identifier = f"{eve_enc_hash}_{alice_enc_hash}_{eve_emb_hash}_{alice_emb_hash}"
 
-        data_labeled = TwoStepHashDataset(
-            df_reidentified,
-            is_labeled=True,
-            all_integers=unique_ints,
-            all_two_grams=all_two_grams,
-            dev_mode=GLOBAL_CONFIG["DevMode"]
+    # Define file paths based on the configuration hashes
+    path_reidentified = f"{data_dir}/available_to_eve/reidentified_individuals_{identifier}.h5"
+    path_all = f"{data_dir}/dev/alice_data_complete_with_encoding_{identifier}.h5"
+
+    # Check if the output files already exist
+    if not (os.path.isfile(path_reidentified) and os.path.isfile(path_all)):
+        run_gma(
+            GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG,
+            eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash
         )
 
     # %%
-    # Define dataset split proportions
-    train_size = int(DEA_CONFIG["TrainSize"] * len(data_labeled))
-    val_size = len(data_labeled) - train_size
+    def load_data(data_directory, identifier):
+        # Get unique hash identifiers for the encoding and embedding configurations
 
-    # Split the reidentified dataset into training and validation sets
-    data_train, data_val = random_split(data_labeled, [train_size, val_size])
+        # Define file paths based on the configuration hashes
+        path_reidentified = f"{data_directory}/available_to_eve/reidentified_individuals_{identifier}.h5"
+
+        reidentified_data = hkl.load(path_reidentified)
+
+        # Convert lists to DataFrames
+        df_reidentified = pd.DataFrame(reidentified_data[1:], columns=reidentified_data[0])
+
+        # 1️⃣ Bloom Filter Encoding
+        if ENC_CONFIG["AliceAlgo"] == "BloomFilter":
+            data_labeled = BloomFilterDataset(
+                df_reidentified,
+                is_labeled=True,
+                all_two_grams=all_two_grams,
+                dev_mode=GLOBAL_CONFIG["DevMode"]
+            )
+
+        # 2️⃣ Tabulation MinHash Encoding
+        elif ENC_CONFIG["AliceAlgo"] == "TabMinHash":
+            data_labeled = TabMinHashDataset(
+                df_reidentified,
+                is_labeled=True,
+                all_two_grams=all_two_grams,
+                dev_mode=GLOBAL_CONFIG["DevMode"]
+            )
+
+        # 3 Two-Step Hash Encoding (One-Hot Encoding Mode)
+        elif ENC_CONFIG["AliceAlgo"] == "TwoStepHash":
+            # Collect all unique integers across both reidentified and non-reidentified data
+            unique_ints = sorted(set().union(*df_reidentified["twostephash"]))
+
+            data_labeled = TwoStepHashDataset(
+                df_reidentified,
+                is_labeled=True,
+                all_integers=unique_ints,
+                all_two_grams=all_two_grams,
+                dev_mode=GLOBAL_CONFIG["DevMode"]
+            )
+
+        # Define dataset split proportions
+        train_size = int(DEA_CONFIG["TrainSize"] * len(data_labeled))
+        val_size = len(data_labeled) - train_size
+
+        # Split the reidentified dataset into training and validation sets
+        data_train, data_val = random_split(data_labeled, [train_size, val_size])
+
+        return data_train, data_val
 
     # %% [markdown]
     # ## Hyperparameter Tuning Setup for Training
@@ -162,31 +163,36 @@ def hyperparameter_optimization(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CON
     #
 
     # %%
-    def train_model(config):
+    def train_model(config, data_dir, output_dim, identifier, patience, min_delta):
         # Create DataLoaders for training, validation, and testing
+
+        data_train, data_val = load_data(data_dir, identifier)
+
+        input_dim = data_train[0][0].shape[0]  # Get the input dimension from the first sample
+
         dataloader_train = DataLoader(
-            config["data_train"],
-            batch_size=DEA_CONFIG["BatchSize"],
+            data_train,
+            batch_size=int(config["batch_size"]),
             shuffle=True  # Important for training
         )
 
         dataloader_val = DataLoader(
-            config["data_val"],
-            batch_size=DEA_CONFIG["BatchSize"],
-            shuffle=False  # Allows variation in validation batches
+            data_val,
+            batch_size=int(config["batch_size"]),
+            shuffle=True  # Allows variation in validation batches
         )
 
         train_losses = []
         val_losses = []
-        total_precision = total_recall = total_f1 = total_dice = 0.0
+        total_precision = total_recall = total_f1 = total_dice = total_val_loss = 0.0
         n = len(dataloader_val.dataset)
         epochs = 0
-        early_stopper = EarlyStopping(patience=DEA_CONFIG["Patience"], min_delta=DEA_CONFIG["MinDelta"])
+        early_stopper = EarlyStopping(patience=patience, min_delta=min_delta)
 
         # Define and initialize model with hyperparameters from config
         model = BaseModel(
-            input_dim=config["input_dim"],
-            output_dim=config["output_dim"],
+            input_dim=input_dim,
+            output_dim=output_dim,
             num_layers=config["num_layers"],
             hidden_layer_size=config["hidden_layer_size"],
             dropout_rate=config["dropout_rate"],
@@ -201,11 +207,7 @@ def hyperparameter_optimization(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CON
         loss_functions = {
             "BCEWithLogitsLoss": nn.BCEWithLogitsLoss(),
             "MultiLabelSoftMarginLoss": nn.MultiLabelSoftMarginLoss(),
-            "FocalLoss": nn.BCEWithLogitsLoss(pos_weight=torch.tensor(1.0)),
-            "WeightedBCE": nn.BCEWithLogitsLoss(pos_weight=torch.tensor(1.0)),
-            "CrossEntropyLoss": nn.CrossEntropyLoss(),
-            "MSELoss": nn.MSELoss(),
-            "L1Loss": nn.L1Loss(),
+            "SoftMarginLoss": nn.SoftMarginLoss(),
         }
         criterion = loss_functions[config["loss_fn"]]
 
@@ -266,6 +268,7 @@ def hyperparameter_optimization(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CON
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                 scheduler.step(val_loss)
             val_losses.append(val_loss)
+            total_val_loss += val_loss
 
             # Early stopping check
             if early_stopper(val_loss):
@@ -304,6 +307,7 @@ def hyperparameter_optimization(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CON
                 "average_precision": total_precision / n,
                 "average_recall": total_recall / n,
                 "average_f1": total_f1 / n,
+                "total_val_loss": total_val_loss,
                 "len_train": len(dataloader_train.dataset),
                 "len_val": len(dataloader_val.dataset),
                 "epochs": epochs
@@ -322,12 +326,8 @@ def hyperparameter_optimization(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CON
             {"name": "SGD", "lr": tune.loguniform(1e-4, 1e-2), "momentum": tune.uniform(0.0, 0.99)},
             {"name": "RMSprop", "lr": tune.loguniform(1e-5, 1e-3)},
         ]),
-        "loss_fn": tune.choice(["BCEWithLogitsLoss", "MultiLabelSoftMarginLoss", "FocalLoss", "WeightedBCE"]),
+        "loss_fn": tune.choice(["BCEWithLogitsLoss", "MultiLabelSoftMarginLoss", "SoftMarginLoss"]),
         "threshold": tune.uniform(0.3, 0.8),  # oder: DEA_CONFIG["FilterThreshold"]
-        "input_dim": input_layer_size,
-        "output_dim": len(all_two_grams),
-        "data_train": data_train,
-        "data_val": data_val,
         "lr_scheduler": tune.choice([
             {"name": "StepLR", "step_size": tune.choice([5, 10, 20]), "gamma": tune.uniform(0.1, 0.9)},
             {"name": "ExponentialLR", "gamma": tune.uniform(0.85, 0.99)},
@@ -335,7 +335,8 @@ def hyperparameter_optimization(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CON
             {"name": "CosineAnnealingLR", "T_max": tune.loguniform(10, 50) , "eta_min": tune.choice([1e-5, 1e-6, 0])},
             {"name": "CyclicLR", "base_lr": tune.loguniform(1e-5, 1e-3), "max_lr": tune.loguniform(1e-3, 1e-1), "step_size_up": tune.choice([2000, 4000]), "mode_cyclic": tune.choice(["triangular", "triangular2", "exp_range"]) },
             {"name": "None"}  # No scheduler
-        ])
+        ]),
+        "batch_size": tune.choice([16, 32, 64]),  # Batch sizes to test
     }
 
     selected_dataset = GLOBAL_CONFIG["Data"].split("/")[-1].replace(".tsv", "")
@@ -349,16 +350,16 @@ def hyperparameter_optimization(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CON
     optuna_search = OptunaSearch(metric="average_dice", mode="max")
 
     # Use ASHAScheduler to manage trials and early stopping
-    scheduler = ASHAScheduler(metric="average_dice", mode="max")
+    scheduler = ASHAScheduler(metric="total_val_loss", mode="min")
 
     # Define and configure the Tuner for Ray Tune
     tuner = tune.Tuner(
-        train_model,  # The function to optimize (training function)
+        partial(train_model, data_dir=data_dir, output_dim=len(all_two_grams), identifier=identifier , patience=DEA_CONFIG["Patience"], min_delta=DEA_CONFIG["MinDelta"]),  # The function to optimize (training function)
         tune_config=tune.TuneConfig(
             search_alg=optuna_search,  # Search strategy using Optuna
             scheduler=scheduler,  # Use ASHA to manage the trials
             num_samples=DEA_CONFIG["NumSamples"],  # Number of trials to run
-            max_concurrent_trials=8  # or 1 if your models are heavy
+            max_concurrent_trials=DEA_CONFIG["NumCPU"],
         ),
         param_space=search_space  # Pass in the defined hyperparameter search space
     )
@@ -374,8 +375,7 @@ def hyperparameter_optimization(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CON
     keys_to_remove = [
         "config", "checkpoint_dir_name", "experiment_tag", "done", "training_iteration",
         "trial_id", "date", "time_this_iter_s", "pid", "time_total_s", "hostname",
-        "node_ip", "time_since_restore", "iterations_since_restore", "timestamp",
-        "input_dim", "output_dim", "data_train", "data_val"
+        "node_ip", "time_since_restore", "iterations_since_restore", "timestamp"
     ]
 
     def clean_result_dict(result_dict):

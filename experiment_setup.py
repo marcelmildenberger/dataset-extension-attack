@@ -2,10 +2,10 @@ from hyperparameter_optimization import hyperparameter_optimization
 
 # Parameters
 GLOBAL_CONFIG = {
-    "Data": "./data/datasets/fakename_10k.tsv",
+    "Data": "./data/datasets/fakename_5k.tsv",
     "Overlap": 0.8,
     "DropFrom": "Eve",
-    "Verbose": False,  # Print Status Messages
+    "Verbose": True,  # Print Status Messages
     "MatchingMetric": "cosine",
     "Matching": "MinWeight",
     "Workers": -1,
@@ -17,19 +17,19 @@ GLOBAL_CONFIG = {
 
 DEA_CONFIG = {
     "DevMode": False,
-    "BatchSize": 64,
     # TestSize calculated accordingly
     "TrainSize": 0.8,
     "FilterThreshold": 0.5,
-    "Patience": 10,
+    "Patience": 5,
     "MinDelta": 1e-4,
-    "NumSamples": 100,
+    "NumSamples": 500,
     "Epochs": 20,
+    "NumCPU": 11,  # 11 on my local 19 on cluster (general: n-1)
 }
 
 ENC_CONFIG = {
     # TwoStepHash / TabMinHash / BloomFilter
-    "AliceAlgo": "BloomFilter",
+    "AliceAlgo": "TabMinHash",
     "AliceSecret": "SuperSecretSalt1337",
     "AliceN": 2,
     "AliceMetric": "dice",
