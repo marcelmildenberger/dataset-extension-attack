@@ -1,5 +1,3 @@
-from hyperparameter_optimization import hyperparameter_optimization
-
 # Parameters
 GLOBAL_CONFIG = {
     "Data": "./data/datasets/fakename_5k.tsv",
@@ -128,5 +126,5 @@ ALIGN_CONFIG = {
 #    for dataset in datasets:
 #        GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
 #        hyperparameter_optimization(GLOBAL_CONFIG.copy(), ENC_CONFIG.copy(), EMB_CONFIG.copy(), ALIGN_CONFIG.copy(), DEA_CONFIG.copy())
-hyperparameter_optimization(GLOBAL_CONFIG.copy(), ENC_CONFIG.copy(), EMB_CONFIG.copy(), ALIGN_CONFIG.copy(), DEA_CONFIG.copy())
+#hyperparameter_optimization(GLOBAL_CONFIG.copy(), ENC_CONFIG.copy(), EMB_CONFIG.copy(), ALIGN_CONFIG.copy(), DEA_CONFIG.copy())
 print("✅ Skript abgeschlossen!")
