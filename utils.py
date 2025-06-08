@@ -1,9 +1,16 @@
 import csv
+import json
 from typing import Sequence
 from hashlib import md5
-
+from collections import defaultdict
+from groq import Groq
+import os
 import torch
 from tqdm import tqdm
+from dotenv import load_dotenv
+
+load_dotenv()
+groq_api_key = os.getenv("GROQ_API_KEY")
 
 def read_tsv(path: str, skip_header: bool = True, as_dict: bool = False, delim: str = "\t") -> Sequence[Sequence[str]]:
     data = {} if as_dict else []
@@ -195,5 +202,100 @@ def label_tensors_to_two_grams(two_gram_dict, labels):
         selected_2grams = [two_gram_dict[i] for i, val in enumerate(label_tensor) if val == 1]
         batch_selected_2grams.append(selected_2grams)
     return batch_selected_2grams
+
+
+def greedy_reconstruct_ngrams(ngrams: set[str]) -> list[str]:
+    ngrams = set(ngrams)
+    adjacency = defaultdict(list)
+
+    # Build directed graph: a→b if a[1] == b[0]
+    for a in ngrams:
+        for b in ngrams:
+            if a != b and a[1] == b[0]:
+                adjacency[a].append(b)
+
+    def dfs(path, used):
+        current = path[-1]
+        if current not in adjacency:
+            return [''.join([p[0] for p in path]) + path[-1][1]]
+        results = []
+        for neighbor in adjacency[current]:
+            if neighbor not in used:
+                results += dfs(path + [neighbor], used | {neighbor})
+        if not results:
+            return [''.join([p[0] for p in path]) + path[-1][1]]
+        return results
+
+    all_results = set()
+    for ng in ngrams:
+        all_results.update(dfs([ng], {ng}))
+
+    return sorted(all_results, key=len, reverse=True)
+
+def reconstruct_using_ai(result):
+    client = Groq(api_key=groq_api_key)
+
+    batches = [result[i:i + 15] for i in range(0, len(result), 15)]
+    all_llm_results = []
+    for batch in batches:
+        prompt = f"""
+        You are an attacker attempting to reconstruct the first name, surname, and date of birth of multiple individuals based on 2-grams extracted from a dataset extension attack.
+
+        Each individual is represented by a unique UID and a list of predicted 2-grams. For each individual, infer the most likely real-world values for their:
+        - first name
+        - surname
+        - birthday (in MM/DD/YYYY format)
+
+        Return **only** the reconstructed values in **valid JSON format**, as a list of dictionaries. Each dictionary must include the UID and the inferred values, as shown below:
+
+        [
+        {{
+                "uid": "29995",
+                "firstname": "Leslie",
+                "surname": "Smith",
+                "birthday": "12/22/1974"
+            }},
+            {{
+                "uid": "39734",
+                "firstname": "John",
+                "surname": "Simons",
+                "birthday": "01/25/2000"
+            }}
+        ]
+
+        Here is the input:
+        {{
+        {chr(10).join([f'"{entry["uid"]}": ["{", ".join(sorted(entry["filtered_two_grams"]))}"]' for entry in batch])}
+        }}
+        """
+
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            model="gemma2-9b-it",
+            stream=False,
+        )
+
+        response_text = chat_completion.choices[0].message.content
+
+        try:
+            # Find the first square bracket and attempt to load JSON from there
+            start_index = response_text.find('[')
+            end_index = response_text.rfind(']') + 1
+            json_str = response_text[start_index:end_index]
+
+            data = json.loads(json_str)
+            all_llm_results.extend(data)
+
+        except Exception as e:
+            print(f"Failed to parse JSON:", e)
+            print("Raw response:\n", response_text)
+            continue  # Skip this batch and proceed
+    return all_llm_results
+
 
 

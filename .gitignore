@@ -10,3 +10,5 @@
 !/runs/ignore_me
 /ray_results/*
 !/ray_results/ignore_me
+.env
+

@@ -5,7 +5,7 @@ GLOBAL_CONFIG = {
     "Data": "./data/datasets/fakename_5k.tsv",
     "Overlap": 0.8,
     "DropFrom": "Eve",
-    "Verbose": True,  # Print Status Messages
+    "Verbose": False,  # Print Status Messages
     "MatchingMetric": "cosine",
     "Matching": "MinWeight",
     "Workers": -1,
@@ -22,14 +22,14 @@ DEA_CONFIG = {
     "FilterThreshold": 0.5,
     "Patience": 5,
     "MinDelta": 1e-4,
-    "NumSamples": 500,
+    "NumSamples": 200,
     "Epochs": 20,
-    "NumCPU": 11,  # 11 on my local 19 on cluster (general: n-1)
+    "NumCPU": 8,  # 11 on my local 19 on cluster (general: n-1)
 }
 
 ENC_CONFIG = {
     # TwoStepHash / TabMinHash / BloomFilter
-    "AliceAlgo": "TabMinHash",
+    "AliceAlgo": "TwoStepHash",
     "AliceSecret": "SuperSecretSalt1337",
     "AliceN": 2,
     "AliceMetric": "dice",

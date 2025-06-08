@@ -9,9 +9,9 @@ activation_functions = {
     "tanh": nn.Tanh(),
 }
 
-class BaseModel(nn.Module):
+class BaseModelHyperparameterOptimization(nn.Module):
     def __init__(self, input_dim, output_dim, num_layers, hidden_layer_size, dropout_rate, activation_fn):
-        super(BaseModel, self).__init__()
+        super(BaseModelHyperparameterOptimization, self).__init__()
         layers = []
         layers.append(nn.Linear(input_dim, hidden_layer_size)) # Input layer
         layers.append(activation_functions[activation_fn])

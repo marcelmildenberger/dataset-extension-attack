@@ -4,12 +4,14 @@ activation_functions = {
     "relu": nn.ReLU(),
     "leaky_relu": nn.LeakyReLU(),
     "gelu": nn.GELU(),
+    "elu": nn.ELU(),
     "selu": nn.SELU(),
+    "tanh": nn.Tanh(),
 }
 
-class TestModel(nn.Module):
+class BaseModel(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_layer=256, num_layers=4, dropout_rate=0.2, activation_fn="relu"):
-        super(TestModel, self).__init__()
+        super(BaseModel, self).__init__()
 
         # Define the layers for multi-label classification of 2-grams
         layers = [
