@@ -5,12 +5,22 @@ from hashlib import md5
 from collections import defaultdict
 from groq import Groq
 import os
+import pandas as pd
 import torch
 from tqdm import tqdm
 from dotenv import load_dotenv
 
+from torch.utils.data import Subset
+
 load_dotenv()
 groq_api_key = os.getenv("GROQ_API_KEY")
+
+# List of keys to remove
+keys_to_remove = [
+    "config", "checkpoint_dir_name", "experiment_tag", "done", "training_iteration",
+    "trial_id", "date", "time_this_iter_s", "pid", "time_total_s", "hostname",
+    "node_ip", "time_since_restore", "iterations_since_restore", "timestamp"
+]
 
 def read_tsv(path: str, skip_header: bool = True, as_dict: bool = False, delim: str = "\t") -> Sequence[Sequence[str]]:
     data = {} if as_dict else []
@@ -239,27 +249,27 @@ def reconstruct_using_ai(result):
     all_llm_results = []
     for batch in batches:
         prompt = f"""
-        You are an attacker attempting to reconstruct the first name, surname, and date of birth of multiple individuals based on 2-grams extracted from a dataset extension attack.
+        You are an attacker attempting to reconstruct the given name, surname, and date of birth of multiple individuals based on 2-grams extracted from a dataset extension attack.
 
         Each individual is represented by a unique UID and a list of predicted 2-grams. For each individual, infer the most likely real-world values for their:
-        - first name
-        - surname
-        - birthday (in MM/DD/YYYY format)
+        - GivenName
+        - Surname
+        - Birthday (in MM/DD/YYYY format)
 
         Return **only** the reconstructed values in **valid JSON format**, as a list of dictionaries. Each dictionary must include the UID and the inferred values, as shown below:
 
         [
         {{
                 "uid": "29995",
-                "firstname": "Leslie",
-                "surname": "Smith",
-                "birthday": "12/22/1974"
+                "GivenName": "Leslie",
+                "Surname": "Smith",
+                "Birthday": "12/22/1974"
             }},
             {{
                 "uid": "39734",
-                "firstname": "John",
-                "surname": "Simons",
-                "birthday": "01/25/2000"
+                "GivenName": "John",
+                "Surname": "Simons",
+                "Birthday": "01/25/2000"
             }}
         ]
 
@@ -296,6 +306,81 @@ def reconstruct_using_ai(result):
             print("Raw response:\n", response_text)
             continue  # Skip this batch and proceed
     return all_llm_results
+
+
+def reidentification_analysis(df_1, df_2, merge_on, len_not_reidentified):
+    """
+    Analyze the reidentification results and print statistics.
+    """
+    merged = pd.merge(
+    df_1,
+    df_2,
+    on=merge_on,
+    how='inner',
+    suffixes=('_df1', '_df2')
+)
+
+    total_reidentified = len(merged)
+    total_not_reidentified = len(df_not_reidentified)
+
+    print(f"\n🔍 Reidentification Analysis:")
+    print(f"Total Reidentified Individuals: {total_reidentified}")
+    print(f"Total Not Reidentified Individuals: {total_not_reidentified}")
+
+    if total_not_reidentified > 0:
+        reidentification_rate = (total_reidentified / total_not_reidentified) * 100
+        print(f"Reidentification Rate: {reidentification_rate:.2f}%")
+    else:
+        print("No not reidentified individuals to analyze.")
+
+    return merged
+
+
+def print_and_save_result(label, result, save_to):
+    print(f"\n🔍 {label}")
+    print("-" * 40)
+    cleaned_config = resolve_config(result.config)
+    print(f"Config: {cleaned_config}")
+    print(f"Average Dice: {result.metrics.get('average_dice'):.4f}")
+    print(f"Average Precision: {result.metrics.get('average_precision'):.4f}")
+    print(f"Average Recall: {result.metrics.get('average_recall'):.4f}")
+    print(f"Average F1: {result.metrics.get('average_f1'):.4f}")
+    result_dict = {**cleaned_config, **result.metrics}
+    clean_result_dict(result_dict)
+    # Convert to a DataFrame and save
+    df = pd.DataFrame([result_dict])
+    df.to_csv(f"{save_to}/{label}.csv", index=False)
+
+def clean_result_dict(result_dict):
+    for key in keys_to_remove:
+        result_dict.pop(key, None)
+    return result_dict
+
+def resolve_config(config):
+    resolved = {}
+    for k, v in config.items():
+        # If the value is a dictionary, recurse and apply resolve_config
+        if isinstance(v, dict):
+            resolved[k] = resolve_config(v)
+        # If the value is a Ray search sample object (e.g., Float, Categorical)
+        elif not isinstance(v, (int, float, str, Subset)):
+            resolved[k] = v.sample()  # Get the concrete value from the sample
+        else:
+            resolved[k] = v  # Leave it as-is if it's not a sample object or Subset
+    return resolved
+
+def two_gram_overlap(row):
+    actual = set(row['actual_two_grams'])
+    predicted = set(row['filtered_two_grams'])
+    intersection = actual & predicted
+    return {
+        "uid": row["uid"],
+        "precision": len(intersection) / len(predicted) if predicted else 0,
+        "recall": len(intersection) / len(actual) if actual else 0,
+        "f1": 2 * len(intersection) / (len(actual) + len(predicted)) if actual and predicted else 0,
+        "actual_len": len(actual),
+        "predicted_len": len(predicted)
+    }
 
 
 
