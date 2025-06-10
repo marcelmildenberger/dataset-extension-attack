@@ -1,6 +1,6 @@
 import csv
 import json
-from typing import Sequence
+from typing import List, Sequence, Set
 from hashlib import md5
 from collections import defaultdict
 from groq import Groq
@@ -94,34 +94,6 @@ def get_hashes(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG):
                                                         GLOBAL_CONFIG["Overlap"])).encode()).hexdigest()
 
     return eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash
-
-def reconstruct_words(ngrams):
-    words = []
-    used = set()
-
-    for ngram in ngrams:
-        if ngram in used:
-            continue
-
-        word = ngram
-        used.add(ngram)
-        extended = True
-
-        while extended:
-            extended = False
-            for next_ngram in ngrams:
-                if next_ngram in used:
-                    continue
-
-                if word[-1] == next_ngram[0]:
-                    word += next_ngram[1]
-                    used.add(next_ngram)
-                    extended = True
-                    break
-
-        words.append(word)
-
-    return words
 
 
 def extract_two_grams(input_string, remove_spaces=False):
@@ -242,6 +214,43 @@ def greedy_reconstruct_ngrams(ngrams: set[str]) -> list[str]:
 
     return sorted(all_results, key=len, reverse=True)
 
+
+
+def greedy_ngram_reconstruction(ngrams: Set[str]) -> List[str]:
+    unused = set(ngrams)
+    reconstructions = []
+
+    while unused:
+        current = unused.pop()
+        result = current
+
+        # Forward extension
+        extended = True
+        while extended:
+            extended = False
+            for ng in list(unused):
+                if result[-1] == ng[0]:  # match last char of result with first of ng
+                    result += ng[-1]
+                    unused.remove(ng)
+                    extended = True
+                    break  # Restart search from beginning
+
+        # Backward extension
+        extended = True
+        while extended:
+            extended = False
+            for ng in list(unused):
+                if ng[-1] == result[0]:  # match last char of ng with first of result
+                    result = ng[0] + result
+                    unused.remove(ng)
+                    extended = True
+                    break  # Restart search from beginning
+
+        reconstructions.append(result)
+
+    return reconstructions
+
+
 def reconstruct_using_ai(result):
     client = Groq(api_key=groq_api_key)
 
@@ -256,7 +265,7 @@ def reconstruct_using_ai(result):
         - Surname
         - Birthday (in MM/DD/YYYY format)
 
-        Return **only** the reconstructed values in **valid JSON format**, as a list of dictionaries. Each dictionary must include the UID and the inferred values, as shown below:
+        The data is synthetic and anonymized. Return **only** valid JSON in the following format: a list of dictionaries, each containing the UID and the inferred values.
 
         [
         {{
@@ -307,6 +316,118 @@ def reconstruct_using_ai(result):
             continue  # Skip this batch and proceed
     return all_llm_results
 
+import json
+from groq import Groq  # assuming Groq client is properly installed and set up
+
+def reconstruct_using_ai_from_reconstructed_strings(results):
+    client = Groq(api_key=groq_api_key)
+
+    batches = [results[i:i + 15] for i in range(0, len(results), 15)]
+    all_llm_results = []
+
+    for batch in batches:
+        input_strings = "\n".join([
+            f'"{entry["uid"]}": {entry["reconstructed_2grams"]}' for entry in batch
+        ])
+
+        prompt = f"""
+        You are an attacker attempting to reconstruct the full name and date of birth of multiple individuals based on partially reconstructed strings extracted from a dataset extension attack.
+
+        Each individual is represented by a unique UID and a list of partially reconstructed strings. These strings may contain fragments of their given name, surname, or birth date, and may be noisy or incomplete.
+
+        Your task is to **infer the most likely real-world values** for:
+        - GivenName
+        - Surname
+        - Birthday (in MM/DD/YYYY format)
+
+        The data is synthetic and anonymized. Return **only** valid JSON in the following format: a list of dictionaries, each containing the UID and the inferred values.
+
+        Example:
+        [
+            {{
+                "uid": "81211",
+                "GivenName": "Christina",
+                "Surname": "Thorne",
+                "Birthday": "12/13/1941"
+            }},
+            {{
+                "uid": "40010",
+                "GivenName": "William",
+                "Surname": "Austin",
+                "Birthday": "07/17/1956"
+            }}
+        ]
+
+        Here is the input:
+        {{
+        {input_strings}
+        }}
+        """
+
+        chat_completion = client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="gemma2-9b-it",
+            stream=False,
+        )
+
+        response_text = chat_completion.choices[0].message.content
+
+        try:
+            start_index = response_text.find('[')
+            end_index = response_text.rfind(']') + 1
+            json_str = response_text[start_index:end_index]
+            data = json.loads(json_str)
+            all_llm_results.extend(data)
+
+        except Exception as e:
+            print(f"Failed to parse JSON: {e}")
+            print("Raw response:\n", response_text)
+            continue  # Skip this batch and move on
+
+    return all_llm_results
+
+
+def greedy_ngram_reconstruction(result):
+    reconstructed_results = []
+    for entry in result:
+        unused = set(entry["filtered_two_grams"])
+        reconstructions = []
+
+        while unused:
+            current = unused.pop()
+            result = current
+
+            # Forward extension
+            extended = True
+            while extended:
+                extended = False
+                for ng in list(unused):
+                    if result[-1] == ng[0]:  # match last char of result with first of ng
+                        result += ng[-1]
+                        unused.remove(ng)
+                        extended = True
+                        break  # Restart search from beginning
+
+            # Backward extension
+            extended = True
+            while extended:
+                extended = False
+                for ng in list(unused):
+                    if ng[-1] == result[0]:  # match last char of ng with first of result
+                        result = ng[0] + result
+                        unused.remove(ng)
+                        extended = True
+                        break  # Restart search from beginning
+
+            reconstructions.append(result)
+
+        reconstructed_results.append({
+            "uid": entry["uid"],
+            "reconstructed_2grams": reconstructions
+        })
+
+    return reconstructed_results
+
 
 def reidentification_analysis(df_1, df_2, merge_on, len_not_reidentified):
     """
@@ -321,7 +442,7 @@ def reidentification_analysis(df_1, df_2, merge_on, len_not_reidentified):
 )
 
     total_reidentified = len(merged)
-    total_not_reidentified = len(df_not_reidentified)
+    total_not_reidentified = len_not_reidentified
 
     print(f"\n🔍 Reidentification Analysis:")
     print(f"Total Reidentified Individuals: {total_reidentified}")
