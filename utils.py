@@ -113,6 +113,11 @@ def dice_coefficient(set1: set, set2: set) -> float:
     intersection = len(set1 & set2)
     return round((2 * intersection) / (len(set1) + len(set2)),4)
 
+def jaccard_similarity(set1, set2):
+    intersection = len(set1.intersection(set2))
+    union = len(set1.union(set2))
+    return intersection / union if union != 0 else 0
+
 def precision_recall_f1(y_true, y_pred):
     true_set = set(y_true)
     pred_set = set(y_pred)
@@ -502,6 +507,49 @@ def two_gram_overlap(row):
         "actual_len": len(actual),
         "predicted_len": len(predicted)
     }
+
+def get_2grams(name):
+    return {name[i:i+2] for i in range(len(name) - 1)}
+
+def process_file(filepath):
+    records = []
+    with open(filepath, 'r') as f:
+        for line in f:
+            name, sex, count = line.strip().split(',')
+            count = int(count)
+            grams = get_2grams(name)
+            records.append((grams, sex, count, name))
+    return records
+
+def find_most_likely_names(predicted_2grams_list, beginYear, endYear, similarity_metric='jaccard'):
+    # Choose similarity function
+    if similarity_metric == 'jaccard':
+        similarity_func = jaccard_similarity
+    elif similarity_metric == 'dice':
+        similarity_func = dice_coefficient
+    else:
+        raise ValueError("similarity_metric must be 'jaccard' or 'dice'")
+
+    # Load all records from the files in the year range
+    all_records = []
+    directory = 'data/names'  # Adjust this path as needed
+    for year in range(beginYear, endYear + 1):
+        filepath = os.path.join(directory, f'yob{year}.txt')
+        if os.path.isfile(filepath):
+            all_records.extend(process_file(filepath))
+
+    best_matches = []
+    for pred_grams in predicted_2grams_list:
+        best_name = None
+        best_score = -1
+        for (name_grams, _, _, name) in all_records:
+            score = similarity_func(pred_grams, name_grams)
+            if score > best_score:
+                best_score = score
+                best_name = name
+        best_matches.append((best_name, best_score))
+
+    return best_matches
 
 
 
