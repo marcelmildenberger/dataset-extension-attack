@@ -1,4 +1,6 @@
-# Parameters
+from main import run_dea
+
+
 GLOBAL_CONFIG = {
     "Data": "./data/datasets/fakename_5k.tsv",
     "Overlap": 0.8,
@@ -15,19 +17,23 @@ GLOBAL_CONFIG = {
 
 DEA_CONFIG = {
     "DevMode": False,
-    # TestSize calculated accordingly
-    "TrainSize": 0.8,
-    "FilterThreshold": 0.5,
+    "TrainSize": 0.8, # TestSize calculated accordingly
     "Patience": 5,
     "MinDelta": 1e-4,
-    "NumSamples": 200,
-    "Epochs": 20,
-    "NumCPU": 8,  # 11 on my local 19 on cluster (general: n-1)
+    "NumSamples": 125,
+    "Epochs": 15,
+    "EarlyStoppingPatience": 5,
+    "NumCPU": 10,  # 11 on my local 19 on cluster (general: n-1)
+    "MetricToOptimize": "average_dice", # "average_dice", "average_precision", "average_recall", "average_f1"
+    "MatchingTechnique": "greedy",  # "ai", "greedy", "fuzzy", "ai_from_reconstructed_strings"
+    "LoadResults": False,
+    "LoadPath": "",
+    "SaveResults": True,
 }
 
 ENC_CONFIG = {
     # TwoStepHash / TabMinHash / BloomFilter
-    "AliceAlgo": "TwoStepHash",
+    "AliceAlgo": "BloomFilter",
     "AliceSecret": "SuperSecretSalt1337",
     "AliceN": 2,
     "AliceMetric": "dice",
@@ -110,21 +116,21 @@ ALIGN_CONFIG = {
 }
 
 # Encodings to iterate over
-#encs = ["TwoStepHash", "BloomFilter", "TabMinHash"]
+encs = ["TwoStepHash", "BloomFilter", "TabMinHash"]
 
 #datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv",
 #           "fakename_20k.tsv", "fakename_50k.tsv", "euro_full.tsv", "ncvoter.tsv"]
-#datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv", "fakename_20k.tsv"]
+datasets = ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv"]
 
 # drop = ["Alice", "Eve", "Both"]
 # Overlaps overlap = [i/100 for i in range(5, 105, 5)]
 
-#for encoding in encs:
-#    ENC_CONFIG["AliceAlgo"] = encoding
-#    if encoding == 'BloomFilter':
-#        ENC_CONFIG["EveAlgo"] = encoding
-#    for dataset in datasets:
-#        GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
-#        hyperparameter_optimization(GLOBAL_CONFIG.copy(), ENC_CONFIG.copy(), EMB_CONFIG.copy(), ALIGN_CONFIG.copy(), DEA_CONFIG.copy())
-#hyperparameter_optimization(GLOBAL_CONFIG.copy(), ENC_CONFIG.copy(), EMB_CONFIG.copy(), ALIGN_CONFIG.copy(), DEA_CONFIG.copy())
+for encoding in encs:
+    ENC_CONFIG["AliceAlgo"] = encoding
+    ENC_CONFIG["EveAlgo"] = "None"  # Default Eve encoding
+    if encoding == 'BloomFilter':
+        ENC_CONFIG["EveAlgo"] = encoding
+    for dataset in datasets:
+        GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
+        run_dea(GLOBAL_CONFIG.copy(), ENC_CONFIG.copy(), EMB_CONFIG.copy(), ALIGN_CONFIG.copy(), DEA_CONFIG.copy())
 print("✅ Skript abgeschlossen!")
