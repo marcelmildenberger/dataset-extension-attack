@@ -30,3 +30,4 @@ tensorboard~=2.13.0
 seaborn
 groq
 python-dotenv~=1.0.1
+networkx

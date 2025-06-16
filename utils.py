@@ -392,60 +392,14 @@ def reconstruct_using_ai_from_reconstructed_strings(results):
 
     return all_llm_results
 
-
-def greedy_ngram_reconstruction(result):
-    reconstructed_results = []
-    for entry in result:
-        unused = set(entry["filtered_two_grams"])
-        reconstructions = []
-
-        while unused:
-            current = unused.pop()
-            result = current
-
-            # Forward extension
-            extended = True
-            while extended:
-                extended = False
-                for ng in list(unused):
-                    if result[-1] == ng[0]:  # match last char of result with first of ng
-                        result += ng[-1]
-                        unused.remove(ng)
-                        extended = True
-                        break  # Restart search from beginning
-
-            # Backward extension
-            extended = True
-            while extended:
-                extended = False
-                for ng in list(unused):
-                    if ng[-1] == result[0]:  # match last char of ng with first of result
-                        result = ng[0] + result
-                        unused.remove(ng)
-                        extended = True
-                        break  # Restart search from beginning
-
-            reconstructions.append(result)
-
-        reconstructed_results.append({
-            "uid": entry["uid"],
-            "reconstructed_2grams": reconstructions
-        })
-
-    return reconstructed_results
-
-
-def reidentification_analysis(df_1, df_2, merge_on, len_not_reidentified):
-    """
-    Analyze the reidentification results and print statistics.
-    """
+def reidentification_analysis(df_1, df_2, merge_on, len_not_reidentified, method_name=None, save_path=None):
     merged = pd.merge(
-    df_1,
-    df_2,
-    on=merge_on,
-    how='inner',
-    suffixes=('_df1', '_df2')
-)
+        df_1,
+        df_2,
+        on=merge_on,
+        how='inner',
+        suffixes=('_df1', '_df2')
+    )
 
     total_reidentified = len(merged)
     total_not_reidentified = len_not_reidentified
@@ -458,9 +412,31 @@ def reidentification_analysis(df_1, df_2, merge_on, len_not_reidentified):
         reidentification_rate = (total_reidentified / total_not_reidentified) * 100
         print(f"Reidentification Rate: {reidentification_rate:.2f}%")
     else:
+        reidentification_rate = None
         print("No not reidentified individuals to analyze.")
 
+    # Save if requested
+    if save_path is not None:
+        os.makedirs(save_path, exist_ok=True)
+
+        # Save merged reidentified individuals
+        merged.to_csv(f"{save_path}/result.csv", index=False)
+
+        # Save a summary txt file alongside CSV
+        summary_path = os.path.splitext(save_path)[0] + "/summary.txt"
+        with open(summary_path, "w") as f:
+            f.write(f"Reidentification Method: {method_name or 'Unknown'}\n")
+            f.write(f"Total Reidentified Individuals: {total_reidentified}\n")
+            f.write(f"Total Not Reidentified Individuals: {total_not_reidentified}\n")
+            if reidentification_rate is not None:
+                f.write(f"Reidentification Rate: {reidentification_rate:.2f}%\n")
+            else:
+                f.write("No not reidentified individuals to analyze.\n")
+
+        print(f"\n✅ Saved reidentification results to:\n - {save_path}\n - {summary_path}")
+
     return merged
+
 
 
 def print_and_save_result(label, result, save_to):
@@ -508,3 +484,284 @@ def two_gram_overlap(row):
         "actual_len": len(actual),
         "predicted_len": len(predicted)
     }
+
+def lowercase_df(df):
+    return df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+
+def create_identifier_column(df):
+    return (df['GivenName'] + df['Surname'] + df['Birthday'].str.replace('/', '', regex=False)).str.lower()
+
+import csv
+from collections import defaultdict
+import networkx as nx
+
+def get_2grams(name):
+    return {name[i:i+2] for i in range(len(name) - 1)}
+
+def dice_coefficient(set1: set, set2: set) -> float:
+    if isinstance(set1, list):
+        set1 = set(set1)
+    if isinstance(set2, list):
+        set2 = set(set2)
+    if not set1 and not set2:
+        return 1.0  # both empty sets → full similarity
+    intersection = len(set1 & set2)
+    return round((2 * intersection) / (len(set1) + len(set2)),4)
+
+def jaccard_similarity(set1, set2):
+    if isinstance(set1, list):
+        set1 = set(set1)
+    if isinstance(set2, list):
+        set2 = set(set2)
+    if not set1 and not set2:
+        return 1.0  # both empty sets → full similarity
+    intersection = len(set1.intersection(set2))
+    union = len(set1.union(set2))
+    return intersection / union if union != 0 else 0
+
+def process_file(filepath):
+    records = []
+    with open(filepath, 'r') as f:
+        for line in f:
+            name, _, count = line.strip().split(',')
+            count = int(count)
+            grams = get_2grams(name)
+            records.append((name.lower(), {g.lower() for g in grams}, count))
+    return records
+
+
+
+def format_birthday(date_str):
+    return f"{date_str[:2]}/{date_str[2:4]}/{date_str[4:]}"
+
+
+def find_most_likely_birthday(predicted_2grams_list, similarity_metric='jaccard'):
+    # Choose similarity function
+    if similarity_metric == 'jaccard':
+        similarity_func = jaccard_similarity
+    elif similarity_metric == 'dice':
+        similarity_func = dice_coefficient
+    else:
+        raise ValueError("similarity_metric must be 'jaccard' or 'dice'")
+
+    date_range = pd.date_range(start="1900-01-01", end="2004-12-31", freq='D')
+    candidate_birthdays = [d.strftime("%m%d%Y") for d in date_range]
+
+    candidate_2gram_list = [(bd, get_2grams(bd)) for bd in candidate_birthdays]
+
+    best_matches = []
+    for entry in predicted_2grams_list:
+        best_birthday = None
+        best_score = -1
+        # Calculate similarity for each candidate birthday
+        for (birthday, birthday_grams) in candidate_2gram_list:
+            score = similarity_func(entry['filtered_two_grams'], birthday_grams)
+            if score > best_score:
+                best_score = score
+                best_birthday = birthday
+        # Sort candidates by score and take the best one
+        best_matches.append((format_birthday(best_birthday), best_score, entry['uid']))
+    return best_matches
+
+
+def remove_given_names_from_surname_file(
+    surname_file='data/names/surname/Names_2010Census.csv',
+    given_name_dir='data/names/givenname',
+    output_file='data/names/surname/Filtered_Names_2010Census.csv'
+):
+    # 1. Load given names into a set
+    given_names = set()
+    for filepath in glob.glob(os.path.join(given_name_dir, 'yob*.txt')):
+        if os.path.isfile(filepath):
+            with open(filepath, 'r') as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    if row:  # skip empty rows
+                        given_names.add(row[0].lower())
+
+    # 2. Read surname records
+    filtered_records = []
+    with open(surname_file, 'r') as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames
+        for row in reader:
+            name_lower = row['name'].lower()
+            if name_lower not in given_names:
+                filtered_records.append(row)
+
+    # 3. Write filtered surnames to output CSV
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    with open(output_file, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(filtered_records)
+
+    print(f"Filtered surnames saved to: {output_file}")
+
+def find_most_likely_given_name(predicted_2grams_list, beginYear, endYear, similarity_metric='jaccard'):
+    # Choose similarity function
+    if similarity_metric == 'jaccard':
+        similarity_func = jaccard_similarity
+    elif similarity_metric == 'dice':
+        similarity_func = dice_coefficient
+    else:
+        raise ValueError("similarity_metric must be 'jaccard' or 'dice'")
+
+    # Load all records from the files in the year range
+    all_records = []
+    directory = 'data/names/givenname'
+    for year in range(beginYear, endYear + 1):
+        filepath = os.path.join(directory, f'yob{year}.txt')
+        if os.path.isfile(filepath):
+            all_records.extend(process_file(filepath))
+    best_matches = []
+    for entry in predicted_2grams_list:
+        best_name = None
+        best_score = -1
+        for (name, name_grams, _) in all_records:
+            score = similarity_func(entry['filtered_two_grams'], name_grams)
+            if score > best_score:
+                best_score = score
+                best_name = name
+        best_matches.append((best_name, best_score, entry['uid']))
+    return best_matches
+
+def find_most_likely_surnames(predicted_2grams_list, minCount, similarity_metric='jaccard', use_filtered_surnames=False):
+    # Choose similarity function
+    if similarity_metric == 'jaccard':
+        similarity_func = jaccard_similarity
+    elif similarity_metric == 'dice':
+        similarity_func = dice_coefficient
+    else:
+        raise ValueError("similarity_metric must be 'jaccard' or 'dice'")
+
+    # Load surname records
+    all_records = []
+    file_path = 'data/names/surname/Filtered_Names_2010Census.csv' if use_filtered_surnames else 'data/names/surname/Names_2010Census.csv'
+    if os.path.isfile(file_path):
+        with open(file_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                name = row['name']
+                count = int(row['count'])
+                if count >= minCount:
+                    grams = get_2grams(name)
+                    all_records.append((name.lower(), {g.lower() for g in grams}, count))
+
+    best_matches = []
+    updated_predicted_list = []
+
+    for entry in predicted_2grams_list:
+        best_name = None
+        best_name_grams = None
+        best_score = -1
+
+        for (name, name_grams, _) in all_records:
+            score = similarity_func(entry['filtered_two_grams'], name_grams)
+            if score > best_score:
+                best_score = score
+                best_name = name
+                best_name_grams = name_grams
+
+        # Remove matched 2-grams from filtered_two_grams
+        updated_filtered_2grams = [gram for gram in entry['filtered_two_grams'] if gram not in best_name_grams]
+
+        best_matches.append((best_name, best_score, entry['uid']))
+        updated_predicted_list.append({
+            'uid': entry['uid'],
+            'actual_two_grams': entry['actual_two_grams'],
+            'filtered_two_grams': updated_filtered_2grams
+        })
+
+    return best_matches, updated_predicted_list
+
+
+def find_most_likely_given_name(predicted_2grams_list, beginYear, endYear, similarity_metric='jaccard'):
+    # Choose similarity function
+    if similarity_metric == 'jaccard':
+        similarity_func = jaccard_similarity
+    elif similarity_metric == 'dice':
+        similarity_func = dice_coefficient
+    else:
+        raise ValueError("similarity_metric must be 'jaccard' or 'dice'")
+
+    # Load all records from the files in the year range
+    all_records = []
+    directory = 'data/names/givenname'
+    for year in range(beginYear, endYear + 1):
+        filepath = os.path.join(directory, f'yob{year}.txt')
+        if os.path.isfile(filepath):
+            all_records.extend(process_file(filepath))
+
+    best_matches = []
+    updated_predicted_list = []
+
+    for entry in predicted_2grams_list:
+        best_name = None
+        best_name_grams = None
+        best_score = -1
+
+        for (name, name_grams, _) in all_records:
+            score = similarity_func(entry['filtered_two_grams'], name_grams)
+            if score > best_score:
+                best_score = score
+                best_name = name
+                best_name_grams = name_grams
+
+        # Remove matched 2-grams from filtered_two_grams
+        updated_filtered_2grams = [gram for gram in entry['filtered_two_grams'] if gram not in best_name_grams]
+
+        best_matches.append((best_name, best_score, entry['uid']))
+        updated_predicted_list.append({
+            'uid': entry['uid'],
+            'actual_two_grams': entry['actual_two_grams'],
+            'filtered_two_grams': updated_filtered_2grams
+        })
+
+    return best_matches, updated_predicted_list
+
+def longest_path_reconstruction(result):
+    reconstructed_results = []
+
+    for entry in result:
+        uid = entry["uid"]
+        two_grams = entry["filtered_two_grams"]
+
+        # Step 1: Build a simple directed graph (DiGraph)
+        G = nx.DiGraph()
+        for two_gram in two_grams:
+            G.add_edge(two_gram[0], two_gram[1])
+
+        if nx.is_directed_acyclic_graph(G):
+            # Use NetworkX's built-in longest path for DAGs
+            path = nx.dag_longest_path(G)
+            # Reconstruct string from path
+            reconstructed = path[0] + ''.join(path[1:])
+
+        else:
+            # Fallback to DFS (Depth-First Search) if graph is not a DAG
+            longest_reconstruction = ""
+
+            def dfs(node, visited_edges, current_string):
+                nonlocal longest_reconstruction
+                if len(current_string) > len(longest_reconstruction):
+                    longest_reconstruction = current_string
+
+                for neighbor in G.successors(node):
+                    edge = (node, neighbor)
+                    if edge not in visited_edges:
+                        visited_edges.add(edge)
+                        dfs(neighbor, visited_edges, current_string + neighbor)
+                        visited_edges.remove(edge)
+
+            for two_gram in two_grams:
+                dfs(two_gram[1], {(two_gram[0], two_gram[1])}, two_gram[0] + two_gram[1])
+
+            reconstructed = longest_reconstruction
+
+        reconstructed_results.append({
+            "uid": uid,
+            "reconstructed_2grams": reconstructed
+        })
+
+    return reconstructed_results
