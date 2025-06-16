@@ -433,8 +433,6 @@ def reidentification_analysis(df_1, df_2, merge_on, len_not_reidentified, method
             else:
                 f.write("No not reidentified individuals to analyze.\n")
 
-        print(f"\n✅ Saved reidentification results to:\n - {save_path}\n - {summary_path}")
-
     return merged
 
 
