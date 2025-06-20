@@ -250,7 +250,9 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         # Convert lists to DataFrames
         df_not_reidentified = pd.DataFrame(not_reidentified_data[1:], columns=not_reidentified_data[0])
         df_all = pd.DataFrame(all_data[1:], columns=all_data[0])
-        df_not_reidentified_labeled = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True).drop("bloomfilter", axis=1)
+        df_not_reidentified_labeled = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
+        df_not_reidentified_labeled = df_not_reidentified_labeled.drop(df_not_reidentified_labeled.columns[-2], axis=1)
+
 
         return df_not_reidentified_labeled
 
@@ -412,10 +414,10 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # Define search space for hyperparameter optimization
     search_space = {
         "output_dim": len(all_two_grams),  # Output dimension is also the number of unique 2-grams
-        "num_layers": tune.randint(1, 6),  # Vary the number of layers in the model
-        #"num_layers": tune.randint(1, 2),
-        "hidden_layer_size": tune.choice([64, 128, 256, 512, 1024, 2048, 4096]),  # Different sizes for hidden layers
-        #"hidden_layer_size": tune.choice([1024, 2048]),  # Different sizes for hidden layers
+        #"num_layers": tune.randint(1, 6),  # Vary the number of layers in the model
+        "num_layers": tune.randint(1, 2),
+        #"hidden_layer_size": tune.choice([64, 128, 256, 512, 1024, 2048, 4096]),  # Different sizes for hidden layers
+        "hidden_layer_size": tune.choice([1024, 2048]),  # Different sizes for hidden layers
         "dropout_rate": tune.uniform(0.1, 0.4),  # Dropout rate between 0.1 and 0.4
         "activation_fn": tune.choice(["relu", "leaky_relu", "gelu", "elu", "selu", "tanh"]),  # Activation functions to choose from
         "optimizer": tune.choice([
@@ -790,7 +792,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     plt.ylabel("Loss")
 
     # Show the plot
-    plt.show()
+
 
     # %% [markdown]
     # ## Step 5: Application to Encoded Data
@@ -956,7 +958,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     plt.legend(['Precision', 'Recall', 'F1'])
     plt.grid(True)
     plt.tight_layout()
-    plt.show()
+
 
     # Plot 2: Sample examples of reconstruction
     print("\n🔍 Sample Reconstructions (first 5):")
@@ -1000,9 +1002,8 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             df_not_reidentified = df_not_reidentified[['uid', 'identifier']]
 
             df_reconstructed = pd.DataFrame(reconstructed_results).rename(columns={"reconstructed_2grams": "identifier"})
-            reidentification_analysis(df_reconstructed, df_not_reidentified, ["uid", "identifier"], len(df_not_reidentified), DEA_CONFIG["MatchingTechnique"], save_path=f"{save_to}/re_identification_results")
+            reidentified = reidentification_analysis(df_reconstructed, df_not_reidentified, ["uid", "identifier"], len(df_not_reidentified), DEA_CONFIG["MatchingTechnique"], save_path=f"{save_to}/re_identification_results")
 
-            raise SystemExit("✅ Done with greedy mode, exiting early")
 
         case "fuzzy":
             print("\n🔄 Reconstructing results using fuzzy matching...")
@@ -1021,7 +1022,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         reidentified = run_reidentification(reconstructed_results, data_dir, identifier, merge_cols)
 
     # %%
-    return
+    return reidentified
 
 
 

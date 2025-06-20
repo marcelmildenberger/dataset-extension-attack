@@ -9,6 +9,7 @@ import pandas as pd
 import torch
 from tqdm import tqdm
 from dotenv import load_dotenv
+import networkx as nx
 
 from torch.utils.data import Subset
 import glob
@@ -392,51 +393,6 @@ def reconstruct_using_ai_from_reconstructed_strings(results):
 
     return all_llm_results
 
-def reidentification_analysis(df_1, df_2, merge_on, len_not_reidentified, method_name=None, save_path=None):
-    merged = pd.merge(
-        df_1,
-        df_2,
-        on=merge_on,
-        how='inner',
-        suffixes=('_df1', '_df2')
-    )
-
-    total_reidentified = len(merged)
-    total_not_reidentified = len_not_reidentified
-
-    print(f"\n🔍 Reidentification Analysis:")
-    print(f"Total Reidentified Individuals: {total_reidentified}")
-    print(f"Total Not Reidentified Individuals: {total_not_reidentified}")
-
-    if total_not_reidentified > 0:
-        reidentification_rate = (total_reidentified / total_not_reidentified) * 100
-        print(f"Reidentification Rate: {reidentification_rate:.2f}%")
-    else:
-        reidentification_rate = None
-        print("No not reidentified individuals to analyze.")
-
-    # Save if requested
-    if save_path is not None:
-        os.makedirs(save_path, exist_ok=True)
-
-        # Save merged reidentified individuals
-        merged.to_csv(f"{save_path}/result.csv", index=False)
-
-        # Save a summary txt file alongside CSV
-        summary_path = os.path.splitext(save_path)[0] + "/summary.txt"
-        with open(summary_path, "w") as f:
-            f.write(f"Reidentification Method: {method_name or 'Unknown'}\n")
-            f.write(f"Total Reidentified Individuals: {total_reidentified}\n")
-            f.write(f"Total Not Reidentified Individuals: {total_not_reidentified}\n")
-            if reidentification_rate is not None:
-                f.write(f"Reidentification Rate: {reidentification_rate:.2f}%\n")
-            else:
-                f.write("No not reidentified individuals to analyze.\n")
-
-    return merged
-
-
-
 def print_and_save_result(label, result, save_to):
     print(f"\n🔍 {label}")
     print("-" * 40)
@@ -486,13 +442,6 @@ def two_gram_overlap(row):
 def lowercase_df(df):
     return df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
 
-def create_identifier_column(df):
-    return (df['GivenName'] + df['Surname'] + df['Birthday'].str.replace('/', '', regex=False)).str.lower()
-
-import csv
-from collections import defaultdict
-import networkx as nx
-
 def get_2grams(name):
     return {name[i:i+2] for i in range(len(name) - 1)}
 
@@ -527,8 +476,6 @@ def process_file(filepath):
             records.append((name.lower(), {g.lower() for g in grams}, count))
     return records
 
-
-
 def format_birthday(date_str):
     return f"{date_str[:2]}/{date_str[2:4]}/{date_str[4:]}"
 
@@ -561,42 +508,7 @@ def find_most_likely_birthday(predicted_2grams_list, similarity_metric='jaccard'
         best_matches.append((format_birthday(best_birthday), best_score, entry['uid']))
     return best_matches
 
-
-def remove_given_names_from_surname_file(
-    surname_file='data/names/surname/Names_2010Census.csv',
-    given_name_dir='data/names/givenname',
-    output_file='data/names/surname/Filtered_Names_2010Census.csv'
-):
-    # 1. Load given names into a set
-    given_names = set()
-    for filepath in glob.glob(os.path.join(given_name_dir, 'yob*.txt')):
-        if os.path.isfile(filepath):
-            with open(filepath, 'r') as f:
-                reader = csv.reader(f)
-                for row in reader:
-                    if row:  # skip empty rows
-                        given_names.add(row[0].lower())
-
-    # 2. Read surname records
-    filtered_records = []
-    with open(surname_file, 'r') as f:
-        reader = csv.DictReader(f)
-        fieldnames = reader.fieldnames
-        for row in reader:
-            name_lower = row['name'].lower()
-            if name_lower not in given_names:
-                filtered_records.append(row)
-
-    # 3. Write filtered surnames to output CSV
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    with open(output_file, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(filtered_records)
-
-    print(f"Filtered surnames saved to: {output_file}")
-
-def find_most_likely_given_name(predicted_2grams_list, beginYear, endYear, similarity_metric='jaccard'):
+def find_most_likely_given_name(predicted_2grams_list, unique_names_file='data/names/unique_names.txt', similarity_metric='jaccard'):
     # Choose similarity function
     if similarity_metric == 'jaccard':
         similarity_func = jaccard_similarity
@@ -605,24 +517,29 @@ def find_most_likely_given_name(predicted_2grams_list, beginYear, endYear, simil
     else:
         raise ValueError("similarity_metric must be 'jaccard' or 'dice'")
 
-    # Load all records from the files in the year range
+    # Preprocess names from the file into 2-grams
     all_records = []
-    directory = 'data/names/givenname'
-    for year in range(beginYear, endYear + 1):
-        filepath = os.path.join(directory, f'yob{year}.txt')
-        if os.path.isfile(filepath):
-            all_records.extend(process_file(filepath))
+    with open(unique_names_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            name = line.strip()
+            if name:
+                name_grams = get_2grams(name)
+                all_records.append((name, name_grams))
+
+    # Match each predicted 2-gram entry to the most similar real name
     best_matches = []
     for entry in predicted_2grams_list:
         best_name = None
         best_score = -1
-        for (name, name_grams, _) in all_records:
+        for name, name_grams in all_records:
             score = similarity_func(entry['filtered_two_grams'], name_grams)
             if score > best_score:
                 best_score = score
                 best_name = name
         best_matches.append((best_name, best_score, entry['uid']))
+
     return best_matches
+
 
 def find_most_likely_surnames(predicted_2grams_list, minCount, similarity_metric='jaccard', use_filtered_surnames=False):
     # Choose similarity function
@@ -673,52 +590,7 @@ def find_most_likely_surnames(predicted_2grams_list, minCount, similarity_metric
 
     return best_matches, updated_predicted_list
 
-
-def find_most_likely_given_name(predicted_2grams_list, beginYear, endYear, similarity_metric='jaccard'):
-    # Choose similarity function
-    if similarity_metric == 'jaccard':
-        similarity_func = jaccard_similarity
-    elif similarity_metric == 'dice':
-        similarity_func = dice_coefficient
-    else:
-        raise ValueError("similarity_metric must be 'jaccard' or 'dice'")
-
-    # Load all records from the files in the year range
-    all_records = []
-    directory = 'data/names/givenname'
-    for year in range(beginYear, endYear + 1):
-        filepath = os.path.join(directory, f'yob{year}.txt')
-        if os.path.isfile(filepath):
-            all_records.extend(process_file(filepath))
-
-    best_matches = []
-    updated_predicted_list = []
-
-    for entry in predicted_2grams_list:
-        best_name = None
-        best_name_grams = None
-        best_score = -1
-
-        for (name, name_grams, _) in all_records:
-            score = similarity_func(entry['filtered_two_grams'], name_grams)
-            if score > best_score:
-                best_score = score
-                best_name = name
-                best_name_grams = name_grams
-
-        # Remove matched 2-grams from filtered_two_grams
-        updated_filtered_2grams = [gram for gram in entry['filtered_two_grams'] if gram not in best_name_grams]
-
-        best_matches.append((best_name, best_score, entry['uid']))
-        updated_predicted_list.append({
-            'uid': entry['uid'],
-            'actual_two_grams': entry['actual_two_grams'],
-            'filtered_two_grams': updated_filtered_2grams
-        })
-
-    return best_matches, updated_predicted_list
-
-def longest_path_reconstruction(result):
+def greedy_reconstruction(result):
     reconstructed_results = []
 
     for entry in result:
@@ -759,7 +631,67 @@ def longest_path_reconstruction(result):
 
         reconstructed_results.append({
             "uid": uid,
-            "reconstructed_2grams": reconstructed
+            "identifier": reconstructed
         })
 
     return reconstructed_results
+
+def fuzzy_reconstruction_approach(result):
+    print("\n🔄 Reconstructing results using fuzzy matching...")
+    best_matches_given_name, updated_result = find_most_likely_given_name(result, similarity_metric='dice')
+    best_matches_surnames, updated_result = find_most_likely_surnames(predicted_2grams_list=updated_result, minCount=10, similarity_metric='dice', use_filtered_surnames=True)
+    best_matches_birthday = find_most_likely_birthday(updated_result, similarity_metric='dice')
+
+    reconstructed = [
+        (given[0], surname[0], birthday[0], given[2])
+        for given, surname, birthday in zip(best_matches_given_name, best_matches_surnames, best_matches_birthday)
+    ]
+    return reconstructed
+
+def create_identifier_column_dynamic(df, components):
+    col_series = [df[col].astype(str).str.replace('/', '', regex=False) for col in components]
+    return pd.Series([''.join(vals) for vals in zip(*col_series)]).str.lower()
+
+def reidentification_analysis(df_1, df_2, merge_on, len_not_reidentified, method_name=None, save_path=None):
+    merged = pd.merge(
+        df_1,
+        df_2,
+        on=merge_on,
+        how='inner',
+        suffixes=('_df1', '_df2')
+    )
+
+    total_reidentified = len(merged)
+    total_not_reidentified = len_not_reidentified
+
+    print(f"\n🔍 Reidentification Analysis:")
+    print(f"Total Reidentified Individuals: {total_reidentified}")
+    print(f"Total Not Reidentified Individuals: {total_not_reidentified}")
+
+    if total_not_reidentified > 0:
+        reidentification_rate = (total_reidentified / total_not_reidentified) * 100
+        print(f"Reidentification Rate: {reidentification_rate:.2f}%")
+    else:
+        reidentification_rate = None
+        print("No not reidentified individuals to analyze.")
+
+    # Save if requested
+    if save_path is not None:
+        os.makedirs(save_path, exist_ok=True)
+
+        # Save merged reidentified individuals
+        merged.to_csv(f"{save_path}/result_{method_name}.csv", index=False)
+
+        # Save a summary txt file alongside CSV
+        summary_path = os.path.splitext(save_path)[0] + "/summary_" + method_name + ".txt"
+        with open(summary_path, "w") as f:
+            f.write(f"Reidentification Method: {method_name or 'Unknown'}\n")
+            f.write(f"Total Reidentified Individuals: {total_reidentified}\n")
+            f.write(f"Total Not Reidentified Individuals: {total_not_reidentified}\n")
+            if reidentification_rate is not None:
+                f.write(f"Reidentification Rate: {reidentification_rate:.2f}%\n")
+            else:
+                f.write("No not reidentified individuals to analyze.\n")
+
+    return merged
+

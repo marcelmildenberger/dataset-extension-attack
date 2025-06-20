@@ -20,10 +20,10 @@ DEA_CONFIG = {
     "TrainSize": 0.8, # TestSize calculated accordingly
     "Patience": 5,
     "MinDelta": 1e-4,
-    "NumSamples": 125,
+    "NumSamples": 250,
     "Epochs": 15,
     "EarlyStoppingPatience": 5,
-    "NumCPU": 10,  # 11 on my local 19 on cluster (general: n-1)
+    "NumCPU": 19,  # 11 on my local 19 on cluster (general: n-1)
     "MetricToOptimize": "average_dice", # "average_dice", "average_precision", "average_recall", "average_f1"
     "MatchingTechnique": "greedy",  # "ai", "greedy", "fuzzy", "ai_from_reconstructed_strings"
     "LoadResults": False,
@@ -118,12 +118,10 @@ ALIGN_CONFIG = {
 # Encodings to iterate over
 encs = ["TwoStepHash", "BloomFilter", "TabMinHash"]
 
-#datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv",
-#           "fakename_20k.tsv", "fakename_50k.tsv", "euro_full.tsv", "ncvoter.tsv"]
-datasets = ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv"]
+datasets = ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv", "fakename_20k.tsv", "fakename_50k.tsv"]
 
-# drop = ["Alice", "Eve", "Both"]
-# Overlaps overlap = [i/100 for i in range(5, 105, 5)]
+drop = ["Eve", "Both"]
+overlap = [0.2, 0.4, 0.8]
 
 for encoding in encs:
     ENC_CONFIG["AliceAlgo"] = encoding
@@ -132,5 +130,9 @@ for encoding in encs:
         ENC_CONFIG["EveAlgo"] = encoding
     for dataset in datasets:
         GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
-        run_dea(GLOBAL_CONFIG.copy(), ENC_CONFIG.copy(), EMB_CONFIG.copy(), ALIGN_CONFIG.copy(), DEA_CONFIG.copy())
+        for drop_from in drop:
+            GLOBAL_CONFIG["DropFrom"] = drop_from
+            for ov in overlap:
+                GLOBAL_CONFIG["Overlap"] = ov
+                run_dea(GLOBAL_CONFIG.copy(), ENC_CONFIG.copy(), EMB_CONFIG.copy(), ALIGN_CONFIG.copy(), DEA_CONFIG.copy())
 print("✅ Skript abgeschlossen!")
