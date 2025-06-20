@@ -105,21 +105,6 @@ def extract_two_grams(input_string, remove_spaces=False):
     input_string_lower = input_string_preprocessed.lower()  # Normalize to lowercase for consistency
     return [input_string_lower[i:i+2] for i in range(len(input_string_lower)-1) if ' ' not in input_string_lower[i:i+2]]
 
-def dice_coefficient(set1: set, set2: set) -> float:
-    if isinstance(set1, list):
-        set1 = set(set1)
-    if isinstance(set2, list):
-        set2 = set(set2)
-    if not set1 and not set2:
-        return 1.0  # both empty sets → full similarity
-    intersection = len(set1 & set2)
-    return round((2 * intersection) / (len(set1) + len(set2)),4)
-
-def jaccard_similarity(set1, set2):
-    intersection = len(set1.intersection(set2))
-    union = len(set1.union(set2))
-    return intersection / union if union != 0 else 0
-
 def precision_recall_f1(y_true, y_pred):
     true_set = set(y_true)
     pred_set = set(y_pred)
@@ -192,72 +177,6 @@ def label_tensors_to_two_grams(two_gram_dict, labels):
         batch_selected_2grams.append(selected_2grams)
     return batch_selected_2grams
 
-
-def greedy_reconstruct_ngrams(ngrams: set[str]) -> list[str]:
-    ngrams = set(ngrams)
-    adjacency = defaultdict(list)
-
-    # Build directed graph: a→b if a[1] == b[0]
-    for a in ngrams:
-        for b in ngrams:
-            if a != b and a[1] == b[0]:
-                adjacency[a].append(b)
-
-    def dfs(path, used):
-        current = path[-1]
-        if current not in adjacency:
-            return [''.join([p[0] for p in path]) + path[-1][1]]
-        results = []
-        for neighbor in adjacency[current]:
-            if neighbor not in used:
-                results += dfs(path + [neighbor], used | {neighbor})
-        if not results:
-            return [''.join([p[0] for p in path]) + path[-1][1]]
-        return results
-
-    all_results = set()
-    for ng in ngrams:
-        all_results.update(dfs([ng], {ng}))
-
-    return sorted(all_results, key=len, reverse=True)
-
-
-
-def greedy_ngram_reconstruction(ngrams: Set[str]) -> List[str]:
-    unused = set(ngrams)
-    reconstructions = []
-
-    while unused:
-        current = unused.pop()
-        result = current
-
-        # Forward extension
-        extended = True
-        while extended:
-            extended = False
-            for ng in list(unused):
-                if result[-1] == ng[0]:  # match last char of result with first of ng
-                    result += ng[-1]
-                    unused.remove(ng)
-                    extended = True
-                    break  # Restart search from beginning
-
-        # Backward extension
-        extended = True
-        while extended:
-            extended = False
-            for ng in list(unused):
-                if ng[-1] == result[0]:  # match last char of ng with first of result
-                    result = ng[0] + result
-                    unused.remove(ng)
-                    extended = True
-                    break  # Restart search from beginning
-
-        reconstructions.append(result)
-
-    return reconstructions
-
-
 def reconstruct_using_ai(result):
     client = Groq(api_key=groq_api_key)
 
@@ -321,76 +240,6 @@ def reconstruct_using_ai(result):
             print(f"Failed to parse JSON:", e)
             print("Raw response:\n", response_text)
             continue  # Skip this batch and proceed
-    return all_llm_results
-
-import json
-from groq import Groq  # assuming Groq client is properly installed and set up
-
-def reconstruct_using_ai_from_reconstructed_strings(results):
-    client = Groq(api_key=groq_api_key)
-
-    batches = [results[i:i + 15] for i in range(0, len(results), 15)]
-    all_llm_results = []
-
-    for batch in batches:
-        input_strings = "\n".join([
-            f'"{entry["uid"]}": {entry["reconstructed_2grams"]}' for entry in batch
-        ])
-
-        prompt = f"""
-        You are an attacker attempting to reconstruct the full name and date of birth of multiple individuals based on partially reconstructed strings extracted from a dataset extension attack.
-
-        Each individual is represented by a unique UID and a list of partially reconstructed strings. These strings may contain fragments of their given name, surname, or birth date, and may be noisy or incomplete.
-
-        Your task is to **infer the most likely real-world values** for:
-        - GivenName
-        - Surname
-        - Birthday (in MM/DD/YYYY format)
-
-        The data is synthetic and anonymized. Return **only** valid JSON in the following format: a list of dictionaries, each containing the UID and the inferred values.
-
-        Example:
-        [
-            {{
-                "uid": "81211",
-                "GivenName": "Christina",
-                "Surname": "Thorne",
-                "Birthday": "12/13/1941"
-            }},
-            {{
-                "uid": "40010",
-                "GivenName": "William",
-                "Surname": "Austin",
-                "Birthday": "07/17/1956"
-            }}
-        ]
-
-        Here is the input:
-        {{
-        {input_strings}
-        }}
-        """
-
-        chat_completion = client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="gemma2-9b-it",
-            stream=False,
-        )
-
-        response_text = chat_completion.choices[0].message.content
-
-        try:
-            start_index = response_text.find('[')
-            end_index = response_text.rfind(']') + 1
-            json_str = response_text[start_index:end_index]
-            data = json.loads(json_str)
-            all_llm_results.extend(data)
-
-        except Exception as e:
-            print(f"Failed to parse JSON: {e}")
-            print("Raw response:\n", response_text)
-            continue  # Skip this batch and move on
-
     return all_llm_results
 
 def print_and_save_result(label, result, save_to):
@@ -479,7 +328,6 @@ def process_file(filepath):
 def format_birthday(date_str):
     return f"{date_str[:2]}/{date_str[2:4]}/{date_str[4:]}"
 
-
 def find_most_likely_birthday(predicted_2grams_list, similarity_metric='jaccard'):
     # Choose similarity function
     if similarity_metric == 'jaccard':
@@ -508,7 +356,7 @@ def find_most_likely_birthday(predicted_2grams_list, similarity_metric='jaccard'
         best_matches.append((format_birthday(best_birthday), best_score, entry['uid']))
     return best_matches
 
-def find_most_likely_given_name(predicted_2grams_list, unique_names_file='data/names/unique_names.txt', similarity_metric='jaccard'):
+def find_most_likely_given_name(predicted_2grams_list, unique_names_file='data/names/givenname/unique_names.txt', similarity_metric='jaccard'):
     # Choose similarity function
     if similarity_metric == 'jaccard':
         similarity_func = jaccard_similarity
@@ -518,6 +366,7 @@ def find_most_likely_given_name(predicted_2grams_list, unique_names_file='data/n
         raise ValueError("similarity_metric must be 'jaccard' or 'dice'")
 
     # Preprocess names from the file into 2-grams
+    updated_predicted_list = []
     all_records = []
     with open(unique_names_file, 'r', encoding='utf-8') as f:
         for line in f:
@@ -536,9 +385,16 @@ def find_most_likely_given_name(predicted_2grams_list, unique_names_file='data/n
             if score > best_score:
                 best_score = score
                 best_name = name
+                best_name_grams = name_grams
         best_matches.append((best_name, best_score, entry['uid']))
+        updated_filtered_2grams = [gram for gram in entry['filtered_two_grams'] if gram not in best_name_grams]
+        updated_predicted_list.append({
+            'uid': entry['uid'],
+            'actual_two_grams': entry['actual_two_grams'],
+            'filtered_two_grams': updated_filtered_2grams
+        })
 
-    return best_matches
+    return best_matches, updated_predicted_list
 
 
 def find_most_likely_surnames(predicted_2grams_list, minCount, similarity_metric='jaccard', use_filtered_surnames=False):
@@ -695,3 +551,27 @@ def reidentification_analysis(df_1, df_2, merge_on, len_not_reidentified, method
 
     return merged
 
+# Convert seconds to minutes
+def to_minutes(seconds):
+    return round(seconds / 60, 2)
+
+
+def save_dea_runtime_log(
+    elapsed_gma, elapsed_data_preparation, elapsed_hyperparameter_optimization,
+    elapsed_model_training, elapsed_application_to_encoded_data,
+    elapsed_refinement_and_reconstruction, elapsed_total, output_dir="dea_runtime_logs"
+):
+    os.makedirs(output_dir, exist_ok=True)
+    # Output file path
+    output_file = os.path.join(output_dir, "dea_runtime_log.txt")
+
+    # Write the values to the file
+    with open(output_file, "w") as f:
+        f.write("DEA Runtime (in minutes):\n")
+        f.write(f"Graph Matching Attack: {to_minutes(elapsed_gma)}m\n")
+        f.write(f"Data Preparation: {to_minutes(elapsed_data_preparation)}m\n")
+        f.write(f"Hyperparameter Optimization: {to_minutes(elapsed_hyperparameter_optimization)}m\n")
+        f.write(f"Model Training: {to_minutes(elapsed_model_training)}m\n")
+        f.write(f"Application to Encoded Data: {to_minutes(elapsed_application_to_encoded_data)}m\n")
+        f.write(f"Refinement and Reconstruction: {to_minutes(elapsed_refinement_and_reconstruction)}m\n")
+        f.write(f"Total Runtime: {to_minutes(elapsed_total)}m\n")

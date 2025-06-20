@@ -1,6 +1,14 @@
 from main import run_dea
 
 
+
+# %% [markdown]
+# ### Parameters
+#
+# Configuration and parameters for the Graph Matching Attack (GMA) and Dataset Extension Attack (DEA). For details and possible values, refer to the documentation at ```./docs/parameters.md```.
+
+# %%
+# Parameters
 GLOBAL_CONFIG = {
     "Data": "./data/datasets/fakename_5k.tsv",
     "Overlap": 0.8,
@@ -12,6 +20,7 @@ GLOBAL_CONFIG = {
     "SaveAliceEncs": False,
     "SaveEveEncs": False,
     "DevMode": False,
+    "BenchMode": True
 }
 
 
@@ -20,12 +29,12 @@ DEA_CONFIG = {
     "TrainSize": 0.8, # TestSize calculated accordingly
     "Patience": 5,
     "MinDelta": 1e-4,
-    "NumSamples": 250,
+    "NumSamples": 200,
     "Epochs": 15,
     "EarlyStoppingPatience": 5,
     "NumCPU": 19,  # 11 on my local 19 on cluster (general: n-1)
     "MetricToOptimize": "average_dice", # "average_dice", "average_precision", "average_recall", "average_f1"
-    "MatchingTechnique": "greedy",  # "ai", "greedy", "fuzzy", "ai_from_reconstructed_strings"
+    "MatchingTechnique": "fuzzy_and_greedy",  # "ai", "greedy", "fuzzy", "fuzzy_and_greedy"
     "LoadResults": False,
     "LoadPath": "",
     "SaveResults": True,

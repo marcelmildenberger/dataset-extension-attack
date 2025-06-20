@@ -20,6 +20,7 @@ import os
 import json
 from datetime import datetime
 import seaborn as sns
+import time
 
 from functools import partial  # Import partial from functools
 
@@ -110,6 +111,11 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     #
 
     # %%
+    if GLOBAL_CONFIG["BenchMode"]:
+        start_total = time.time()
+        start_gma = time.time()
+
+    # %%
     data_dir = os.path.abspath("./data")
 
     eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash = get_hashes(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG)
@@ -127,6 +133,10 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG,
             eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash
         )
+
+    # %%
+    if GLOBAL_CONFIG["BenchMode"]:
+        elapsed_gma = time.time() - start_gma
 
     # %% [markdown]
     # ## 🧩 Step 2: Data Preparation
@@ -153,6 +163,10 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # > - Additional encoding-specific configurations
     # > - Dev mode toggle (for debugging or smaller runs)
     #
+
+    # %%
+    if GLOBAL_CONFIG["BenchMode"]:
+        start_data_preparation = time.time()
 
     # %%
     def load_data(data_directory, identifier, load_test=False):
@@ -255,6 +269,11 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
 
         return df_not_reidentified_labeled
+
+    # %%
+    if GLOBAL_CONFIG["BenchMode"]:
+        elapsed_data_preparation= time.time() - start_data_preparation
+        start_hyperparameter_optimization = time.time()
 
     # %% [markdown]
     # ## Step 3: Hyperparameter Optimization
@@ -416,7 +435,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         "output_dim": len(all_two_grams),  # Output dimension is also the number of unique 2-grams
         #"num_layers": tune.randint(1, 6),  # Vary the number of layers in the model
         "num_layers": tune.randint(1, 2),
-        #"hidden_layer_size": tune.choice([64, 128, 256, 512, 1024, 2048, 4096]),  # Different sizes for hidden layers
+        #"hidden_layer_size": tune.choice([64, 128, 256, 512, 1024, 2048,4096]),  # Different sizes for hidden layers
         "hidden_layer_size": tune.choice([1024, 2048]),  # Different sizes for hidden layers
         "dropout_rate": tune.uniform(0.1, 0.4),  # Dropout rate between 0.1 and 0.4
         "activation_fn": tune.choice(["relu", "leaky_relu", "gelu", "elu", "selu", "tanh"]),  # Activation functions to choose from
@@ -444,13 +463,15 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     experiment_tag = "experiment_" + ENC_CONFIG["AliceAlgo"] + "_" + selected_dataset + "_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
     # Initialize Ray for hyperparameter optimization
-    ray.init(ignore_reinit_error=True)
+    ray.init(ignore_reinit_error=True, logging_level="ERROR")
 
     # Optuna Search Algorithm for optimizing the hyperparameters
     optuna_search = OptunaSearch(metric=DEA_CONFIG["MetricToOptimize"], mode="max")
 
     # Use ASHAScheduler to manage trials and early stopping
     scheduler = ASHAScheduler(metric="total_val_loss", mode="min")
+
+
 
     # Define and configure the Tuner for Ray Tune
     tuner = tune.Tuner(
@@ -462,6 +483,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             max_concurrent_trials=DEA_CONFIG["NumCPU"],
         ),
         param_space=search_space  # Pass in the defined hyperparameter search space
+
     )
 
     # Run the tuner
@@ -473,6 +495,10 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # %%
     result_grid = results
     best_result = result_grid.get_best_result(metric="average_dice", mode="max")
+
+    # %%
+    if GLOBAL_CONFIG["BenchMode"]:
+        elapsed_hyperparameter_optimization = time.time() - start_hyperparameter_optimization
 
     # %%
     if DEA_CONFIG["SaveResults"]:
@@ -551,6 +577,10 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     #
     # Each model outputs predictions over the set of all possible 2-grams (`all_two_grams`), and the input dimension is dynamically configured based on the dataset.
     #
+
+    # %%
+    if GLOBAL_CONFIG["BenchMode"]:
+        start_model_training = time.time()
 
     # %%
     best_config = resolve_config(best_result.config)
@@ -760,6 +790,10 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         criterion, optimizer, compute_device
         )
 
+    # %%
+    if GLOBAL_CONFIG["BenchMode"]:
+        elapsed_model_training = time.time() - start_model_training
+
     # %% [markdown]
     # ## Loss Visualization over Epochs
     #
@@ -790,9 +824,6 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     plt.title("Training and Validation Loss over Epochs")
     plt.xlabel("Epochs")
     plt.ylabel("Loss")
-
-    # Show the plot
-
 
     # %% [markdown]
     # ## Step 5: Application to Encoded Data
@@ -858,6 +889,10 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         model.eval()
 
     # %%
+    if GLOBAL_CONFIG["BenchMode"]:
+        start_application_to_encoded_data = time.time()
+
+    # %%
     # List to store decoded 2-gram scores for all test samples
 
     decoded_test_results_words = []
@@ -920,6 +955,10 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
 
     # %%
+    if GLOBAL_CONFIG["BenchMode"]:
+        elapsed_application_to_encoded_data = time.time() - start_application_to_encoded_data
+
+    # %%
     # SAVE - Metrics and Result
     if DEA_CONFIG["SaveResults"]:
         with open(metrics_file, "w") as f:
@@ -959,7 +998,6 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     plt.grid(True)
     plt.tight_layout()
 
-
     # Plot 2: Sample examples of reconstruction
     print("\n🔍 Sample Reconstructions (first 5):")
     for idx, row in results_df.head(5).iterrows():
@@ -972,55 +1010,76 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # ## Step 6: Refinement and Reconstruction
 
     # %%
-    def run_reidentification(reconstructed, not_reidentified_path, identifier, merge_cols):
+    if GLOBAL_CONFIG["BenchMode"]:
+        start_refinement_and_reconstruction = time.time()
+
+    # %%
+    def run_reidentification(reconstructed, not_reidentified_path, identifier, merge_cols, matching_technique, identifier_components=None):
         df_not_reidentified = load_not_reidentified_data(not_reidentified_path, identifier)
         df_not_reidentified = lowercase_df(df_not_reidentified)
+
+        if identifier_components:
+            df_not_reidentified['identifier'] = create_identifier_column_dynamic(df_not_reidentified, identifier_components)
+            df_not_reidentified = df_not_reidentified[['uid', 'identifier']]
+
 
         df_reconstructed = pd.DataFrame(reconstructed, columns=merge_cols)
         df_reconstructed = lowercase_df(df_reconstructed)
 
-        return reidentification_analysis(df_reconstructed, df_not_reidentified, merge_cols, len(df_not_reidentified), DEA_CONFIG["MatchingTechnique"], save_path=f"{save_to}/re_identification_results")
+        return reidentification_analysis(
+            df_reconstructed,
+            df_not_reidentified,
+            merge_cols,
+            len(df_not_reidentified),
+            matching_technique,
+            save_path=f"{save_to}/re_identification_results"
+        )
 
+    # %%
     match DEA_CONFIG["MatchingTechnique"]:
         case "ai":
             print("\n🔄 Reconstructing results using AI...")
             reconstructed_results = reconstruct_using_ai(result)
             merge_cols = ["GivenName", "Surname", "Birthday", "uid"]
 
-        case "ai_from_reconstructed_strings":
-            print("\n🔄 Reconstructing results using AI with preprocessed strings...")
-            greedy_result = longest_path_reconstruction(result)
-            reconstructed_results = reconstruct_using_ai_from_reconstructed_strings(greedy_result)
-            merge_cols = ["GivenName", "Surname", "Birthday", "uid"]
-
         case "greedy":
-            print("\n🔄 Reconstructing results using greedy algorithm...")
-            reconstructed_results = longest_path_reconstruction(result)
-
-            df_not_reidentified = load_not_reidentified_data(data_dir, identifier)
-            df_not_reidentified['identifier'] = create_identifier_column(df_not_reidentified)
-            df_not_reidentified = df_not_reidentified[['uid', 'identifier']]
-
-            df_reconstructed = pd.DataFrame(reconstructed_results).rename(columns={"reconstructed_2grams": "identifier"})
-            reidentified = reidentification_analysis(df_reconstructed, df_not_reidentified, ["uid", "identifier"], len(df_not_reidentified), DEA_CONFIG["MatchingTechnique"], save_path=f"{save_to}/re_identification_results")
-
+            reconstructed_results = greedy_reconstruction(result)
+            identifier_components = ["GivenName", "Surname", "Birthday"]
+            merge_cols = ["uid", "identifier"]
 
         case "fuzzy":
-            print("\n🔄 Reconstructing results using fuzzy matching...")
-            best_matches_given_name, updated_result = find_most_likely_given_name(result, beginYear=1900, endYear=2024, similarity_metric='dice')
-            best_matches_surnames, updated_result = find_most_likely_surnames(predicted_2grams_list=updated_result, minCount=10, similarity_metric='dice', use_filtered_surnames=False)
-            best_matches_birthday = find_most_likely_birthday(updated_result, similarity_metric='dice')
-
-            reconstructed_results = [
-                (given[0], surname[0], birthday[0], given[2])
-                for given, surname, birthday in zip(best_matches_given_name, best_matches_surnames, best_matches_birthday)
-            ]
+            reconstructed_results = fuzzy_reconstruction_approach(result)
             merge_cols = ["GivenName", "Surname", "Birthday", "uid"]
 
-    # Run final reidentification for non-greedy cases
-    if DEA_CONFIG["MatchingTechnique"] != "greedy":
-        reidentified = run_reidentification(reconstructed_results, data_dir, identifier, merge_cols)
+        case "fuzzy_and_greedy":
+            greedy_results = greedy_reconstruction(result)
+            greedy_identifier_components = ["GivenName", "Surname", "Birthday"]
+            greedy_merge_cols = ["uid", "identifier"]
+            reidentified_greedy = run_reidentification(greedy_results, data_dir, identifier, greedy_merge_cols, "greedy", greedy_identifier_components)
 
+            fuzzy_results = fuzzy_reconstruction_approach(result)
+            fuzzy_merge_cols = ["GivenName", "Surname", "Birthday", "uid"]
+            reidentified_fuzzy = run_reidentification(fuzzy_results, data_dir, identifier, fuzzy_merge_cols, "fuzzy")
+
+            reidentified = {"fuzzy": reidentified_fuzzy, "greedy": reidentified_greedy}
+
+    if(DEA_CONFIG["MatchingTechnique"] != "fuzzy_and_greedy"):
+        reidentified = run_reidentification(reconstructed_results, data_dir, identifier, merge_cols, DEA_CONFIG["MatchingTechnique"], identifier_components)
+
+    # %%
+    if GLOBAL_CONFIG["BenchMode"]:
+        elapsed_refinement_and_reconstruction = time.time() - start_refinement_and_reconstruction
+        elapsed_total = time.time() - start_total
+        save_dea_runtime_log(
+            elapsed_gma=elapsed_gma,
+            elapsed_data_preparation=elapsed_data_preparation,
+            elapsed_hyperparameter_optimization=elapsed_hyperparameter_optimization,
+            elapsed_model_training=elapsed_model_training,
+            elapsed_application_to_encoded_data=elapsed_application_to_encoded_data,
+            elapsed_refinement_and_reconstruction=elapsed_refinement_and_reconstruction,
+            elapsed_total=elapsed_total,
+            output_dir=save_to
+        )
     # %%
     return reidentified
 
