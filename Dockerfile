@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:2.4.0-cuda11.8-cudnn9-runtimeAdd
+FROM pytorch/pytorch:2.4.0-cuda11.8-cudnn9-runtime
 
 ARG DEBIAN_FRONTEND=noninteractive
 
