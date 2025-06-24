@@ -321,8 +321,7 @@ def process_file(filepath):
 def format_birthday(date_str):
     return f"{date_str[:2]}/{date_str[2:4]}/{date_str[4:]}"
 
-def find_most_likely_birthday(predicted_2grams_list, similarity_metric='jaccard'):
-    # Select similarity function
+def find_most_likely_birthday(entry, all_birthday_records, similarity_metric='jaccard'):
     similarity_func = {
         'jaccard': jaccard_similarity,
         'dice': dice_coefficient
@@ -331,113 +330,75 @@ def find_most_likely_birthday(predicted_2grams_list, similarity_metric='jaccard'
     if similarity_func is None:
         raise ValueError("similarity_metric must be 'jaccard' or 'dice'")
 
-    # Precompute candidate birthdays and their 2-grams
-    candidate_birthdays = [
-        d.strftime("%-m/%-d/%Y") for d in pd.date_range("1900-01-01", "2004-12-31")
-    ]
-    candidate_2grams = [(bd, extract_two_grams(bd)) for bd in candidate_birthdays]
-
-    results = []
-    for entry in predicted_2grams_list:
-        best_match = max(
-            candidate_2grams,
-            key=lambda bd: similarity_func(entry['predicted_two_grams'], bd[1])
-        )
-        best_birthday, best_score = best_match[0], similarity_func(entry['predicted_two_grams'], best_match[1])
-        results.append((format_birthday(best_birthday), best_score, entry['uid']))
-
-    return results
-
-
-def find_most_likely_given_name(predicted_2grams_list, unique_names_file='data/names/givenname/unique_names.txt', similarity_metric='jaccard'):
-    # Select similarity function
-    similarity_func = {
-        'jaccard': jaccard_similarity,
-        'dice': dice_coefficient
-    }.get(similarity_metric)
-
-    if similarity_func is None:
-        raise ValueError("similarity_metric must be 'jaccard' or 'dice'")
-
-    # Load and preprocess all names into 2-grams
-    with open(unique_names_file, 'r', encoding='utf-8') as f:
-        all_records = [
-            (name.strip(), extract_two_grams(name.strip()))
-            for name in f if name.strip()
-        ]
-
-    best_matches = []
-    updated_predicted_list = []
-
-    for entry in predicted_2grams_list:
-        # Find best matching name
-        best_name, best_score, best_name_grams = max(
-            ((name, similarity_func(entry['predicted_two_grams'], grams), grams) for name, grams in all_records),
-            key=lambda x: x[1],
-            default=(None, -1, [])
-        )
-
-        best_matches.append((best_name, best_score, entry['uid']))
-
-        # Filter out matched 2-grams
-        filtered_grams = [gram for gram in entry['predicted_two_grams'] if gram not in best_name_grams]
-        updated_predicted_list.append({
-            'uid': entry['uid'],
-            'actual_two_grams': entry['actual_two_grams'],
-            'predicted_two_grams': filtered_grams
-        })
-
-    return best_matches, updated_predicted_list
-
-
-
-def find_most_likely_surnames(predicted_2grams_list, min_count, similarity_metric='jaccard', use_filtered_surnames=False):
-    # Select similarity function
-    similarity_func = {
-        'jaccard': jaccard_similarity,
-        'dice': dice_coefficient
-    }.get(similarity_metric)
-
-    if similarity_func is None:
-        raise ValueError("similarity_metric must be 'jaccard' or 'dice'")
-
-    # Determine file path and load surnames
-    file_path = (
-        'data/names/surname/Filtered_Names_2010Census.csv'
-        if use_filtered_surnames
-        else 'data/names/surname/Names_2010Census.csv'
+    best_birthday, best_score, best_grams = max(
+        (
+            (birthday, similarity_func(entry['predicted_two_grams'], grams), grams)
+            for birthday, grams in all_birthday_records
+        ),
+        key=lambda x: x[1],
+        default=(None, -1, [])
     )
 
-    all_records = []
-    if os.path.isfile(file_path):
-        with open(file_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if int(row['count']) >= min_count:
-                    name = row['name'].lower()
-                    grams = extract_two_grams(name)
-                    all_records.append((name, set(grams)))
+    filtered_grams = [
+        gram for gram in entry['predicted_two_grams'] if gram not in best_grams
+    ]
 
-    best_matches = []
-    updated_predicted_list = []
+    entry["actual_two_grams"] = filtered_grams
 
-    for entry in predicted_2grams_list:
-        # Find best matching surname
-        best_name, best_score, best_grams = max(
-            ((name, similarity_func(entry['predicted_two_grams'], grams), grams) for name, grams in all_records),
-            key=lambda x: x[1],
-            default=(None, -1, set())
-        )
+    return best_birthday, best_score
 
-        filtered_grams = [g for g in entry['predicted_two_grams'] if g not in best_grams]
-        best_matches.append((best_name, best_score, entry['uid']))
-        updated_predicted_list.append({
-            'uid': entry['uid'],
-            'actual_two_grams': entry['actual_two_grams'],
-            'predicted_two_grams': filtered_grams
-        })
+def find_most_likely_given_name(entry, all_givenname_records, similarity_metric='jaccard'):
+    similarity_func = {
+        'jaccard': jaccard_similarity,
+        'dice': dice_coefficient
+    }.get(similarity_metric)
 
-    return best_matches, updated_predicted_list
+    if similarity_func is None:
+        raise ValueError("similarity_metric must be 'jaccard' or 'dice'")
+
+    best_name, best_score, best_name_grams = max(
+        (
+            (name, similarity_func(entry['predicted_two_grams'], grams), grams)
+            for name, grams in all_givenname_records
+        ),
+        key=lambda x: x[1],
+        default=(None, -1, [])
+    )
+
+    filtered_grams = [
+        gram for gram in entry['predicted_two_grams'] if gram not in best_name_grams
+    ]
+
+    entry["actual_two_grams"] = filtered_grams
+
+    return best_name, best_score, filtered_grams
+
+def find_most_likely_surname(entry, all_surname_records, similarity_metric='jaccard'):
+    similarity_func = {
+        'jaccard': jaccard_similarity,
+        'dice': dice_coefficient
+    }.get(similarity_metric)
+
+    if similarity_func is None:
+        raise ValueError("similarity_metric must be 'jaccard' or 'dice'")
+
+    best_name, best_score, best_grams = max(
+        (
+            (name, similarity_func(entry['predicted_two_grams'], grams), grams)
+            for name, grams in all_surname_records
+        ),
+        key=lambda x: x[1],
+        default=(None, -1, set())
+    )
+
+    filtered_grams = [
+        gram for gram in entry['predicted_two_grams'] if gram not in best_grams
+    ]
+
+    entry["actual_two_grams"] = filtered_grams
+
+    return best_name, best_score, filtered_grams
+
 
 
 def greedy_reconstruction(result):
@@ -481,31 +442,83 @@ def greedy_reconstruction(result):
 
     return reconstructed_results
 
-
-def fuzzy_reconstruction_approach(result):
-    print("\n🔄 Reconstructing results using fuzzy matching...")
-
-    # Step 1: Given name reconstruction
-    best_given_names, updated_result = find_most_likely_given_name(result, similarity_metric='dice')
-
-    # Step 2: Surname reconstruction
-    best_surnames, updated_result = find_most_likely_surnames(
-        predicted_2grams_list=updated_result,
-        min_count=10,
-        similarity_metric='dice',
-        use_filtered_surnames=True
+def load_givenname_and_surname_records(min_count=10, use_filtered=True):
+    file_path = (
+        'data/names/surname/Filtered_Names_2010Census.csv'
+        if use_filtered else 'data/names/surname/Names_2010Census.csv'
     )
 
-    # Step 3: Birthday reconstruction
-    best_birthdays = find_most_likely_birthday(updated_result, similarity_metric='dice')
+    all_surname_records = []
+    if os.path.isfile(file_path):
+        with open(file_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if int(row['count']) >= min_count:
+                    name = row['name'].lower()
+                    grams = extract_two_grams(name)
+                    all_surname_records.append((name, set(grams)))
 
-    # Combine all reconstructed components by UID
-    reconstructed = [
-        (given[0], surname[0], birthday[0], given[2])  # (GivenName, Surname, Birthday, UID)
-        for given, surname, birthday in zip(best_given_names, best_surnames, best_birthdays)
+    # Load and preprocess all given names into 2-grams
+    with open('data/names/givenname/unique_names.txt', 'r', encoding='utf-8') as f:
+        all_givenname_records = [
+            (name.strip(), extract_two_grams(name.strip()))
+            for name in f if name.strip()
+        ]
+    return all_givenname_records, all_surname_records
+
+def load_birthday_2gram_records():
+    date_range = pd.date_range(start="1900-01-01", end="2004-12-31", freq='D')
+    return [
+        (d.strftime("%-m/%-d/%Y"), extract_two_grams(d.strftime("%-m/%-d/%Y")))
+        for d in date_range
     ]
 
+
+def fuzzy_reconstruction_approach(result):
+    print("\n🔄 Reconstructing results using fuzzy matching (entry-wise)...")
+
+    all_birthday_records = load_birthday_2gram_records()
+    all_givenname_records, all_surname_records = load_givenname_and_surname_records(min_count=10, use_filtered=True)
+
+    reconstructed = []
+    for entry in result:
+
+        uid = entry['uid']
+        actual_two_grams = entry["actual_two_grams"]
+        predicted_two_grams = entry['predicted_two_grams']
+
+        entry_dict = {
+            'uid': uid,
+            'actual_two_grams': actual_two_grams,
+            'predicted_two_grams': predicted_two_grams
+        }
+
+        # Step 1: Given name
+        given_name, _, _ = find_most_likely_given_name(
+            entry_dict,
+            all_givenname_records=all_givenname_records,
+            similarity_metric='dice'
+        )
+
+        #Step 2: Surname
+        surname, _, _ = find_most_likely_surname(
+        entry=entry_dict,
+        all_surname_records=all_surname_records,
+        similarity_metric='dice'
+        )
+
+        # Step 3: Birthday
+        birthday, _ = find_most_likely_birthday(
+        entry_dict,
+        all_birthday_records=all_birthday_records,
+        similarity_metric='dice'
+        )
+
+        # Collect reconstructed entry
+        reconstructed.append((given_name, surname, birthday, uid))
+
     return reconstructed
+
 
 def create_identifier_column_dynamic(df, components):
     cleaned_cols = [
