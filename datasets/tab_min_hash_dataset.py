@@ -1,6 +1,8 @@
 from datasets.dataset_utils import *
 from torch.utils.data import Dataset
 
+from utils import extract_two_grams
+
 class TabMinHashDataset(Dataset):
     def __init__(self, data, is_labeled=False, all_two_grams=None, dev_mode=False):
         self.isLabeled = is_labeled
