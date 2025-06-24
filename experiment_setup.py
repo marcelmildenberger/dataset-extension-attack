@@ -1,47 +1,38 @@
 from main import run_dea
-
-
-
-# %% [markdown]
-# ### Parameters
-#
-# Configuration and parameters for the Graph Matching Attack (GMA) and Dataset Extension Attack (DEA). For details and possible values, refer to the documentation at ```./docs/parameters.md```.
-
 # %%
-# Parameters
+# === General Parameters ===
 GLOBAL_CONFIG = {
     "Data": "./data/datasets/fakename_5k.tsv",
     "Overlap": 0.8,
     "DropFrom": "Eve",
-    "Verbose": False,  # Print Status Messages
+    "Verbose": False,
     "MatchingMetric": "cosine",
     "Matching": "MinWeight",
     "Workers": -1,
     "SaveAliceEncs": False,
     "SaveEveEncs": False,
     "DevMode": False,
-    "BenchMode": True
-}
-
-
-DEA_CONFIG = {
-    "DevMode": False,
-    "TrainSize": 0.8, # TestSize calculated accordingly
-    "Patience": 5,
-    "MinDelta": 1e-4,
-    "NumSamples": 200,
-    "Epochs": 15,
-    "EarlyStoppingPatience": 5,
-    "NumCPU": 19,  # 11 on my local 19 on cluster (general: n-1)
-    "MetricToOptimize": "average_dice", # "average_dice", "average_precision", "average_recall", "average_f1"
-    "MatchingTechnique": "fuzzy_and_greedy",  # "ai", "greedy", "fuzzy", "fuzzy_and_greedy"
+    "BenchMode": True,
     "LoadResults": False,
     "LoadPath": "",
     "SaveResults": True,
 }
 
+# === DEA Training Parameters ===
+DEA_CONFIG = {
+    "TrainSize": 0.8,
+    "Patience": 5,
+    "MinDelta": 1e-4,
+    "NumSamples": 250,
+    "Epochs": 20,
+    "NumCPU": 19,
+    "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
+    "MatchingTechnique": "fuzzy_and_greedy",  # Options: "ai", "greedy", "fuzzy", ...
+}
+
+# === Encoding Parameters for Alice & Eve ===
 ENC_CONFIG = {
-    # TwoStepHash / TabMinHash / BloomFilter
+    # Encoding technique
     "AliceAlgo": "BloomFilter",
     "AliceSecret": "SuperSecretSalt1337",
     "AliceN": 2,
@@ -50,7 +41,8 @@ ENC_CONFIG = {
     "EveSecret": "ATotallyDifferentString42",
     "EveN": 2,
     "EveMetric": "dice",
-    # For BF encoding
+
+    # Bloom Filter specific
     "AliceBFLength": 1024,
     "AliceBits": 10,
     "AliceDiffuse": False,
@@ -61,7 +53,8 @@ ENC_CONFIG = {
     "EveDiffuse": False,
     "EveT": 10,
     "EveEldLength": 1024,
-    # For TMH encoding
+
+    # Tabulation MinHash specific
     "AliceNHash": 1024,
     "AliceNHashBits": 64,
     "AliceNSubKeys": 8,
@@ -70,7 +63,8 @@ ENC_CONFIG = {
     "EveNHashBits": 64,
     "EveNSubKeys": 8,
     "Eve1BitHash": True,
-    # For 2SH encoding
+
+    # Two-Step Hashing specific
     "AliceNHashFunc": 10,
     "AliceNHashCol": 1000,
     "AliceRandMode": "PNG",
@@ -79,6 +73,7 @@ ENC_CONFIG = {
     "EveRandMode": "PNG",
 }
 
+# === Embedding Configuration (e.g., Node2Vec) ===
 EMB_CONFIG = {
     "Algo": "Node2Vec",
     "AliceQuantile": 0.9,
@@ -93,7 +88,6 @@ EMB_CONFIG = {
     "EveContext": 10,
     "EveNegative": 1,
     "EveNormalize": True,
-    # For Node2Vec
     "AliceWalkLen": 100,
     "AliceNWalks": 20,
     "AliceP": 250,
@@ -105,23 +99,24 @@ EMB_CONFIG = {
     "EveP": 250,
     "EveQ": 300,
     "EveEpochs": 5,
-    "EveSeed": 42
+    "EveSeed": 42,
 }
 
+# === Graph Alignment Config ===
 ALIGN_CONFIG = {
-    "RegWS": max(0.1, GLOBAL_CONFIG["Overlap"]/2), #0005
-    "RegInit":1, # For BF 0.25
-    "Batchsize": 1, # 1 = 100%
+    "RegWS": max(0.1, GLOBAL_CONFIG["Overlap"] / 2),
+    "RegInit": 1,
+    "Batchsize": 1,
     "LR": 200.0,
     "NIterWS": 100,
-    "NIterInit": 5 ,  # 800
+    "NIterInit": 5,
     "NEpochWS": 100,
     "LRDecay": 1,
     "Sqrt": True,
     "EarlyStopping": 10,
     "Selection": "None",
     "MaxLoad": None,
-    "Wasserstein": True
+    "Wasserstein": True,
 }
 
 # Encodings to iterate over
