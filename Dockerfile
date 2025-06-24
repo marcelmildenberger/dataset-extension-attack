@@ -4,16 +4,12 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies
 RUN apt update && \
-    apt install -y \
-        libfreetype6-dev \
-        g++ \
-        intel-mkl \
-        nano
+    apt install -y libfreetype6-dev g++ intel-mkl nano && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+
 
 # Copy Code
 COPY ./ /usr/app/
 WORKDIR /usr/app
 
-# Install Python dependencies
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+RUN pip install --upgrade pip && pip install -r requirements.txt
