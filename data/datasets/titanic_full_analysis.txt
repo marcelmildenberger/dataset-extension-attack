@@ -1,0 +1,5 @@
+Average entry length: 26
+Top 25 2-grams: ['mr', 'an', 'ar', 'er', 'ma', 'is', 'ss', 'mi', 'en', 'li', 'ha', 'on', 'el', 'in', 'll', 'le', 'il', 'rs', 'st', 'ri', 'am', 'al', 'or', 'ne', 'th']
+Precision: 0.2468
+Recall: 0.3770
+F1 Score: 0.2896
