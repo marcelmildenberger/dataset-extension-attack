@@ -163,11 +163,17 @@ def map_probabilities_to_two_grams(two_gram_dict, probabilities):
 
 
 
-def filter_high_scoring_two_grams(two_gram_scores, threshold):
-    return [
-        [gram for gram, score in score_dict.items() if score > threshold]
-        for score_dict in two_gram_scores
-    ]
+def filter_high_scoring_two_grams(two_gram_scores, threshold, max_grams=33):
+    filtered = []
+    for score_dict in two_gram_scores:
+        # Filter by threshold
+        filtered_grams = [(gram, score) for gram, score in score_dict.items() if score > threshold]
+        # Sort by score descending and keep only top `max_grams`
+        top_grams = sorted(filtered_grams, key=lambda x: x[1], reverse=True)[:max_grams]
+        # Extract just the 2-grams
+        filtered.append([gram for gram, _ in top_grams])
+    return filtered
+
 
 
 def calculate_performance_metrics(actual_batch, predicted_batch):
@@ -410,6 +416,8 @@ def greedy_reconstruction(result):
     for entry in result:
         uid = entry["uid"]
         two_grams = entry["predicted_two_grams"]
+        actual_two_grams = entry["actual_two_grams"]
+
 
         # Build directed graph from 2-grams
         G = nx.DiGraph()
@@ -609,21 +617,17 @@ def analyze_2gram_baseline(file_path):
     # Load the data
     df = pd.read_csv(file_path, sep='\t')
 
-
-    #Fakename
+    # Fakename
     df['full_entry'] = df['GivenName'].astype(str) + df['Surname'].astype(str) + df['Birthday'].astype(str)
 
-    # Titantic Full
-    #df['full_entry'] = df['surname'].astype(str) + df['firstname'].astype(str)
-
-    # Calculate average entry length
-    avg_length = df['full_entry'].apply(len).mean()
-    avg_length = int(round(avg_length))
+    # Calculate average and max entry length
+    entry_lengths = df['full_entry'].apply(len)
+    avg_length = int(round(entry_lengths.mean()))
+    max_length = int(entry_lengths.max())
 
     # Get all 2-grams and their frequencies
     all_2grams = df['full_entry'].apply(extract_two_grams).sum()
     two_gram_counts = Counter(all_2grams)
-
 
     # Number of 2-grams that fit in the average length
     n = avg_length - 1
@@ -636,21 +640,22 @@ def analyze_2gram_baseline(file_path):
 
     total_precision = total_recall = total_f1 = 0.0
 
-    len_df = len(df)
-
     for entry in true_2grams:
         precision, recall, f1 = precision_recall_f1(entry, top_n_2grams)
         total_precision += precision
         total_recall += recall
         total_f1 += f1
+
     # Save the results
     output_file = os.path.splitext(file_path)[0] + '_analysis.txt'
     with open(output_file, 'w') as f:
         f.write(f"Average entry length: {avg_length}\n")
+        f.write(f"Maximum entry length: {max_length}\n")
         f.write(f"Top {n} 2-grams: {top_n_2grams}\n")
-        f.write(f"Precision: {total_precision / len_df:.4f}\n")
-        f.write(f"Recall: {total_recall / len_df:.4f}\n")
-        f.write(f"F1 Score: {total_f1 / len_df:.4f}\n")
+        f.write(f"Precision: {total_precision / len(df):.4f}\n")
+        f.write(f"Recall: {total_recall / len(df):.4f}\n")
+        f.write(f"F1 Score: {total_f1 / len(df):.4f}\n")
 
     return output_file
+
 
