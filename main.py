@@ -57,7 +57,7 @@ from utils import (
 )
 
 def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
-        # %% [markdown]
+    # %% [markdown]
     # ### Dictionaries
 
     # %%
@@ -121,7 +121,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # Build file paths for reidentified, not reidentified, and full encoded data
     path_reidentified = f"{data_dir}/available_to_eve/reidentified_individuals_{identifier}.h5"
     path_not_reidentified = f"{data_dir}/available_to_eve/not_reidentified_individuals_{identifier}.h5"
-    path_all = f"{data_dir}/dev/alice_data_complete_with_encoding_{identifier}.h5"
+    path_all = f"{data_dir}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5"
 
     # Run GMA only if the expected output files do not yet exist
     if not (
@@ -173,7 +173,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     #    If benchmarking is active, the elapsed time for data preparation is recorded.
 
     # %%
-    def load_data(data_directory, identifier, load_test=False):
+    def load_data(data_directory, alice_enc_hash, identifier, load_test=False):
         def get_encoding_dataset_class():
             algo = ENC_CONFIG["AliceAlgo"]
             if algo == "BloomFilter":
@@ -193,7 +193,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         # Load and prepare not-reidentified individuals if needed
         if load_test:
             df_not_reidentified = load_dataframe(f"{data_directory}/available_to_eve/not_reidentified_individuals_{identifier}.h5")
-            df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{identifier}.h5")
+            df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5")
 
             # Filter and prepare test set
             df_test = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
@@ -227,9 +227,9 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
         return data_train, data_val, data_test
 
-    def load_not_reidentified_data(data_directory, identifier):
+    def load_not_reidentified_data(data_directory, alice_enc_hash, identifier):
         df_not_reidentified = load_dataframe(f"{data_directory}/available_to_eve/not_reidentified_individuals_{identifier}.h5")
-        df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{identifier}.h5")
+        df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5")
 
         df_filtered = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
 
@@ -241,6 +241,44 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
 
 
+    selected_dataset = GLOBAL_CONFIG["Data"].split("/")[-1].replace(".tsv", "")
+    experiment_tag = "experiment_" + ENC_CONFIG["AliceAlgo"] + "_" + selected_dataset + "_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    save_to = f"experiment_results/{experiment_tag}"
+    os.makedirs(save_to, exist_ok=True)
+
+    # Combine all configs into one dictionary
+    all_configs = {
+        "GLOBAL_CONFIG": GLOBAL_CONFIG,
+        "DEA_CONFIG": DEA_CONFIG,
+        "ENC_CONFIG": ENC_CONFIG,
+        "EMB_CONFIG": EMB_CONFIG,
+        "ALIGN_CONFIG": ALIGN_CONFIG
+    }
+
+    # Save as a readable .txt file
+    with open(os.path.join(save_to, "config.txt"), "w") as f:
+        for config_name, config_dict in all_configs.items():
+            f.write(f"# === {config_name} ===\n")
+            f.write(json.dumps(config_dict, indent=4))
+            f.write("\n\n")
+    os.makedirs(f"{save_to}/hyperparameteroptimization", exist_ok=True)
+
+    # %%
+    data_train, data_val, data_test = load_data(data_dir, alice_enc_hash, identifier, load_test=True)
+    df_not_reidentified = load_not_reidentified_data(data_dir, alice_enc_hash, identifier)
+    # Exit the function if any of the data frames are empty
+    if len(data_train) == 0 or len(data_val) == 0 or len(data_test) == 0 or df_not_reidentified.empty:
+        log_path = os.path.join(save_to, "termination_log.txt")
+        with open(log_path, "w") as f:
+            f.write("Training process canceled due to empty dataset.\n")
+            f.write(f"Length of data_train: {len(data_train)}\n")
+            f.write(f"Length of data_val: {len(data_val)}\n")
+            f.write(f"Length of data_test: {len(data_test)}\n")
+            f.write(f"Length of df_not_reidentified: {len(df_not_reidentified)}\n")
+        print("One or more datasets are empty. Termination log written.")
+        return 0
+
+
     # %% [markdown]
     # ## Step 3: Hyperparameter Optimization
 
@@ -249,13 +287,10 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         start_hyperparameter_optimization = time.time()
 
     # %%
-
-
-
-    def train_model(config, data_dir, output_dim, identifier, patience, min_delta):
+    def train_model(config, data_dir, output_dim, alice_enc_hash, identifier, patience, min_delta):
         # Create DataLoaders for training, validation, and testing
 
-        data_train, data_val, _ = load_data(data_dir, identifier, load_test=False)
+        data_train, data_val, _ = load_data(data_dir, alice_enc_hash, identifier, load_test=False)
 
         input_dim = data_train[0][0].shape[0]  # Get the input dimension from the first sample
 
@@ -439,11 +474,6 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         ]),
         "batch_size": tune.choice([8, 16, 32, 64]),  # Batch sizes to test
     }
-
-    selected_dataset = GLOBAL_CONFIG["Data"].split("/")[-1].replace(".tsv", "")
-
-    experiment_tag = "experiment_" + ENC_CONFIG["AliceAlgo"] + "_" + selected_dataset + "_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-
     # Initialize Ray for hyperparameter optimization
     ray.init(ignore_reinit_error=True, logging_level="ERROR")
 
@@ -457,7 +487,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
     # Define and configure the Tuner for Ray Tune
     tuner = tune.Tuner(
-        partial(train_model, data_dir=data_dir, output_dim=len(all_two_grams), identifier=identifier , patience=DEA_CONFIG["Patience"], min_delta=DEA_CONFIG["MinDelta"]),  # The function to optimize (training function)
+        partial(train_model, data_dir=data_dir, output_dim=len(all_two_grams),alice_enc_hash=alice_enc_hash, identifier=identifier, patience=DEA_CONFIG["Patience"], min_delta=DEA_CONFIG["MinDelta"]),  # The function to optimize (training function)
         tune_config=tune.TuneConfig(
             search_alg=optuna_search,  # Search strategy using Optuna
             scheduler=scheduler,  # Use ASHA to manage the trials
@@ -484,8 +514,6 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
     # %%
     if GLOBAL_CONFIG["SaveResults"]:
-        save_to = f"experiment_results/{experiment_tag}"
-        os.makedirs(save_to, exist_ok=True)
         os.makedirs(f"{save_to}/hyperparameteroptimization", exist_ok=True)
         worst_result = result_grid.get_best_result(metric=DEA_CONFIG["MetricToOptimize"], mode="min")
 
@@ -568,7 +596,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
     # %%
     best_config = resolve_config(best_result.config)
-    data_train, data_val, data_test = load_data(data_dir, identifier, load_test=True)
+    data_train, data_val, data_test = load_data(data_dir, alice_enc_hash, identifier, load_test=True)
     input_dim=data_train[0][0].shape[0]
 
     dataloader_train = DataLoader(
@@ -1052,7 +1080,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # %%
     @lru_cache(maxsize=None)
     def get_not_reidentified_df(data_dir: str, identifier: str) -> pd.DataFrame:
-        df = load_not_reidentified_data(data_dir, identifier)
+        df = load_not_reidentified_data(data_dir, alice_enc_hash, identifier)
         return lowercase_df(df)
 
     def create_identifier_if_needed(df: pd.DataFrame, comps):
@@ -1117,7 +1145,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         if selected not in TECHNIQUES:
             raise ValueError(f"Unsupported matching technique: {selected}")
         info = TECHNIQUES[selected]
-        recon = info["fn"](result)
+        recon = info["fn"](results)
         reidentified = run_reidentification_once(
             recon,
             df_not_reid_cached,
