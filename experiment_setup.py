@@ -23,7 +23,7 @@ DEA_CONFIG = {
     "TrainSize": 0.8,
     "Patience": 5,
     "MinDelta": 1e-4,
-    "NumSamples": 250,
+    "NumSamples": 100,
     "Epochs": 20,
     "NumCPU": 19,
     "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
@@ -119,24 +119,31 @@ ALIGN_CONFIG = {
     "Wasserstein": True,
 }
 
-# Encodings to iterate over
 encs = ["TwoStepHash", "BloomFilter", "TabMinHash"]
-
 datasets = ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv", "fakename_20k.tsv", "fakename_50k.tsv"]
-
 drop = ["Eve", "Both"]
 overlap = [0.2, 0.4, 0.8]
 
 for encoding in encs:
     ENC_CONFIG["AliceAlgo"] = encoding
-    ENC_CONFIG["EveAlgo"] = "None"  # Default Eve encoding
-    if encoding == 'BloomFilter':
+    ENC_CONFIG["EveAlgo"] = "None"
+    if encoding == "BloomFilter":
         ENC_CONFIG["EveAlgo"] = encoding
+
     for dataset in datasets:
-        GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
+        # Skip fully processed datasets for TwoStepHash
+        if encoding == "TwoStepHash" and dataset in ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv"]:
+            continue
+
         for drop_from in drop:
-            GLOBAL_CONFIG["DropFrom"] = drop_from
             for ov in overlap:
+                # Skip first 10k run for TwoStepHash (with overlap 0.2)
+                if encoding == "TwoStepHash" and dataset == "fakename_10k.tsv" and ov == 0.2:
+                    continue
+
+                GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
+                GLOBAL_CONFIG["DropFrom"] = drop_from
                 GLOBAL_CONFIG["Overlap"] = ov
                 run_dea(GLOBAL_CONFIG.copy(), ENC_CONFIG.copy(), EMB_CONFIG.copy(), ALIGN_CONFIG.copy(), DEA_CONFIG.copy())
+
 print("✅ Skript abgeschlossen!")

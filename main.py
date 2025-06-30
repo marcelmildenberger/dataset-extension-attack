@@ -450,9 +450,9 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # Define search space for hyperparameter optimization
     search_space = {
         "output_dim": len(all_two_grams),  # Output dimension is also the number of unique 2-grams
-        "num_layers": tune.randint(1, 6),  # Vary the number of layers in the model
+        "num_layers": tune.randint(1, 4),  # Vary the number of layers in the model
         #"num_layers": tune.randint(1, 2),
-        "hidden_layer_size": tune.choice([64, 128, 256, 512, 1024, 2048,4096]),  # Different sizes for hidden layers
+        "hidden_layer_size": tune.choice([128, 256, 512, 1024, 2048]),  # Different sizes for hidden layers
         #"hidden_layer_size": tune.choice([1024, 2048]),  # Different sizes for hidden layers
         "dropout_rate": tune.uniform(0.1, 0.4),  # Dropout rate between 0.1 and 0.4
         "activation_fn": tune.choice(["relu", "leaky_relu", "gelu", "elu", "selu", "tanh"]),  # Activation functions to choose from
