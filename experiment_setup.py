@@ -4,7 +4,7 @@ import os
 # === General Parameters ===
 GLOBAL_CONFIG = {
     "Data": "",
-    "Overlap": "",
+    "Overlap": None,
     "DropFrom": "",
     "Verbose": False,
     "MatchingMetric": "cosine",
