@@ -105,7 +105,7 @@ EMB_CONFIG = {
 
 # === Graph Alignment Config ===
 ALIGN_CONFIG = {
-    "RegWS": max(0.1, GLOBAL_CONFIG["Overlap"] / 2),
+    "RegWS": None,
     "RegInit": 1,
     "Batchsize": 1,
     "LR": 200.0,
@@ -141,6 +141,7 @@ for encoding in encs:
                 GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
                 GLOBAL_CONFIG["DropFrom"] = drop_from
                 GLOBAL_CONFIG["Overlap"] = ov
+                ALIGN_CONFIG["RegWS"] = max(0.1, ov / 2)
                 run_dea(GLOBAL_CONFIG.copy(), ENC_CONFIG.copy(), EMB_CONFIG.copy(), ALIGN_CONFIG.copy(), DEA_CONFIG.copy())
 
 print("✅ Skript abgeschlossen!")
