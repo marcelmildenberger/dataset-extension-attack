@@ -3,9 +3,9 @@ import os
 # %%
 # === General Parameters ===
 GLOBAL_CONFIG = {
-    "Data": "./data/datasets/fakename_5k.tsv",
-    "Overlap": 0.8,
-    "DropFrom": "Eve",
+    "Data": "",
+    "Overlap": "",
+    "DropFrom": "",
     "Verbose": False,
     "MatchingMetric": "cosine",
     "Matching": "MinWeight",
@@ -34,11 +34,11 @@ DEA_CONFIG = {
 # === Encoding Parameters for Alice & Eve ===
 ENC_CONFIG = {
     # Encoding technique
-    "AliceAlgo": "BloomFilter",
+    "AliceAlgo": "",
     "AliceSecret": "SuperSecretSalt1337",
     "AliceN": 2,
     "AliceMetric": "dice",
-    "EveAlgo": "None",
+    "EveAlgo": "",
     "EveSecret": "ATotallyDifferentString42",
     "EveN": 2,
     "EveMetric": "dice",
