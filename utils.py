@@ -6,7 +6,9 @@ from hashlib import md5
 from typing import Sequence
 
 # Third-party imports
+import concurrent.futures
 import hickle as hkl
+import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
 import torch
@@ -15,6 +17,7 @@ from dotenv import load_dotenv
 from groq import Groq
 from torch.utils.data import Subset
 from tqdm import tqdm
+
 
 
 
@@ -352,7 +355,7 @@ def find_most_likely_birthday(entry, all_birthday_records, similarity_metric='ja
         gram for gram in entry['predicted_two_grams'] if gram not in best_grams
     ]
 
-    entry["actual_two_grams"] = filtered_grams
+    entry["predicted_two_grams"] = filtered_grams
 
     return best_birthday, best_score
 
@@ -378,7 +381,7 @@ def find_most_likely_given_name(entry, all_givenname_records, similarity_metric=
         gram for gram in entry['predicted_two_grams'] if gram not in best_name_grams
     ]
 
-    entry["actual_two_grams"] = filtered_grams
+    entry["predicted_two_grams"] = filtered_grams
 
     return best_name, best_score, filtered_grams
 
@@ -404,7 +407,7 @@ def find_most_likely_surname(entry, all_surname_records, similarity_metric='jacc
         gram for gram in entry['predicted_two_grams'] if gram not in best_grams
     ]
 
-    entry["actual_two_grams"] = filtered_grams
+    entry["predicted_two_grams"] = filtered_grams
 
     return best_name, best_score, filtered_grams
 
@@ -416,7 +419,6 @@ def greedy_reconstruction(result):
     for entry in result:
         uid = entry["uid"]
         two_grams = entry["predicted_two_grams"]
-        actual_two_grams = entry["actual_two_grams"]
 
 
         # Build directed graph from 2-grams
@@ -483,53 +485,6 @@ def load_birthday_2gram_records():
         (d.strftime("%-m/%-d/%Y"), extract_two_grams(d.strftime("%-m/%-d/%Y")))
         for d in date_range
     ]
-
-
-def fuzzy_reconstruction_approach(result):
-    print("\n🔄 Reconstructing results using fuzzy matching (entry-wise)...")
-
-    all_birthday_records = load_birthday_2gram_records()
-    all_givenname_records, all_surname_records = load_givenname_and_surname_records(min_count=10, use_filtered=True)
-
-    reconstructed = []
-    for entry in result:
-
-        uid = entry['uid']
-        actual_two_grams = entry["actual_two_grams"]
-        predicted_two_grams = entry['predicted_two_grams']
-
-        entry_dict = {
-            'uid': uid,
-            'actual_two_grams': actual_two_grams,
-            'predicted_two_grams': predicted_two_grams
-        }
-
-        # Step 1: Given name
-        given_name, _, _ = find_most_likely_given_name(
-            entry_dict,
-            all_givenname_records=all_givenname_records,
-            similarity_metric='dice'
-        )
-
-        #Step 2: Surname
-        surname, _, _ = find_most_likely_surname(
-        entry=entry_dict,
-        all_surname_records=all_surname_records,
-        similarity_metric='dice'
-        )
-
-        # Step 3: Birthday
-        birthday, _ = find_most_likely_birthday(
-        entry_dict,
-        all_birthday_records=all_birthday_records,
-        similarity_metric='dice'
-        )
-
-        # Collect reconstructed entry
-        reconstructed.append((given_name, surname, birthday, uid))
-
-    return reconstructed
-
 
 def create_identifier_column_dynamic(df, components):
     cleaned_cols = [
@@ -658,4 +613,82 @@ def analyze_2gram_baseline(file_path):
 
     return output_file
 
+def fake_name_analysis():
+    dataset_sizes = [1000, 2000, 5000, 10000, 20000, 50000]
+    precisions = [0.2162, 0.2131, 0.2144, 0.2151, 0.2153, 0.2151]
+    recalls = [0.2476, 0.2452, 0.2470, 0.2467, 0.2473, 0.2463]
+    f1_scores = [0.2300, 0.2271, 0.2287, 0.2289, 0.2293, 0.2288]
+
+    plt.plot(dataset_sizes, precisions, label='Precision', marker='o')
+    plt.plot(dataset_sizes, recalls, label='Recall', marker='s')
+    plt.plot(dataset_sizes, f1_scores, label='F1 Score', marker='^')
+    plt.xlabel('Dataset Size')
+    plt.ylabel('Metric Value')
+    plt.title('Baseline Guessing Performance on Fakename Datasets')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
+
+def reconstruct_single_entry(entry, all_givenname_records, all_surname_records, all_birthday_records):
+    uid = entry['uid']
+    actual_two_grams = entry["actual_two_grams"]
+    predicted_two_grams = entry['predicted_two_grams']
+
+    entry_dict = {
+        'uid': uid,
+        'actual_two_grams': actual_two_grams,
+        'predicted_two_grams': predicted_two_grams
+    }
+
+    # Given name
+    given_name, _, _ = find_most_likely_given_name(
+        entry_dict,
+        all_givenname_records=all_givenname_records,
+        similarity_metric='dice'
+    )
+
+    # Surname
+    surname, _, _ = find_most_likely_surname(
+        entry_dict,
+        all_surname_records=all_surname_records,
+        similarity_metric='dice'
+    )
+
+    # Birthday
+    birthday, _ = find_most_likely_birthday(
+        entry_dict,
+        all_birthday_records=all_birthday_records,
+        similarity_metric='dice'
+    )
+
+    return (given_name, surname, birthday, uid)
+
+
+def fuzzy_reconstruction_approach(result):
+    print("\n🔄 Reconstructing results using fuzzy matching (entry-wise, parallelized)...")
+
+    all_birthday_records = load_birthday_2gram_records()
+    all_givenname_records, all_surname_records = load_givenname_and_surname_records(min_count=150, use_filtered=True)
+
+    # Prepare parallel workers
+    reconstructed = []
+    with concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count() - 1) as executor:
+        futures = [
+            executor.submit(
+                reconstruct_single_entry,
+                entry,
+                all_givenname_records,
+                all_surname_records,
+                all_birthday_records
+            )
+            for entry in result
+        ]
+
+        for future in concurrent.futures.as_completed(futures):
+            reconstructed.append(future.result())
+
+    return reconstructed
 

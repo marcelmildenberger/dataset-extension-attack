@@ -1,4 +1,5 @@
 from main import run_dea
+import os
 # %%
 # === General Parameters ===
 GLOBAL_CONFIG = {
@@ -25,7 +26,7 @@ DEA_CONFIG = {
     "MinDelta": 1e-4,
     "NumSamples": 100,
     "Epochs": 20,
-    "NumCPU": 19,
+    "NumCPU": os.cpu_count() - 1,
     "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
     "MatchingTechnique": "fuzzy_and_greedy",  # Options: "ai", "greedy", "fuzzy", ...
 }
