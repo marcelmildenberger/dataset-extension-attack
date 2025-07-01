@@ -24,7 +24,7 @@ DEA_CONFIG = {
     "TrainSize": 0.8,
     "Patience": 5,
     "MinDelta": 1e-4,
-    "NumSamples": 100,
+    "NumSamples": 250,
     "Epochs": 20,
     "NumCPU": os.cpu_count() - 1,
     "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
@@ -120,10 +120,10 @@ ALIGN_CONFIG = {
     "Wasserstein": True,
 }
 
-encs = ["TwoStepHash", "BloomFilter", "TabMinHash"]
+encs = ["BloomFilter", "TabMinHash", "TwoStepHash"]
 datasets = ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv", "fakename_20k.tsv", "fakename_50k.tsv"]
 drop = ["Eve", "Both"]
-overlap = [0.2, 0.4, 0.8]
+overlap = [0.2, 0.4, 0.6, 0.8]
 
 for encoding in encs:
     ENC_CONFIG["AliceAlgo"] = encoding
@@ -133,15 +133,11 @@ for encoding in encs:
 
     for dataset in datasets:
         # Skip fully processed datasets for TwoStepHash
-        if encoding == "TwoStepHash" and dataset in ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv"]:
+        if encoding == "TwoStepHash" and dataset in ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv"]:
             continue
 
         for drop_from in drop:
             for ov in overlap:
-                # Skip first 10k run for TwoStepHash (with overlap 0.2)
-                if encoding == "TwoStepHash" and dataset == "fakename_10k.tsv" and ov == 0.2:
-                    continue
-
                 GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
                 GLOBAL_CONFIG["DropFrom"] = drop_from
                 GLOBAL_CONFIG["Overlap"] = ov

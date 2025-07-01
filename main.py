@@ -12,6 +12,7 @@ from functools import partial
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import pickle
 import seaborn as sns
 import torch
 import torch.nn as nn
@@ -173,7 +174,27 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     #    If benchmarking is active, the elapsed time for data preparation is recorded.
 
     # %%
+    def get_cache_path(data_directory, identifier, alice_enc_hash, name="dataset"):
+        os.makedirs(f"{data_directory}/cache", exist_ok=True)
+        return os.path.join(data_directory, "cache", f"{name}_{identifier}_{alice_enc_hash}.pkl")
+
     def load_data(data_directory, alice_enc_hash, identifier, load_test=False):
+        cache_path = get_cache_path(data_directory, identifier, alice_enc_hash)
+
+        if os.path.exists(cache_path):
+            with open(cache_path, 'rb') as f:
+                data_train, data_val, data_test = pickle.load(f)
+            return data_train, data_val, data_test
+
+        # Load from raw files
+        df_reidentified = load_dataframe(f"{data_directory}/available_to_eve/reidentified_individuals_{identifier}.h5")
+
+        df_test = None
+        if load_test:
+            df_not_reidentified = load_dataframe(f"{data_directory}/available_to_eve/not_reidentified_individuals_{identifier}.h5")
+            df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5")
+            df_test = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
+
         def get_encoding_dataset_class():
             algo = ENC_CONFIG["AliceAlgo"]
             if algo == "BloomFilter":
@@ -184,19 +205,6 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
                 return TwoStepHashDataset
             else:
                 raise ValueError(f"Unknown encoding algorithm: {algo}")
-
-        df_test = None
-
-        # Load reidentified individuals
-        df_reidentified = load_dataframe(f"{data_directory}/available_to_eve/reidentified_individuals_{identifier}.h5")
-
-        # Load and prepare not-reidentified individuals if needed
-        if load_test:
-            df_not_reidentified = load_dataframe(f"{data_directory}/available_to_eve/not_reidentified_individuals_{identifier}.h5")
-            df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5")
-
-            # Filter and prepare test set
-            df_test = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
 
         DatasetClass = get_encoding_dataset_class()
 
@@ -212,32 +220,43 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             "dev_mode": GLOBAL_CONFIG["DevMode"]
         }
 
-        # Instantiate labeled dataset
         data_labeled = DatasetClass(df_reidentified, **common_args, **dataset_args)
+        data_test = DatasetClass(df_test, **common_args, **dataset_args) if load_test else None
 
-        if load_test:
-            data_test = DatasetClass(df_test, **common_args, **dataset_args)
-        else:
-            data_test = None
-
-        # Train/Validation split
         train_size = int(DEA_CONFIG["TrainSize"] * len(data_labeled))
         val_size = len(data_labeled) - train_size
         data_train, data_val = random_split(data_labeled, [train_size, val_size])
 
+        # Save to cache
+        with open(cache_path, 'wb') as f:
+            pickle.dump((data_train, data_val, data_test), f)
         return data_train, data_val, data_test
 
+
     def load_not_reidentified_data(data_directory, alice_enc_hash, identifier):
+        cache_path = get_cache_path(data_directory, identifier, alice_enc_hash, name="not_reidentified")
+        if os.path.exists(cache_path):
+            with open(cache_path, 'rb') as f:
+                df_filtered = pickle.load(f)
+            return df_filtered
+
         df_not_reidentified = load_dataframe(f"{data_directory}/available_to_eve/not_reidentified_individuals_{identifier}.h5")
         df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5")
 
         df_filtered = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
 
+
+
         # Drop column by name instead of position if possible
         drop_col = df_filtered.columns[-2]
         df_filtered = df_filtered.drop(columns=[drop_col])
 
+        with open(cache_path, 'wb') as f:
+            pickle.dump(df_filtered, f)
+
         return df_filtered
+
+
 
 
 
