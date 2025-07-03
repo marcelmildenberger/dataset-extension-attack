@@ -3,9 +3,9 @@ import os
 # %%
 # === General Parameters ===
 GLOBAL_CONFIG = {
-    "Data": "",
+    "Data": None,
     "Overlap": None,
-    "DropFrom": "",
+    "DropFrom": None,
     "Verbose": False,
     "MatchingMetric": "cosine",
     "Matching": "MinWeight",
@@ -24,7 +24,7 @@ DEA_CONFIG = {
     "TrainSize": 0.8,
     "Patience": 5,
     "MinDelta": 1e-4,
-    "NumSamples": 250,
+    "NumSamples": 125,
     "Epochs": 20,
     "NumCPU": os.cpu_count() - 1,
     "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
@@ -134,6 +134,8 @@ for encoding in encs:
     for dataset in datasets:
         # Skip fully processed datasets for TwoStepHash
         if encoding == "TwoStepHash" and dataset in ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv"]:
+            continue
+        if encoding == "BloomFilter" and dataset in ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv"]:
             continue
 
         for drop_from in drop:
