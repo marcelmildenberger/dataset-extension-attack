@@ -9,7 +9,7 @@ GLOBAL_CONFIG = {
     "Verbose": False,
     "MatchingMetric": "cosine",
     "Matching": "MinWeight",
-    "Workers": os.cpu_count() - 1,
+    "Workers": -1,
     "SaveAliceEncs": False,
     "SaveEveEncs": False,
     "DevMode": False,
