@@ -9,7 +9,7 @@ GLOBAL_CONFIG = {
     "Verbose": False,
     "MatchingMetric": "cosine",
     "Matching": "MinWeight",
-    "Workers": -1,
+    "NumCPU": os.cpu_count() - 5,
     "SaveAliceEncs": False,
     "SaveEveEncs": False,
     "DevMode": False,
@@ -26,7 +26,6 @@ DEA_CONFIG = {
     "MinDelta": 1e-4,
     "NumSamples": 125,
     "Epochs": 20,
-    "NumCPU": os.cpu_count() - 1,
     "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
     "MatchingTechnique": "fuzzy_and_greedy",  # Options: "ai", "greedy", "fuzzy", ...
 }

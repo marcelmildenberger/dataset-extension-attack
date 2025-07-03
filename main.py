@@ -1151,7 +1151,10 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         reidentified = {}
         for name in ("greedy", "fuzzy"):
             info = TECHNIQUES[name]
-            recon = info["fn"](results)
+            if name == "fuzzy":
+                recon = info["fn"](results, GLOBAL_CONFIG["Workers"])
+            else:
+                recon = info["fn"](results)
             reidentified[name] = run_reidentification_once(
                 recon,
                 df_not_reid_cached,
@@ -1164,7 +1167,10 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         if selected not in TECHNIQUES:
             raise ValueError(f"Unsupported matching technique: {selected}")
         info = TECHNIQUES[selected]
-        recon = info["fn"](results)
+        if selected == "fuzzy":
+            recon = info["fn"](results, GLOBAL_CONFIG["Workers"])
+        else:
+            recon = info["fn"](results)
         reidentified = run_reidentification_once(
             recon,
             df_not_reid_cached,

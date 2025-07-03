@@ -6,7 +6,6 @@ from hashlib import md5
 from typing import Sequence
 
 # Third-party imports
-import concurrent.futures
 import hickle as hkl
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -15,6 +14,7 @@ import torch
 from collections import Counter
 from dotenv import load_dotenv
 from groq import Groq
+from joblib import Parallel, delayed
 from torch.utils.data import Subset
 from tqdm import tqdm
 
@@ -667,28 +667,22 @@ def reconstruct_single_entry(entry, all_givenname_records, all_surname_records, 
     return (given_name, surname, birthday, uid)
 
 
-def fuzzy_reconstruction_approach(result):
+def fuzzy_reconstruction_approach(result, workers):
     print("\n🔄 Reconstructing results using fuzzy matching (entry-wise, parallelized)...")
 
     all_birthday_records = load_birthday_2gram_records()
     all_givenname_records, all_surname_records = load_givenname_and_surname_records(min_count=150, use_filtered=True)
 
-    # Prepare parallel workers
-    reconstructed = []
-    with concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count() - 1) as executor:
-        futures = [
-            executor.submit(
-                reconstruct_single_entry,
-                entry,
-                all_givenname_records,
-                all_surname_records,
-                all_birthday_records
-            )
-            for entry in result
-        ]
-
-        for future in concurrent.futures.as_completed(futures):
-            reconstructed.append(future.result())
+    # Prepare parallel jobs
+    reconstructed = Parallel(n_jobs=workers)(
+        delayed(reconstruct_single_entry)(
+            entry,
+            all_givenname_records,
+            all_surname_records,
+            all_birthday_records
+        )
+        for entry in result
+    )
 
     return reconstructed
 
