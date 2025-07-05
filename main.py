@@ -50,7 +50,6 @@ from utils import (
     map_probabilities_to_two_grams,
     metrics_per_entry,
     print_and_save_result,
-    reconstruct_identities_with_llm,
     reidentification_analysis,
     resolve_config,
     run_epoch,
@@ -58,6 +57,7 @@ from utils import (
 )
 
 def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
+
     # %% [markdown]
     # ### Dictionaries
 
@@ -234,32 +234,31 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
 
     def load_not_reidentified_data(data_directory, alice_enc_hash, identifier):
-        cache_path = get_cache_path(data_directory, identifier, alice_enc_hash, name="not_reidentified")
-        if os.path.exists(cache_path):
-            with open(cache_path, 'rb') as f:
-                df_filtered = pickle.load(f)
+            cache_path = get_cache_path(data_directory, identifier, alice_enc_hash, name="not_reidentified")
+            if os.path.exists(cache_path):
+                with open(cache_path, 'rb') as f:
+                    df_filtered = pickle.load(f)
+                return df_filtered
+
+            df_not_reidentified = load_dataframe(f"{data_directory}/available_to_eve/not_reidentified_individuals_{identifier}.h5")
+            df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5")
+
+            df_filtered = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
+
+
+
+            # Drop column by name instead of position if possible
+            drop_col = df_filtered.columns[-2]
+            df_filtered = df_filtered.drop(columns=[drop_col])
+
+            with open(cache_path, 'wb') as f:
+                pickle.dump(df_filtered, f)
+
             return df_filtered
 
-        df_not_reidentified = load_dataframe(f"{data_directory}/available_to_eve/not_reidentified_individuals_{identifier}.h5")
-        df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5")
-
-        df_filtered = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
 
 
-
-        # Drop column by name instead of position if possible
-        drop_col = df_filtered.columns[-2]
-        df_filtered = df_filtered.drop(columns=[drop_col])
-
-        with open(cache_path, 'wb') as f:
-            pickle.dump(df_filtered, f)
-
-        return df_filtered
-
-
-
-
-
+    # %%
     selected_dataset = GLOBAL_CONFIG["Data"].split("/")[-1].replace(".tsv", "")
     experiment_tag = "experiment_" + ENC_CONFIG["AliceAlgo"] + "_" + selected_dataset + "_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     save_to = f"experiment_results/{experiment_tag}"
@@ -295,8 +294,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             f.write(f"Length of data_test: {len(data_test)}\n")
             f.write(f"Length of df_not_reidentified: {len(df_not_reidentified)}\n")
         print("One or more datasets are empty. Termination log written.")
-        return 0
-
+        raise SystemExit(1)
 
     # %% [markdown]
     # ## Step 3: Hyperparameter Optimization
@@ -493,6 +491,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         ]),
         "batch_size": tune.choice([8, 16, 32, 64]),  # Batch sizes to test
     }
+
     # Initialize Ray for hyperparameter optimization
     ray.init(ignore_reinit_error=True, logging_level="ERROR")
 
@@ -511,7 +510,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             search_alg=optuna_search,  # Search strategy using Optuna
             scheduler=scheduler,  # Use ASHA to manage the trials
             num_samples=DEA_CONFIG["NumSamples"],  # Number of trials to run
-            max_concurrent_trials=DEA_CONFIG["NumCPU"],
+            max_concurrent_trials=GLOBAL_CONFIG["Workers"],
         ),
         param_space=search_space  # Pass in the defined hyperparameter search space
 
@@ -533,7 +532,6 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
     # %%
     if GLOBAL_CONFIG["SaveResults"]:
-        os.makedirs(f"{save_to}/hyperparameteroptimization", exist_ok=True)
         worst_result = result_grid.get_best_result(metric=DEA_CONFIG["MetricToOptimize"], mode="min")
 
         # Combine configs and metrics into a DataFrame
@@ -1102,19 +1100,17 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         df = load_not_reidentified_data(data_dir, alice_enc_hash, identifier)
         return lowercase_df(df)
 
-    def create_identifier_if_needed(df: pd.DataFrame, comps):
-        if comps:
-            df = df.copy()
-            df["identifier"] = create_identifier_column_dynamic(df, comps)
-            return df[["uid", "identifier"]]
-        return df
+    def create_identifier(df: pd.DataFrame, comps):
+        df = df.copy()
+        df["identifier"] = create_identifier_column_dynamic(df, comps)
+        return df[["uid", "identifier"]]
 
     def run_reidentification_once(reconstructed, df_not_reidentified, merge_cols, technique, identifier_components=None):
 
         df_reconstructed = lowercase_df(pd.DataFrame(reconstructed, columns=merge_cols))
 
-        df_not_reidentified = create_identifier_if_needed(df_not_reidentified,
-                                                        identifier_components)
+        if(identifier_components):
+            df_not_reidentified = create_identifier(df_not_reidentified, identifier_components)
 
         return reidentification_analysis(
             df_reconstructed,
@@ -1125,20 +1121,22 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             save_path=f"{save_to}/re_identification_results"
         )
 
+    header = read_header(GLOBAL_CONFIG["Data"])
+
     TECHNIQUES = {
         "ai": {
             "fn": reconstruct_identities_with_llm,
-            "merge_cols": ["GivenName", "Surname", "Birthday", "uid"],
+            "merge_cols": header[:3] + [header[-1]],
             "identifier_comps": None,
         },
         "greedy": {
             "fn": greedy_reconstruction,
             "merge_cols": ["uid", "identifier"],
-            "identifier_comps": ["GivenName", "Surname", "Birthday"],
+            "identifier_comps": header[:-1],
         },
         "fuzzy": {
             "fn": fuzzy_reconstruction_approach,
-            "merge_cols": ["GivenName", "Surname", "Birthday", "uid"],
+            "merge_cols": header[:3] + [header[-1]],
             "identifier_comps": None,
         },
     }
@@ -1164,11 +1162,15 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             )
     else:
         # single technique path
+        print(selected)
+        print(TECHNIQUES[selected])
         if selected not in TECHNIQUES:
             raise ValueError(f"Unsupported matching technique: {selected}")
         info = TECHNIQUES[selected]
         if selected == "fuzzy":
             recon = info["fn"](results, GLOBAL_CONFIG["Workers"])
+        if selected == "ai":
+            recon = info["fn"](results, info["merge_cols"][:-1])
         else:
             recon = info["fn"](results)
         reidentified = run_reidentification_once(
@@ -1234,5 +1236,8 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             elapsed_total=elapsed_total,
             output_dir=save_to
         )
+
+
+
 
     return 0

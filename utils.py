@@ -199,9 +199,11 @@ def decode_labels_to_two_grams(two_gram_dict, label_batch):
     ]
 
 
-def reconstruct_identities_with_llm(result):
+def reconstruct_identities_with_llm(result, columns=["GivenName", "Surname", "Birthday"]):
     client = Groq(api_key=groq_api_key)
     all_results = []
+
+    given_name_col, surname_col, birthday_col = columns
 
     def format_input(batch):
         return "\n".join(
@@ -216,11 +218,11 @@ def reconstruct_identities_with_llm(result):
             "You are an attacker attempting to reconstruct the given name, surname, "
             "and date of birth of multiple individuals based on 2-grams extracted from a dataset extension attack.\n\n"
             "Each individual is represented by a UID and a list of predicted 2-grams. For each individual, infer:\n"
-            "- GivenName\n- Surname\n- - Birthday (in M/D/YYYY format, without leading zeros)\n\n"
+            f"- {given_name_col}\n- {surname_col}\n- {birthday_col} (in M/D/YYYY format, without leading zeros)\n\n"
             "Only return valid JSON in the format:\n"
             "[\n"
-            "  {\n    \"uid\": \"29995\",\n    \"GivenName\": \"Leslie\",\n"
-            "    \"Surname\": \"Smith\",\n    \"Birthday\": \"12/22/1974\"\n  },\n"
+            f"  {{\n    \"uid\": \"29995\",\n    \"{given_name_col}\": \"Leslie\",\n"
+            f"    \"{surname_col}\": \"Smith\",\n    \"{birthday_col}\": \"12/22/1974\"\n  }},\n"
             "  ...\n]\n\n"
             "Here is the input:\n{\n" + format_input(batch) + "\n}"
         )
@@ -685,4 +687,10 @@ def fuzzy_reconstruction_approach(result, workers):
     )
 
     return reconstructed
+
+def read_header(tsv_path):
+    with open(tsv_path, 'r', encoding='utf-8') as f:
+        header_line = f.readline().strip()
+        columns = header_line.split('\t')
+        return columns
 
