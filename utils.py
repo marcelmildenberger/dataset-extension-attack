@@ -570,51 +570,6 @@ def load_dataframe(path):
     data = hkl.load(path)
     return pd.DataFrame(data[1:], columns=data[0])
 
-def analyze_2gram_baseline(file_path):
-    # Load the data
-    df = pd.read_csv(file_path, sep='\t')
-
-    # Fakename
-    df['full_entry'] = df['GivenName'].astype(str) + df['Surname'].astype(str) + df['Birthday'].astype(str)
-
-    # Calculate average and max entry length
-    entry_lengths = df['full_entry'].apply(len)
-    avg_length = int(round(entry_lengths.mean()))
-    max_length = int(entry_lengths.max())
-
-    # Get all 2-grams and their frequencies
-    all_2grams = df['full_entry'].apply(extract_two_grams).sum()
-    two_gram_counts = Counter(all_2grams)
-
-    # Number of 2-grams that fit in the average length
-    n = avg_length - 1
-
-    # Get top-n most frequent 2-grams
-    top_n_2grams = [gram for gram, _ in two_gram_counts.most_common(n)]
-
-    # Generate true and predicted sets of 2-grams
-    true_2grams = df['full_entry'].apply(extract_two_grams)
-
-    total_precision = total_recall = total_f1 = 0.0
-
-    for entry in true_2grams:
-        precision, recall, f1 = precision_recall_f1(entry, top_n_2grams)
-        total_precision += precision
-        total_recall += recall
-        total_f1 += f1
-
-    # Save the results
-    output_file = os.path.splitext(file_path)[0] + '_analysis.txt'
-    with open(output_file, 'w') as f:
-        f.write(f"Average entry length: {avg_length}\n")
-        f.write(f"Maximum entry length: {max_length}\n")
-        f.write(f"Top {n} 2-grams: {top_n_2grams}\n")
-        f.write(f"Precision: {total_precision / len(df):.4f}\n")
-        f.write(f"Recall: {total_recall / len(df):.4f}\n")
-        f.write(f"F1 Score: {total_f1 / len(df):.4f}\n")
-
-    return output_file
-
 def fake_name_analysis():
     dataset_sizes = [1000, 2000, 5000, 10000, 20000, 50000]
     precisions = [0.2162, 0.2131, 0.2144, 0.2151, 0.2153, 0.2151]
