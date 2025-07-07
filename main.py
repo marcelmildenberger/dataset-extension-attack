@@ -296,7 +296,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             f.write(f"Length of data_test: {len(data_test)}\n")
             f.write(f"Length of df_not_reidentified: {len(df_not_reidentified)}\n")
         print("One or more datasets are empty. Termination log written.")
-        raise SystemExit(1)
+        return 0
 
     # %% [markdown]
     # ## Step 3: Hyperparameter Optimization
