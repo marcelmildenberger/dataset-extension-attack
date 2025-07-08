@@ -119,7 +119,7 @@ ALIGN_CONFIG = {
     "Wasserstein": True,
 }
 
-encs = ["TabMinHash", "BloomFilter"]
+encs = ["TabMinHash", "BloomFilter", "TwoStepHash"]
 datasets = ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv", "fakename_20k.tsv", "fakename_50k.tsv"]
 drop = ["Eve", "Both"]
 overlap = [0.2, 0.4, 0.6, 0.8]
