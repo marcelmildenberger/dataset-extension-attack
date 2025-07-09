@@ -15,4 +15,8 @@
 .env
 .DS_Store
 formatted_results.csv
-
+analysis/plots/*
+analysis/tables/*
+!/analysis/plots/ignore_me
+!/analysis/tables/ignore_me
+/experiment_results_filtered/*

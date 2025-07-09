@@ -120,7 +120,7 @@ ALIGN_CONFIG = {
 }
 
 encs = ["TabMinHash", "BloomFilter", "TwoStepHash"]
-datasets = ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv", "fakename_20k.tsv", "fakename_50k.tsv"]
+datasets = ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv", "fakename_20k.tsv", "fakename_50k.tsv", "euro_person", "titanic_full"]
 drop = ["Eve", "Both"]
 overlap = [0.2, 0.4, 0.6, 0.8]
 
