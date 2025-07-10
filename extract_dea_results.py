@@ -126,10 +126,10 @@ def collect_experiment_results(base_path: str, output_csv_path: str = None) -> p
                 "HypOpValLoss": best_result.get("total_val_loss"),
                 "HypOpEpochs": best_result.get("epochs"),
                 "HypOpBatchSize": best_result.get("batch_size"),
-                "HypOpHypOpF1": best_result.get("average_f1"),
-                "HypOpHypOpPrecision": best_result.get("average_precision"),
-                "HypOpHypOpRecall": best_result.get("average_recall"),
-                "HypOpHypOpDice": best_result.get("average_dice"),
+                "HypOpF1": best_result.get("average_f1"),
+                "HypOpPrecision": best_result.get("average_precision"),
+                "HypOpRecall": best_result.get("average_recall"),
+                "HypOpDice": best_result.get("average_dice"),
                 "LenTrain": best_result.get("len_train"),
                 "LenVal": best_result.get("len_val"),
             })
@@ -154,4 +154,4 @@ def collect_experiment_results(base_path: str, output_csv_path: str = None) -> p
         df.to_csv(output_csv_path, index=False)
     return df
 
-collect_experiment_results("experiment_results_filtered", "formatted_results.csv")
+collect_experiment_results("experiment_results/experiment_results_filtered", "formatted_results.csv")
