@@ -119,106 +119,9 @@ ALIGN_CONFIG = {
     "Wasserstein": True,
 }
 
-# Define manually which experiments are already completed (from your Excel file)
-completed_experiments = {
-    ('BloomFilter', 'fakename_10k.tsv', 'Both', 0.2),
-    ('BloomFilter', 'fakename_10k.tsv', 'Both', 0.4),
-    ('BloomFilter', 'fakename_10k.tsv', 'Both', 0.6),
-    ('BloomFilter', 'fakename_10k.tsv', 'Both', 0.8),
-    ('BloomFilter', 'fakename_10k.tsv', 'Eve', 0.2),
-    ('BloomFilter', 'fakename_10k.tsv', 'Eve', 0.4),
-    ('BloomFilter', 'fakename_10k.tsv', 'Eve', 0.6),
-    ('BloomFilter', 'fakename_10k.tsv', 'Eve', 0.8),
-    ('BloomFilter', 'fakename_1k.tsv', 'Both', 0.2),
-    ('BloomFilter', 'fakename_1k.tsv', 'Both', 0.4),
-    ('BloomFilter', 'fakename_1k.tsv', 'Both', 0.6),
-    ('BloomFilter', 'fakename_1k.tsv', 'Both', 0.8),
-    ('BloomFilter', 'fakename_1k.tsv', 'Eve', 0.2),
-    ('BloomFilter', 'fakename_1k.tsv', 'Eve', 0.4),
-    ('BloomFilter', 'fakename_1k.tsv', 'Eve', 0.6),
-    ('BloomFilter', 'fakename_1k.tsv', 'Eve', 0.8),
-    ('BloomFilter', 'fakename_2k.tsv', 'Both', 0.2),
-    ('BloomFilter', 'fakename_2k.tsv', 'Both', 0.4),
-    ('BloomFilter', 'fakename_2k.tsv', 'Both', 0.6),
-    ('BloomFilter', 'fakename_2k.tsv', 'Both', 0.8),
-    ('BloomFilter', 'fakename_2k.tsv', 'Eve', 0.2),
-    ('BloomFilter', 'fakename_2k.tsv', 'Eve', 0.4),
-    ('BloomFilter', 'fakename_2k.tsv', 'Eve', 0.6),
-    ('BloomFilter', 'fakename_2k.tsv', 'Eve', 0.8),
-    ('BloomFilter', 'fakename_5k.tsv', 'Both', 0.2),
-    ('BloomFilter', 'fakename_5k.tsv', 'Both', 0.4),
-    ('BloomFilter', 'fakename_5k.tsv', 'Both', 0.6),
-    ('BloomFilter', 'fakename_5k.tsv', 'Both', 0.8),
-    ('BloomFilter', 'fakename_5k.tsv', 'Eve', 0.2),
-    ('BloomFilter', 'fakename_5k.tsv', 'Eve', 0.4),
-    ('BloomFilter', 'fakename_5k.tsv', 'Eve', 0.6),
-    ('BloomFilter', 'fakename_5k.tsv', 'Eve', 0.8),
-    ('TabMinHash', 'fakename_10k.tsv', 'Both', 0.2),
-    ('TabMinHash', 'fakename_10k.tsv', 'Both', 0.4),
-    ('TabMinHash', 'fakename_10k.tsv', 'Both', 0.6),
-    ('TabMinHash', 'fakename_10k.tsv', 'Both', 0.8),
-    ('TabMinHash', 'fakename_10k.tsv', 'Eve', 0.2),
-    ('TabMinHash', 'fakename_10k.tsv', 'Eve', 0.4),
-    ('TabMinHash', 'fakename_10k.tsv', 'Eve', 0.6),
-    ('TabMinHash', 'fakename_10k.tsv', 'Eve', 0.8),
-    ('TabMinHash', 'fakename_1k.tsv', 'Eve', 0.2),
-    ('TabMinHash', 'fakename_1k.tsv', 'Eve', 0.4),
-    ('TabMinHash', 'fakename_1k.tsv', 'Eve', 0.6),
-    ('TabMinHash', 'fakename_1k.tsv', 'Eve', 0.8),
-    ('TabMinHash', 'fakename_1k.tsv', 'Both', 0.2),
-    ('TabMinHash', 'fakename_1k.tsv', 'Both', 0.4),
-    ('TabMinHash', 'fakename_20k.tsv', 'Both', 0.2),
-    ('TabMinHash', 'fakename_20k.tsv', 'Both', 0.4),
-    ('TabMinHash', 'fakename_20k.tsv', 'Both', 0.6),
-    ('TabMinHash', 'fakename_20k.tsv', 'Eve', 0.2),
-    ('TabMinHash', 'fakename_20k.tsv', 'Eve', 0.4),
-    ('TabMinHash', 'fakename_20k.tsv', 'Eve', 0.6),
-    ('TabMinHash', 'fakename_20k.tsv', 'Eve', 0.8),
-    ('TabMinHash', 'fakename_2k.tsv', 'Both', 0.2),
-    ('TabMinHash', 'fakename_2k.tsv', 'Both', 0.4),
-    ('TabMinHash', 'fakename_2k.tsv', 'Both', 0.6),
-    ('TabMinHash', 'fakename_2k.tsv', 'Both', 0.8),
-    ('TabMinHash', 'fakename_2k.tsv', 'Eve', 0.2),
-    ('TabMinHash', 'fakename_2k.tsv', 'Eve', 0.4),
-    ('TabMinHash', 'fakename_2k.tsv', 'Eve', 0.6),
-    ('TabMinHash', 'fakename_2k.tsv', 'Eve', 0.8),
-    ('TabMinHash', 'fakename_5k.tsv', 'Both', 0.2),
-    ('TabMinHash', 'fakename_5k.tsv', 'Both', 0.4),
-    ('TabMinHash', 'fakename_5k.tsv', 'Both', 0.6),
-    ('TabMinHash', 'fakename_5k.tsv', 'Both', 0.8),
-    ('TabMinHash', 'fakename_5k.tsv', 'Eve', 0.2),
-    ('TabMinHash', 'fakename_5k.tsv', 'Eve', 0.4),
-    ('TabMinHash', 'fakename_5k.tsv', 'Eve', 0.6),
-    ('TabMinHash', 'fakename_5k.tsv', 'Eve', 0.8),
-    ('TwoStepHash', 'fakename_10k.tsv', 'Both', 0.4),
-    ('TwoStepHash', 'fakename_10k.tsv', 'Both', 0.8),
-    ('TwoStepHash', 'fakename_10k.tsv', 'Eve', 0.2),
-    ('TwoStepHash', 'fakename_10k.tsv', 'Eve', 0.4),
-    ('TwoStepHash', 'fakename_10k.tsv', 'Eve', 0.8),
-    ('TwoStepHash', 'fakename_1k.tsv', 'Both', 0.2),
-    ('TwoStepHash', 'fakename_1k.tsv', 'Both', 0.4),
-    ('TwoStepHash', 'fakename_1k.tsv', 'Both', 0.8),
-    ('TwoStepHash', 'fakename_1k.tsv', 'Eve', 0.2),
-    ('TwoStepHash', 'fakename_1k.tsv', 'Eve', 0.4),
-    ('TwoStepHash', 'fakename_1k.tsv', 'Eve', 0.8),
-    ('TwoStepHash', 'fakename_20k.tsv', 'Eve', 0.2),
-    ('TwoStepHash', 'fakename_20k.tsv', 'Eve', 0.4),
-    ('TwoStepHash', 'fakename_2k.tsv', 'Both', 0.2),
-    ('TwoStepHash', 'fakename_2k.tsv', 'Both', 0.4),
-    ('TwoStepHash', 'fakename_2k.tsv', 'Both', 0.8),
-    ('TwoStepHash', 'fakename_2k.tsv', 'Eve', 0.2),
-    ('TwoStepHash', 'fakename_2k.tsv', 'Eve', 0.4),
-    ('TwoStepHash', 'fakename_2k.tsv', 'Eve', 0.8),
-    ('TwoStepHash', 'fakename_5k.tsv', 'Both', 0.2),
-    ('TwoStepHash', 'fakename_5k.tsv', 'Both', 0.4),
-    ('TwoStepHash', 'fakename_5k.tsv', 'Both', 0.8),
-    ('TwoStepHash', 'fakename_5k.tsv', 'Eve', 0.2),
-    ('TwoStepHash', 'fakename_5k.tsv', 'Eve', 0.4),
-    ('TwoStepHash', 'fakename_5k.tsv', 'Eve', 0.8),
-}
 
-encs = ["TabMinHash", "BloomFilter", "TwoStepHash"]
-datasets = ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv", "fakename_20k.tsv", "fakename_50k.tsv", "euro_person", "titanic_full"]
+encs = ["TabMinHash", "TwoStepHash", "BloomFilter"]
+datasets = ["euro_person.tsv"]
 drop = ["Eve", "Both"]
 overlap = [0.2, 0.4, 0.6, 0.8]
 
@@ -231,10 +134,6 @@ for encoding in encs:
     for dataset in datasets:
         for drop_from in drop:
             for ov in overlap:
-                # Skip if experiment already completed
-                if (encoding, dataset, drop_from, ov) in completed_experiments:
-                    continue
-
                 GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
                 GLOBAL_CONFIG["DropFrom"] = drop_from
                 GLOBAL_CONFIG["Overlap"] = ov

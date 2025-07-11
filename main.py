@@ -1096,7 +1096,6 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     if GLOBAL_CONFIG["BenchMode"]:
         start_refinement_and_reconstruction = time.time()
 
-    # %%
     @lru_cache(maxsize=None)
     def get_not_reidentified_df(data_dir: str, identifier: str) -> pd.DataFrame:
         df = load_not_reidentified_data(data_dir, alice_enc_hash, identifier)
@@ -1108,7 +1107,6 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         return df[["uid", "identifier"]]
 
     def run_reidentification_once(reconstructed, df_not_reidentified, merge_cols, technique, identifier_components=None):
-
         df_reconstructed = lowercase_df(pd.DataFrame(reconstructed, columns=merge_cols))
 
         if(identifier_components):
@@ -1125,6 +1123,9 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
     header = read_header(GLOBAL_CONFIG["Data"])
 
+
+    include_birthday = not (GLOBAL_CONFIG["Data"] == "./data/datasets/titanic_full.tsv")
+
     TECHNIQUES = {
         "ai": {
             "fn": reconstruct_identities_with_llm,
@@ -1138,7 +1139,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         },
         "fuzzy": {
             "fn": fuzzy_reconstruction_approach,
-            "merge_cols": header[:3] + [header[-1]],
+            "merge_cols": (header[:3] if include_birthday else header[:2]) + [header[-1]],
             "identifier_comps": None,
         },
     }
@@ -1152,7 +1153,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         for name in ("greedy", "fuzzy"):
             info = TECHNIQUES[name]
             if name == "fuzzy":
-                recon = info["fn"](results, GLOBAL_CONFIG["Workers"])
+                recon = info["fn"](results, GLOBAL_CONFIG["Workers"], include_birthday )
             else:
                 recon = info["fn"](results)
             reidentified[name] = run_reidentification_once(
@@ -1163,14 +1164,11 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
                 info["identifier_comps"],
             )
     else:
-        # single technique path
-        print(selected)
-        print(TECHNIQUES[selected])
         if selected not in TECHNIQUES:
             raise ValueError(f"Unsupported matching technique: {selected}")
         info = TECHNIQUES[selected]
         if selected == "fuzzy":
-            recon = info["fn"](results, GLOBAL_CONFIG["Workers"])
+            recon = info["fn"](results, GLOBAL_CONFIG["Workers"], include_birthday)
         if selected == "ai":
             recon = info["fn"](results, info["merge_cols"][:-1])
         else:
@@ -1182,7 +1180,6 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             selected,
             info["identifier_comps"],
         )
-
 
     # %%
     if selected == "fuzzy_and_greedy":

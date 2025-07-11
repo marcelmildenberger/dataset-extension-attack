@@ -154,4 +154,4 @@ def collect_experiment_results(base_path: str, output_csv_path: str = None) -> p
         df.to_csv(output_csv_path, index=False)
     return df
 
-collect_experiment_results("experiment_results/experiment_results_filtered", "formatted_results.csv")
+collect_experiment_results("experiment_results/", "formatted_results_titanic.csv")

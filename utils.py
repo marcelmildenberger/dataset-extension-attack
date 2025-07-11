@@ -218,14 +218,21 @@ def reconstruct_identities_with_llm(result, columns=["GivenName", "Surname", "Bi
             "You are an attacker attempting to reconstruct the given name, surname, "
             "and date of birth of multiple individuals based on 2-grams extracted from a dataset extension attack.\n\n"
             "Each individual is represented by a UID and a list of predicted 2-grams. For each individual, infer:\n"
-            f"- {given_name_col}\n- {surname_col}\n- {birthday_col} (in M/D/YYYY format, without leading zeros)\n\n"
-            "Only return valid JSON in the format:\n"
+            "- given_name\n- surname\n- birthdate (in M/D/YYYY format, without leading zeros)\n\n"
+            "Only return valid JSON in the following format:\n"
             "[\n"
-            f"  {{\n    \"uid\": \"29995\",\n    \"{given_name_col}\": \"Leslie\",\n"
-            f"    \"{surname_col}\": \"Smith\",\n    \"{birthday_col}\": \"12/22/1974\"\n  }},\n"
-            "  ...\n]\n\n"
-            "Here is the input:\n{\n" + format_input(batch) + "\n}"
+            "  {\n"
+            "    \"uid\": \"29995\",\n"
+            "    \"given_name\": \"Leslie\",\n"
+            "    \"surname\": \"Smith\",\n"
+            "    \"birthdate\": \"12/22/1974\"\n"
+            "  },\n"
+            "  ...\n"
+            "]\n\n"
+            "Here is the input:\n"
+            "{\n" + format_input(batch) + "\n}"
         )
+
 
         try:
             response = client.chat.completions.create(
@@ -589,7 +596,7 @@ def fake_name_analysis():
 
 
 
-def reconstruct_single_entry(entry, all_givenname_records, all_surname_records, all_birthday_records):
+def reconstruct_single_entry(entry, all_givenname_records, all_surname_records, all_birthday_records, reconstruct_birthday):
     uid = entry['uid']
     actual_two_grams = entry["actual_two_grams"]
     predicted_two_grams = entry['predicted_two_grams']
@@ -614,17 +621,19 @@ def reconstruct_single_entry(entry, all_givenname_records, all_surname_records, 
         similarity_metric='dice'
     )
 
-    # Birthday
-    birthday, _ = find_most_likely_birthday(
-        entry_dict,
-        all_birthday_records=all_birthday_records,
-        similarity_metric='dice'
-    )
+    if(reconstruct_birthday):
+        # Birthday
+        birthday, _ = find_most_likely_birthday(
+            entry_dict,
+            all_birthday_records=all_birthday_records,
+            similarity_metric='dice'
+        )
+        return (given_name, surname, birthday, uid)
 
-    return (given_name, surname, birthday, uid)
+    return(given_name, surname, uid)
 
 
-def fuzzy_reconstruction_approach(result, workers):
+def fuzzy_reconstruction_approach(result, workers, reconstruct_birthday):
     print("\n🔄 Reconstructing results using fuzzy matching (entry-wise, parallelized)...")
 
     all_birthday_records = load_birthday_2gram_records()
@@ -636,7 +645,8 @@ def fuzzy_reconstruction_approach(result, workers):
             entry,
             all_givenname_records,
             all_surname_records,
-            all_birthday_records
+            all_birthday_records,
+            reconstruct_birthday
         )
         for entry in result
     )
