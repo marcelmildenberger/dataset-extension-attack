@@ -10,7 +10,7 @@ GLOBAL_CONFIG = {
     "Verbose": False,
     "MatchingMetric": "cosine",
     "Matching": "MinWeight",
-    "Workers": math.floor(os.cpu_count() / 2),
+    "Workers": 1,
     "SaveAliceEncs": False,
     "SaveEveEncs": False,
     "DevMode": False,
@@ -18,6 +18,7 @@ GLOBAL_CONFIG = {
     "LoadResults": False,
     "LoadPath": "",
     "SaveResults": True,
+    "UseGPU": True
 }
 
 # === DEA Training Parameters ===
@@ -122,7 +123,7 @@ ALIGN_CONFIG = {
 
 
 encs = ["TwoStepHash"]
-datasets = ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv" "fakename_10k.tsv"]
+datasets = ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv"]
 drop = ["Eve", "Both"]
 overlap = [0.6]
 

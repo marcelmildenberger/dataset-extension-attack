@@ -494,35 +494,49 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         "batch_size": tune.choice([8, 16, 32, 64]),  # Batch sizes to test
     }
 
-    # Initialize Ray for hyperparameter optimization
+    # Initialize Ray
     ray.init(ignore_reinit_error=True, logging_level="ERROR")
 
-    # Optuna Search Algorithm for optimizing the hyperparameters
+    # Search strategy and scheduler
     optuna_search = OptunaSearch(metric=DEA_CONFIG["MetricToOptimize"], mode="max")
-
-    # Use ASHAScheduler to manage trials and early stopping
     scheduler = ASHAScheduler(metric="total_val_loss", mode="min")
 
+    # Wrap train_model with fixed arguments
+    trainable = partial(
+        train_model,
+        data_dir=data_dir,
+        output_dim=len(all_two_grams),
+        alice_enc_hash=alice_enc_hash,
+        identifier=identifier,
+        patience=DEA_CONFIG["Patience"],
+        min_delta=DEA_CONFIG["MinDelta"]
+    )
 
+    # Wrap with resource request
+    trainable_with_resources = tune.with_resources(
+        trainable,
+        resources={"cpu": 1, "gpu": 1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": 1, "gpu": 0}
+    )
 
-    # Define and configure the Tuner for Ray Tune
+    # Build the tuner
     tuner = tune.Tuner(
-        partial(train_model, data_dir=data_dir, output_dim=len(all_two_grams),alice_enc_hash=alice_enc_hash, identifier=identifier, patience=DEA_CONFIG["Patience"], min_delta=DEA_CONFIG["MinDelta"]),  # The function to optimize (training function)
+        trainable_with_resources,
         tune_config=tune.TuneConfig(
-            search_alg=optuna_search,  # Search strategy using Optuna
-            scheduler=scheduler,  # Use ASHA to manage the trials
-            num_samples=DEA_CONFIG["NumSamples"],  # Number of trials to run
+            search_alg=optuna_search,
+            scheduler=scheduler,
+            num_samples=DEA_CONFIG["NumSamples"],
             max_concurrent_trials=GLOBAL_CONFIG["Workers"],
         ),
-        param_space=search_space  # Pass in the defined hyperparameter search space
-
+        param_space=search_space,
+        run_config=air.RunConfig(name="dea_hpo_run")
     )
 
     # Run the tuner
     results = tuner.fit()
 
-    # Shut down Ray after finishing the optimization
+    # Shutdown Ray
     ray.shutdown()
+
 
     # %%
     result_grid = results
