@@ -215,23 +215,24 @@ def reconstruct_identities_with_llm(result, columns=["GivenName", "Surname", "Bi
 
     for batch in batches:
         prompt = (
-            "You are an attacker attempting to reconstruct the given name, surname, "
-            "and date of birth of multiple individuals based on 2-grams extracted from a dataset extension attack.\n\n"
+            f"You are an attacker attempting to reconstruct the {given_name_col}, {surname_col}, "
+            f"and {birthday_col} of multiple individuals based on 2-grams extracted from a dataset extension attack.\n\n"
             "Each individual is represented by a UID and a list of predicted 2-grams. For each individual, infer:\n"
-            "- given_name\n- surname\n- birthdate (in M/D/YYYY format, without leading zeros)\n\n"
+            f"- {given_name_col}\n- {surname_col}\n- {birthday_col} (in M/D/YYYY format, without leading zeros)\n\n"
             "Only return valid JSON in the following format:\n"
             "[\n"
             "  {\n"
             "    \"uid\": \"29995\",\n"
-            "    \"given_name\": \"Leslie\",\n"
-            "    \"surname\": \"Smith\",\n"
-            "    \"birthdate\": \"12/22/1974\"\n"
+            f"    \"{given_name_col}\": \"Leslie\",\n"
+            f"    \"{surname_col}\": \"Smith\",\n"
+            f"    \"{birthday_col}\": \"12/22/1974\"\n"
             "  },\n"
             "  ...\n"
             "]\n\n"
             "Here is the input:\n"
             "{\n" + format_input(batch) + "\n}"
         )
+
 
 
         try:

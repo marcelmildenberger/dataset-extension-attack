@@ -1,3 +1,4 @@
+import math
 from main import run_dea
 import os
 # %%
@@ -9,7 +10,7 @@ GLOBAL_CONFIG = {
     "Verbose": False,
     "MatchingMetric": "cosine",
     "Matching": "MinWeight",
-    "Workers": os.cpu_count() - 1,
+    "Workers": math.floor(os.cpu_count() / 2),
     "SaveAliceEncs": False,
     "SaveEveEncs": False,
     "DevMode": False,
@@ -120,17 +121,16 @@ ALIGN_CONFIG = {
 }
 
 
-encs = ["TabMinHash", "TwoStepHash", "BloomFilter"]
-datasets = ["euro_person.tsv"]
+encs = ["TwoStepHash"]
+datasets = ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv" "fakename_10k.tsv"]
 drop = ["Eve", "Both"]
-overlap = [0.2, 0.4, 0.6, 0.8]
+overlap = [0.6]
 
 for encoding in encs:
     ENC_CONFIG["AliceAlgo"] = encoding
     ENC_CONFIG["EveAlgo"] = "None"
     if encoding == "BloomFilter":
         ENC_CONFIG["EveAlgo"] = encoding
-
     for dataset in datasets:
         for drop_from in drop:
             for ov in overlap:
@@ -138,7 +138,18 @@ for encoding in encs:
                 GLOBAL_CONFIG["DropFrom"] = drop_from
                 GLOBAL_CONFIG["Overlap"] = ov
                 ALIGN_CONFIG["RegWS"] = max(0.1, ov / 3)
-                run_dea(GLOBAL_CONFIG.copy(), ENC_CONFIG.copy(), EMB_CONFIG.copy(), ALIGN_CONFIG.copy(), DEA_CONFIG.copy())
+                try:
+                    run_dea(
+                        GLOBAL_CONFIG.copy(),
+                        ENC_CONFIG.copy(),
+                        EMB_CONFIG.copy(),
+                        ALIGN_CONFIG.copy(),
+                        DEA_CONFIG.copy()
+                    )
+                except Exception as e:
+                    print(f"DEA run failed for dataset={dataset}, drop_from={drop_from}, overlap={ov}: {e}")
+                    continue
+
 
 
 print("✅ Skript abgeschlossen!")
