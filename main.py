@@ -54,7 +54,21 @@ from utils import (
 
 def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     ALIGN_CONFIG["RegWS"] = max(0.1, GLOBAL_CONFIG["Overlap"] / 3)
-    GLOBAL_CONFIG["Workers"] = os.cpu_count() - 1
+    
+    # Apply performance optimizations for cluster processing
+    if GLOBAL_CONFIG["Workers"] == 0:
+        GLOBAL_CONFIG["Workers"] = max(1, os.cpu_count() - 1)
+    
+    # Initialize performance optimizations
+    try:
+        from utils_parallel import optimize_torch_performance, log_resource_usage, PerformanceMonitor
+        optimize_torch_performance(GLOBAL_CONFIG["UseGPU"], GLOBAL_CONFIG["Workers"])
+        if GLOBAL_CONFIG["Verbose"]:
+            print(f"🔧 Optimized for {GLOBAL_CONFIG['Workers']} CPUs, GPU: {GLOBAL_CONFIG['UseGPU']}")
+            log_resource_usage(GLOBAL_CONFIG["UseGPU"])
+    except ImportError:
+        if GLOBAL_CONFIG["Verbose"]:
+            print("⚠️  Parallel optimization utilities not available, using standard configuration")
     alphabet = string.ascii_lowercase
     digits = string.digits
     letter_letter_grams = [a + b for a in alphabet for b in alphabet]
@@ -199,22 +213,26 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         # Load data
         data_train, data_val, _ = load_data(data_dir, alice_enc_hash, identifier, load_test=False)
         input_dim = data_train[0][0].shape[0]
+        # Optimize DataLoader for 19 CPU cluster
+        num_data_workers = min(8, max(1, GLOBAL_CONFIG["Workers"] // 3)) if GLOBAL_CONFIG["Workers"] > 0 else 0
         dataloader_train = DataLoader(
             data_train,
             batch_size=batch_size,
             shuffle=True,
-            pin_memory=True,
-            num_workers=2 if torch.cuda.is_available() else 0,
+            pin_memory=GLOBAL_CONFIG["UseGPU"],
+            num_workers=num_data_workers,
+            persistent_workers=num_data_workers > 0,
         )
         dataloader_val = DataLoader(
             data_val,
             batch_size=batch_size,
             shuffle=False,
-            pin_memory=True,
-            num_workers=2 if torch.cuda.is_available() else 0,
+            pin_memory=GLOBAL_CONFIG["UseGPU"],
+            num_workers=num_data_workers,
+            persistent_workers=num_data_workers > 0,
         )
 
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        device = torch.device("cuda:0" if (torch.cuda.is_available() and GLOBAL_CONFIG["UseGPU"]) else "cpu")
         model = BaseModelHyperparameterOptimization(
             input_dim=input_dim,
             output_dim=output_dim,
@@ -320,6 +338,10 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             if early_stopper(val_loss):
                 break
 
+        # GPU memory optimization
+        if GLOBAL_CONFIG["UseGPU"] and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
         if best_model_state is not None:
             model.load_state_dict(best_model_state)
         model.eval()
@@ -373,9 +395,11 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         "batch_size": tune.choice([8, 16, 32, 64]),
     }
 
+    # Optimized Ray configuration for cluster processing
     ray.init(
         num_cpus=GLOBAL_CONFIG["Workers"],
         num_gpus=1 if GLOBAL_CONFIG["UseGPU"] else 0,
+        object_store_memory=2000000000,  # 2GB object store for better data sharing
         ignore_reinit_error=True,
         logging_level="ERROR"
     )
@@ -393,10 +417,11 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         min_delta=DEA_CONFIG["MinDelta"]
     )
 
-    # Each trial gets 1 CPU and 1 GPU (if available)
+    # Optimize resource allocation per trial for cluster processing
+    cpus_per_trial = max(1, GLOBAL_CONFIG["Workers"] // min(4, max(1, GLOBAL_CONFIG["Workers"] // 4)))
     trainable_with_resources = tune.with_resources(
         trainable,
-        resources={"cpu": 1, "gpu": 1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": 1, "gpu": 0}
+        resources={"cpu": cpus_per_trial, "gpu": 0.25} if GLOBAL_CONFIG["UseGPU"] else {"cpu": cpus_per_trial, "gpu": 0}
     )
 
     tuner = tune.Tuner(
@@ -405,7 +430,8 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             search_alg=optuna_search,
             scheduler=scheduler,
             num_samples=DEA_CONFIG["NumSamples"],
-            max_concurrent_trials=GLOBAL_CONFIG["Workers"],
+            # Optimize concurrent trials for better resource utilization
+            max_concurrent_trials=min(4, max(1, GLOBAL_CONFIG["Workers"] // 4)),
         ),
         param_space=search_space,
         run_config=air.RunConfig(name="dea_hpo_run")
@@ -460,20 +486,33 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     best_config = resolve_config(best_result.config)
     data_train, data_val, data_test = load_data(data_dir, alice_enc_hash, identifier, load_test=True)
     input_dim=data_train[0][0].shape[0]
+    # Optimize DataLoaders for cluster processing
+    num_data_workers = min(8, max(1, GLOBAL_CONFIG["Workers"] // 3)) if GLOBAL_CONFIG["Workers"] > 0 else 0
+    batch_size = int(best_config.get("batch_size", 32))
+    
     dataloader_train = DataLoader(
         data_train,
-        batch_size=int(best_config.get("batch_size", 32)),
-        shuffle=True
+        batch_size=batch_size,
+        shuffle=True,
+        pin_memory=GLOBAL_CONFIG["UseGPU"],
+        num_workers=num_data_workers,
+        persistent_workers=num_data_workers > 0,
     )
     dataloader_val = DataLoader(
         data_val,
-        batch_size=int(best_config.get("batch_size", 32)),
-        shuffle=False
+        batch_size=batch_size,
+        shuffle=False,
+        pin_memory=GLOBAL_CONFIG["UseGPU"],
+        num_workers=num_data_workers,
+        persistent_workers=num_data_workers > 0,
     )
     dataloader_test = DataLoader(
         data_test,
-        batch_size=int(best_config.get("batch_size", 32)),
-        shuffle=False
+        batch_size=batch_size,
+        shuffle=False,
+        pin_memory=GLOBAL_CONFIG["UseGPU"],
+        num_workers=num_data_workers,
+        persistent_workers=num_data_workers > 0,
     )
     model = BaseModel(
                 input_dim=input_dim,
@@ -492,7 +531,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             best_config.get("activation_fn", "relu"),
         ])
         tb_writer = SummaryWriter(f"{save_to}/{run_name}")
-    compute_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    compute_device = torch.device("cuda:0" if (torch.cuda.is_available() and GLOBAL_CONFIG["UseGPU"]) else "cpu")
     model.to(compute_device)
     match best_config.get("loss_fn", "MultiLabelSoftMarginLoss"):
         case "BCEWithLogitsLoss":

@@ -6,7 +6,7 @@
         "Verbose": false,
         "MatchingMetric": "cosine",
         "Matching": "MinWeight",
-        "Workers": 0,
+        "Workers": 18,
         "SaveAliceEncs": false,
         "SaveEveEncs": false,
         "DevMode": false,
@@ -14,7 +14,7 @@
         "LoadResults": false,
         "LoadPath": "",
         "SaveResults": true,
-        "UseGPU": false
+        "UseGPU": true
     },
     "ENC_CONFIG": {
         "AliceAlgo": "BloomFilter",
