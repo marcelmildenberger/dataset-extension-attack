@@ -1,3 +1,5 @@
+import argparse
+import sys
 import copy
 import json
 import os
@@ -51,6 +53,8 @@ from utils import (
 )
 
 def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
+    ALIGN_CONFIG["RegWS"] = max(0.1, GLOBAL_CONFIG["Overlap"] / 3)
+    GLOBAL_CONFIG["Workers"] = os.cpu_count() - 1
     alphabet = string.ascii_lowercase
     digits = string.digits
     letter_letter_grams = [a + b for a in alphabet for b in alphabet]
@@ -169,99 +173,153 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         return 0
     if GLOBAL_CONFIG["BenchMode"]:
         start_hyperparameter_optimization = time.time()
+    # Optimization Potential: Yes. The code can be made more efficient, modular, and readable.
+    # - Avoid repeated sampling of hyperparameters (sample() calls) by sampling once and reusing.
+    # - Move device selection and model/loss/optimizer/scheduler creation outside the epoch loop.
+    # - Use local variables for config access to reduce dict lookups.
+    # - Use tqdm for progress bar if verbose.
+    # - Avoid unnecessary deep copies if not needed.
+    # - Use built-in Ray Tune features for reporting and checkpointing.
+    # - Remove unused lists if not needed (train_losses, val_losses).
+    # - Use dataloader.dataset length only if dataset implements __len__.
+    # - Consider using DataLoader pin_memory and num_workers for speedup.
+
     def train_model(config, data_dir, output_dim, alice_enc_hash, identifier, patience, min_delta):
+        # Sample all hyperparameters up front to avoid repeated .sample() calls
+        batch_size = int(config["batch_size"])
+        num_layers = config["num_layers"]
+        hidden_layer_size = config["hidden_layer_size"]
+        dropout_rate = config["dropout_rate"]
+        activation_fn = config["activation_fn"]
+        loss_fn_name = config["loss_fn"]
+        threshold = config["threshold"]
+        optimizer_cfg = config["optimizer"]
+        lr_scheduler_cfg = config["lr_scheduler"]
+
+        # Load data
         data_train, data_val, _ = load_data(data_dir, alice_enc_hash, identifier, load_test=False)
         input_dim = data_train[0][0].shape[0]
         dataloader_train = DataLoader(
             data_train,
-            batch_size=int(config["batch_size"]),
+            batch_size=batch_size,
             shuffle=True,
+            pin_memory=True,
+            num_workers=2 if torch.cuda.is_available() else 0,
         )
         dataloader_val = DataLoader(
             data_val,
-            batch_size=int(config["batch_size"]),
+            batch_size=batch_size,
             shuffle=False,
+            pin_memory=True,
+            num_workers=2 if torch.cuda.is_available() else 0,
         )
-        best_val_loss = float('inf')
-        best_model_state = None
-        train_losses = []
-        val_losses = []
-        total_precision = total_recall = total_f1 = total_dice = total_val_loss = 0.0
-        num_samples = 0
-        epochs = 0
-        early_stopper = EarlyStopping(patience=patience, min_delta=min_delta)
+
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         model = BaseModelHyperparameterOptimization(
             input_dim=input_dim,
             output_dim=output_dim,
-            num_layers=config["num_layers"],
-            hidden_layer_size=config["hidden_layer_size"],
-            dropout_rate=config["dropout_rate"],
-            activation_fn=config["activation_fn"]
-        )
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        model.to(device)
+            num_layers=num_layers,
+            hidden_layer_size=hidden_layer_size,
+            dropout_rate=dropout_rate,
+            activation_fn=activation_fn
+        ).to(device)
+
+        # Loss function
         loss_functions = {
             "BCEWithLogitsLoss": nn.BCEWithLogitsLoss(),
             "MultiLabelSoftMarginLoss": nn.MultiLabelSoftMarginLoss(),
             "SoftMarginLoss": nn.SoftMarginLoss(),
         }
-        criterion = loss_functions[config["loss_fn"]]
-        learning_rate = config["optimizer"]["lr"].sample()
-        optimizers = {
-            "Adam": lambda: optim.Adam(model.parameters(), lr=learning_rate),
-            "AdamW": lambda: optim.AdamW(model.parameters(), lr=learning_rate),
-            "SGD": lambda: optim.SGD(model.parameters(), lr=learning_rate, momentum=config["optimizer"]["momentum"].sample()),
-            "RMSprop": lambda: optim.RMSprop(model.parameters(), lr=learning_rate)
-        }
-        optimizer = optimizers[config["optimizer"]["name"]]()
-        schedulers = {
-            "StepLR": lambda: torch.optim.lr_scheduler.StepLR(
+        criterion = loss_functions[loss_fn_name]
+
+        # Optimizer
+        lr = optimizer_cfg["lr"].sample() if hasattr(optimizer_cfg["lr"], "sample") else optimizer_cfg["lr"]
+        optimizer_name = optimizer_cfg["name"]
+        if optimizer_name == "Adam":
+            optimizer = optim.Adam(model.parameters(), lr=lr)
+        elif optimizer_name == "AdamW":
+            optimizer = optim.AdamW(model.parameters(), lr=lr)
+        elif optimizer_name == "SGD":
+            momentum = optimizer_cfg.get("momentum", 0.0)
+            if hasattr(momentum, "sample"):
+                momentum = momentum.sample()
+            optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum)
+        elif optimizer_name == "RMSprop":
+            optimizer = optim.RMSprop(model.parameters(), lr=lr)
+        else:
+            raise ValueError(f"Unknown optimizer: {optimizer_name}")
+
+        # Scheduler
+        scheduler = None
+        scheduler_name = lr_scheduler_cfg["name"]
+        if scheduler_name == "StepLR":
+            step_size = lr_scheduler_cfg["step_size"].sample() if hasattr(lr_scheduler_cfg["step_size"], "sample") else lr_scheduler_cfg["step_size"]
+            gamma = lr_scheduler_cfg["gamma"].sample() if hasattr(lr_scheduler_cfg["gamma"], "sample") else lr_scheduler_cfg["gamma"]
+            scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
+        elif scheduler_name == "ExponentialLR":
+            gamma = lr_scheduler_cfg["gamma"].sample() if hasattr(lr_scheduler_cfg["gamma"], "sample") else lr_scheduler_cfg["gamma"]
+            scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=gamma)
+        elif scheduler_name == "ReduceLROnPlateau":
+            factor = lr_scheduler_cfg["factor"].sample() if hasattr(lr_scheduler_cfg["factor"], "sample") else lr_scheduler_cfg["factor"]
+            patience_sched = lr_scheduler_cfg["patience"].sample() if hasattr(lr_scheduler_cfg["patience"], "sample") else lr_scheduler_cfg["patience"]
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer,
-                step_size=config["lr_scheduler"]["step_size"].sample(),
-                gamma=config["lr_scheduler"]["gamma"].sample()
-            ),
-            "ExponentialLR": lambda: torch.optim.lr_scheduler.ExponentialLR(
+                mode=lr_scheduler_cfg["mode"],
+                factor=factor,
+                patience=patience_sched
+            )
+        elif scheduler_name == "CosineAnnealingLR":
+            T_max = lr_scheduler_cfg["T_max"].sample() if hasattr(lr_scheduler_cfg["T_max"], "sample") else lr_scheduler_cfg["T_max"]
+            eta_min = lr_scheduler_cfg["eta_min"].sample() if hasattr(lr_scheduler_cfg["eta_min"], "sample") else lr_scheduler_cfg["eta_min"]
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max, eta_min=eta_min)
+        elif scheduler_name == "CyclicLR":
+            base_lr = lr_scheduler_cfg["base_lr"].sample() if hasattr(lr_scheduler_cfg["base_lr"], "sample") else lr_scheduler_cfg["base_lr"]
+            max_lr = lr_scheduler_cfg["max_lr"].sample() if hasattr(lr_scheduler_cfg["max_lr"], "sample") else lr_scheduler_cfg["max_lr"]
+            step_size_up = lr_scheduler_cfg["step_size_up"].sample() if hasattr(lr_scheduler_cfg["step_size_up"], "sample") else lr_scheduler_cfg["step_size_up"]
+            mode_cyclic = lr_scheduler_cfg["mode_cyclic"].sample() if hasattr(lr_scheduler_cfg["mode_cyclic"], "sample") else lr_scheduler_cfg["mode_cyclic"]
+            scheduler = torch.optim.lr_scheduler.CyclicLR(
                 optimizer,
-                gamma=config["lr_scheduler"]["gamma"].sample()
-            ),
-            "ReduceLROnPlateau": lambda: torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer,
-                mode=config["lr_scheduler"]["mode"],
-                factor=config["lr_scheduler"]["factor"].sample(),
-                patience=config["lr_scheduler"]["patience"].sample()
-            ),
-            "CosineAnnealingLR": lambda: torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimizer,
-                T_max=config["lr_scheduler"]["T_max"].sample(),
-                eta_min=config["lr_scheduler"]["eta_min"].sample()
-            ),
-            "CyclicLR": lambda: torch.optim.lr_scheduler.CyclicLR(
-                optimizer,
-                base_lr=config["lr_scheduler"]["base_lr"].sample(),
-                max_lr=config["lr_scheduler"]["max_lr"].sample(),
-                step_size_up=config["lr_scheduler"]["step_size_up"].sample(),
-                mode=config["lr_scheduler"]["mode_cyclic"].sample(),
+                base_lr=base_lr,
+                max_lr=max_lr,
+                step_size_up=step_size_up,
+                mode=mode_cyclic,
                 cycle_momentum=False
-            ),
-            "None": lambda: None,
-        }
-        scheduler = schedulers[config["lr_scheduler"]["name"]]()
+            )
+        elif scheduler_name == "None":
+            scheduler = None
+        else:
+            raise ValueError(f"Unknown scheduler: {scheduler_name}")
+
+        best_val_loss = float('inf')
+        best_model_state = None
+        total_precision = total_recall = total_f1 = total_dice = total_val_loss = 0.0
+        num_samples = 0
+        epochs = 0
+        early_stopper = EarlyStopping(patience=patience, min_delta=min_delta)
+
         for _ in range(DEA_CONFIG["Epochs"]):
             epochs += 1
             model.train()
-            train_loss = run_epoch(model, dataloader_train, criterion, optimizer, device, is_training=True, verbose=GLOBAL_CONFIG["Verbose"], scheduler=scheduler)
-            train_losses.append(train_loss)
+            train_loss = run_epoch(
+                model, dataloader_train, criterion, optimizer, device,
+                is_training=True, verbose=GLOBAL_CONFIG["Verbose"], scheduler=scheduler
+            )
             model.eval()
-            val_loss = run_epoch(model, dataloader_val, criterion, optimizer, device, is_training=False, verbose=GLOBAL_CONFIG["Verbose"], scheduler=scheduler)
+            val_loss = run_epoch(
+                model, dataloader_val, criterion, optimizer, device,
+                is_training=False, verbose=GLOBAL_CONFIG["Verbose"], scheduler=scheduler
+            )
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 best_model_state = copy.deepcopy(model.state_dict())
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                 scheduler.step(val_loss)
-            val_losses.append(val_loss)
+            elif scheduler is not None and not isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                scheduler.step()
             total_val_loss += val_loss
             if early_stopper(val_loss):
                 break
+
         if best_model_state is not None:
             model.load_state_dict(best_model_state)
         model.eval()
@@ -272,7 +330,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
                 logits = model(data)
                 probabilities = torch.sigmoid(logits)
                 batch_two_gram_scores = map_probabilities_to_two_grams(two_gram_dict, probabilities)
-                batch_filtered_two_gram_scores = filter_high_scoring_two_grams(batch_two_gram_scores, config["threshold"])
+                batch_filtered_two_gram_scores = filter_high_scoring_two_grams(batch_two_gram_scores, threshold)
                 dice, precision, recall, f1 = calculate_performance_metrics(
                     actual_two_grams, batch_filtered_two_gram_scores)
                 total_dice += dice
@@ -308,19 +366,13 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             {"name": "StepLR", "step_size": tune.choice([5, 10, 20]), "gamma": tune.uniform(0.1, 0.9)},
             {"name": "ExponentialLR", "gamma": tune.uniform(0.85, 0.99)},
             {"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform(0.1, 0.5), "patience": tune.choice([5, 10, 15])},
-            {"name": "CosineAnnealingLR", "T_max": tune.loguniform(10, 50) , "eta_min": tune.choice([1e-5, 1e-6, 0])},
+            {"name": "CosineAnnealingLR", "T_max": tune.loguniform(10, 50), "eta_min": tune.choice([1e-5, 1e-6, 0])},
             {"name": "CyclicLR", "base_lr": tune.loguniform(1e-5, 1e-3), "max_lr": tune.loguniform(1e-3, 1e-1), "step_size_up": tune.choice([2000, 4000]), "mode_cyclic": tune.choice(["triangular", "triangular2", "exp_range"]) },
             {"name": "None"}
         ]),
         "batch_size": tune.choice([8, 16, 32, 64]),
     }
-    # For maximum performance on a cluster with 19 CPU cores and 1 GPU,
-    # allocate as many parallel trials as possible, each using 1 GPU and a fair share of CPUs.
-    # Set GLOBAL_CONFIG["Workers"] = 19 for full CPU utilization.
-    # If your GPU is large enough, you may experiment with fractional GPU allocation per trial,
-    # but typically, 1 trial per GPU is best for deep learning.
 
-    # Set Ray to use all available resources
     ray.init(
         num_cpus=GLOBAL_CONFIG["Workers"],
         num_gpus=1 if GLOBAL_CONFIG["UseGPU"] else 0,
@@ -353,7 +405,6 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             search_alg=optuna_search,
             scheduler=scheduler,
             num_samples=DEA_CONFIG["NumSamples"],
-            # Maximize parallelism: up to 19 concurrent trials (1 per CPU core, 1 per GPU)
             max_concurrent_trials=GLOBAL_CONFIG["Workers"],
         ),
         param_space=search_space,
@@ -361,6 +412,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     )
     results = tuner.fit()
     ray.shutdown()
+
     result_grid = results
     best_result = result_grid.get_best_result(metric=DEA_CONFIG["MetricToOptimize"], mode="max")
     if GLOBAL_CONFIG["BenchMode"]:
@@ -797,3 +849,18 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             output_dir=save_to
         )
     return 0
+
+if __name__ == "__main__":
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dea_config.json")
+    if not os.path.isfile(config_path):
+        print(f"[ERROR] Could not find configuration file: {config_path}")
+        sys.exit(1)
+    with open(config_path, 'r') as f:
+        configs = json.load(f)
+    run_dea(
+        configs.get('GLOBAL_CONFIG', {}),
+        configs.get('ENC_CONFIG', {}),
+        configs.get('EMB_CONFIG', {}),
+        configs.get('ALIGN_CONFIG', {}),
+        configs.get('DEA_CONFIG', {})
+    )

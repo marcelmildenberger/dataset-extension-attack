@@ -1,5 +1,6 @@
 # Standard library imports
 import csv
+from functools import partial
 import json
 import os
 from hashlib import md5
@@ -598,14 +599,15 @@ def fake_name_analysis():
 
 
 def reconstruct_single_entry(entry, all_givenname_records, all_surname_records, all_birthday_records, reconstruct_birthday):
-    uid = entry['uid']
-    actual_two_grams = entry["actual_two_grams"]
-    predicted_two_grams = entry['predicted_two_grams']
-
+    """
+    Reconstruct a single entry by matching predicted two-grams to the most likely given name, surname, and optionally birthday.
+    This function is stateless and safe for parallel execution.
+    """
+    # Avoid mutating the input entry
     entry_dict = {
-        'uid': uid,
-        'actual_two_grams': actual_two_grams,
-        'predicted_two_grams': predicted_two_grams
+        'uid': entry['uid'],
+        'actual_two_grams': entry["actual_two_grams"],
+        'predicted_two_grams': list(entry['predicted_two_grams'])  # ensure copy
     }
 
     # Given name
@@ -622,34 +624,52 @@ def reconstruct_single_entry(entry, all_givenname_records, all_surname_records, 
         similarity_metric='dice'
     )
 
-    if(reconstruct_birthday):
+    if reconstruct_birthday:
         # Birthday
         birthday, _ = find_most_likely_birthday(
             entry_dict,
             all_birthday_records=all_birthday_records,
             similarity_metric='dice'
         )
-        return (given_name, surname, birthday, uid)
+        return (given_name, surname, birthday, entry['uid'])
 
-    return(given_name, surname, uid)
+    return (given_name, surname, entry['uid'])
 
 
 def fuzzy_reconstruction_approach(result, workers, reconstruct_birthday):
+    """
+    Reconstructs all entries in parallel using joblib.Parallel.
+    Loads reference records only once and shares them across workers.
+    """
     print("\n🔄 Reconstructing results using fuzzy matching (entry-wise, parallelized)...")
 
+    # Load reference records once (shared, read-only)
     all_birthday_records = load_birthday_2gram_records()
     all_givenname_records, all_surname_records = load_givenname_and_surname_records(min_count=150, use_filtered=True)
 
-    # Prepare parallel jobs
-    reconstructed = Parallel(n_jobs=workers)(
-        delayed(reconstruct_single_entry)(
-            entry,
-            all_givenname_records,
-            all_surname_records,
-            all_birthday_records,
-            reconstruct_birthday
-        )
-        for entry in result
+    # Use partial to avoid repeatedly passing large reference data
+    reconstruct_fn = partial(
+        reconstruct_single_entry,
+        all_givenname_records=all_givenname_records,
+        all_surname_records=all_surname_records,
+        all_birthday_records=all_birthday_records,
+        reconstruct_birthday=reconstruct_birthday
+    )
+
+    # Dynamically choose batch_size for optimal parallel efficiency
+    if len(result) > 5000:
+        batch_size = 500
+    elif len(result) > 2000:
+        batch_size = 200
+    elif len(result) > 1000:
+        batch_size = 100
+    elif len(result) > 200:
+        batch_size = 20
+    else:
+        batch_size = 1
+
+    reconstructed = Parallel(n_jobs=workers, batch_size=batch_size, prefer="processes")(
+        delayed(reconstruct_fn)(entry) for entry in result
     )
 
     return reconstructed

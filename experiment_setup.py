@@ -10,7 +10,7 @@ GLOBAL_CONFIG = {
     "Verbose": False,
     "MatchingMetric": "cosine",
     "Matching": "MinWeight",
-    "Workers": os.cpu_count() - 1,  # Use all but one CPU core
+    "Workers": 0,  # Use all but one CPU core
     "SaveAliceEncs": False,
     "SaveEveEncs": False,
     "DevMode": False,
@@ -106,7 +106,7 @@ EMB_CONFIG = {
 
 # === Graph Alignment Config ===
 ALIGN_CONFIG = {
-    "RegWS": None,
+    "RegWS": 0,
     "RegInit": 1,
     "Batchsize": 1,
     "LR": 200.0,
@@ -145,7 +145,6 @@ for encoding in encs:
                 GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
                 GLOBAL_CONFIG["DropFrom"] = drop_from
                 GLOBAL_CONFIG["Overlap"] = ov
-                ALIGN_CONFIG["RegWS"] = max(0.1, ov / 3)
                 try:
                     run_dea(
                         GLOBAL_CONFIG.copy(),
