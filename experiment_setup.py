@@ -122,10 +122,10 @@ ALIGN_CONFIG = {
 }
 
 
-encs = ["TwoStepHash"]
-datasets = ["fakename_10k.tsv"]
-drop = ["Both"]
-overlap = [0.2]
+encs = ["TwoStepHash", "BloomFilter"]
+datasets = ["euro_person.tsv"]
+drop = ["Eve", "Both"]
+overlap = [0.2, 0.4, 0.6, 0.8]
 
 for encoding in encs:
     ENC_CONFIG["AliceAlgo"] = encoding
@@ -135,6 +135,13 @@ for encoding in encs:
     for dataset in datasets:
         for drop_from in drop:
             for ov in overlap:
+                # Skip Eve Overlaps 0.2, 0.4, 0.6 for TwoStepHash
+                if (
+                    encoding == "TwoStepHash"
+                    and drop_from == "Eve"
+                    and ov in [0.2, 0.4, 0.6]
+                ):
+                    continue
                 GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
                 GLOBAL_CONFIG["DropFrom"] = drop_from
                 GLOBAL_CONFIG["Overlap"] = ov
