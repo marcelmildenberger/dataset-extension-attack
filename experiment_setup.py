@@ -10,7 +10,7 @@ GLOBAL_CONFIG = {
     "Verbose": False,
     "MatchingMetric": "cosine",
     "Matching": "MinWeight",
-    "Workers": 1,
+    "Workers": os.cpu_count() - 1,  # Use all but one CPU core
     "SaveAliceEncs": False,
     "SaveEveEncs": False,
     "DevMode": False,
@@ -122,10 +122,10 @@ ALIGN_CONFIG = {
 }
 
 
-encs = ["TwoStepHash"]
-datasets = ["fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv"]
+encs = ["BloomFilter"]
+datasets = ["euro_person.tsv"]
 drop = ["Eve", "Both"]
-overlap = [0.6]
+overlap = [0.2,0.4,0.6,0.8]
 
 for encoding in encs:
     ENC_CONFIG["AliceAlgo"] = encoding

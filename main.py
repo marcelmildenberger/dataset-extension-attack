@@ -515,7 +515,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # Wrap with resource request
     trainable_with_resources = tune.with_resources(
         trainable,
-        resources={"cpu": 1, "gpu": 1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": 1, "gpu": 0}
+        resources={"cpu": GLOBAL_CONFIG["Workers"], "gpu": 1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": 1, "gpu": 0}
     )
 
     # Build the tuner
