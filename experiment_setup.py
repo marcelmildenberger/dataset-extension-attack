@@ -1,6 +1,4 @@
-import math
 from main import run_dea
-import os
 # %%
 # === General Parameters ===
 GLOBAL_CONFIG = {
