@@ -34,6 +34,7 @@ from utils import (
     calculate_performance_metrics,
     clean_result_dict,
     create_identifier_column_dynamic,
+    create_optimized_dataloader,
     decode_labels_to_two_grams,
     filter_high_scoring_two_grams,
     fuzzy_reconstruction_approach,
@@ -199,19 +200,16 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         # Load data
         data_train, data_val, _ = load_data(data_dir, alice_enc_hash, identifier, load_test=False)
         input_dim = data_train[0][0].shape[0]
-        dataloader_train = DataLoader(
+        # Use optimized DataLoader configuration
+        dataloader_train = create_optimized_dataloader(
             data_train,
             batch_size=batch_size,
-            shuffle=True,
-            pin_memory=True,
-            num_workers=2 if torch.cuda.is_available() else 0,
+            is_training=True
         )
-        dataloader_val = DataLoader(
+        dataloader_val = create_optimized_dataloader(
             data_val,
             batch_size=batch_size,
-            shuffle=False,
-            pin_memory=True,
-            num_workers=2 if torch.cuda.is_available() else 0,
+            is_training=False
         )
 
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -460,20 +458,22 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     best_config = resolve_config(best_result.config)
     data_train, data_val, data_test = load_data(data_dir, alice_enc_hash, identifier, load_test=True)
     input_dim=data_train[0][0].shape[0]
-    dataloader_train = DataLoader(
+    # Use optimized DataLoader configuration
+    batch_size = int(best_config.get("batch_size", 32))
+    dataloader_train = create_optimized_dataloader(
         data_train,
-        batch_size=int(best_config.get("batch_size", 32)),
-        shuffle=True
+        batch_size=batch_size,
+        is_training=True
     )
-    dataloader_val = DataLoader(
+    dataloader_val = create_optimized_dataloader(
         data_val,
-        batch_size=int(best_config.get("batch_size", 32)),
-        shuffle=False
+        batch_size=batch_size,
+        is_training=False
     )
-    dataloader_test = DataLoader(
+    dataloader_test = create_optimized_dataloader(
         data_test,
-        batch_size=int(best_config.get("batch_size", 32)),
-        shuffle=False
+        batch_size=batch_size,
+        is_training=False
     )
     model = BaseModel(
                 input_dim=input_dim,

@@ -131,29 +131,80 @@ def precision_recall_f1(y_true, y_pred):
     return precision, recall, f1
 
 
-def run_epoch(model, dataloader, criterion, optimizer, device, is_training, verbose, scheduler=None):
+def run_epoch(model, dataloader, criterion, optimizer, device, is_training, verbose, scheduler=None, accumulation_steps=1):
+    """
+    Optimized training epoch with memory efficiency improvements:
+    - Mixed precision training (AMP)
+    - Non-blocking data transfers
+    - Gradient accumulation for effective larger batch sizes
+    - Memory-efficient gradient management
+    """
     model.train() if is_training else model.eval()
     running_loss = 0.0
-
+    
+    # Initialize mixed precision scaler for CUDA
+    scaler = torch.cuda.amp.GradScaler() if torch.cuda.is_available() and is_training else None
+    
     data_iter = tqdm(dataloader, desc="Training" if is_training else "Validation") if verbose else dataloader
 
+    # Zero gradients at the start
+    if is_training:
+        optimizer.zero_grad()
+
     with torch.set_grad_enabled(is_training):
-        for data, labels, _ in data_iter:
-            data, labels = data.to(device), labels.to(device)
+        for batch_idx, (data, labels, _) in enumerate(data_iter):
+            # Non-blocking transfer for better GPU utilization
+            data = data.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True)
 
-            if is_training:
-                optimizer.zero_grad()
+            if is_training and scaler is not None:
+                # Mixed precision training
+                with torch.cuda.amp.autocast():
+                    outputs = model(data)
+                    loss = criterion(outputs, labels)
+                    
+                    # Scale loss for gradient accumulation
+                    if accumulation_steps > 1:
+                        loss = loss / accumulation_steps
+                
+                # Scale and backward pass
+                scaler.scale(loss).backward()
+                
+                # Update weights after accumulation_steps
+                if (batch_idx + 1) % accumulation_steps == 0:
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad()
+                    
+                    # Step scheduler if not ReduceLROnPlateau
+                    if scheduler and not isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                        scheduler.step()
+            else:
+                # Standard training or validation
+                outputs = model(data)
+                loss = criterion(outputs, labels)
+                
+                if is_training:
+                    # Scale loss for gradient accumulation
+                    if accumulation_steps > 1:
+                        loss = loss / accumulation_steps
+                    
+                    loss.backward()
+                    
+                    # Update weights after accumulation_steps
+                    if (batch_idx + 1) % accumulation_steps == 0:
+                        optimizer.step()
+                        optimizer.zero_grad()
+                        
+                        # Step scheduler if not ReduceLROnPlateau
+                        if scheduler and not isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                            scheduler.step()
 
-            outputs = model(data)
-            loss = criterion(outputs, labels)
-
-            if is_training:
-                loss.backward()
-                optimizer.step()
-                if scheduler and not isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                    scheduler.step()
-
-            running_loss += loss.item() * labels.size(0)
+            # Accumulate loss (multiply back by accumulation_steps for accurate tracking)
+            loss_value = loss.item()
+            if accumulation_steps > 1:
+                loss_value *= accumulation_steps
+            running_loss += loss_value * labels.size(0)
 
     return running_loss / len(dataloader.dataset)
 
