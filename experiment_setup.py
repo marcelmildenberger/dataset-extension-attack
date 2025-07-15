@@ -122,10 +122,10 @@ ALIGN_CONFIG = {
 }
 
 
-encs = ["BloomFilter"]
-datasets = ["euro_person.tsv"]
-drop = ["Eve", "Both"]
-overlap = [0.2,0.4,0.6,0.8]
+encs = ["TwoStepHash"]
+datasets = ["fakename_10k.tsv"]
+drop = ["Both"]
+overlap = [0.2]
 
 for encoding in encs:
     ENC_CONFIG["AliceAlgo"] = encoding
