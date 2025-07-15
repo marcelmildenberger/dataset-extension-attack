@@ -396,7 +396,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # Each trial gets 1 CPU and 1 GPU (if available)
     trainable_with_resources = tune.with_resources(
         trainable,
-        resources={"cpu": 1, "gpu": 1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": 1, "gpu": 0}
+        resources={"cpu": GLOBAL_CONFIG["Workers"], "gpu": 1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"], "gpu": 0}
     )
 
     tuner = tune.Tuner(
@@ -405,7 +405,6 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             search_alg=optuna_search,
             scheduler=scheduler,
             num_samples=DEA_CONFIG["NumSamples"],
-            max_concurrent_trials=GLOBAL_CONFIG["Workers"],
         ),
         param_space=search_space,
         run_config=air.RunConfig(name="dea_hpo_run")
