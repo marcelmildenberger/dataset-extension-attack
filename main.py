@@ -1,4 +1,4 @@
-import argparse
+from math import floor
 import sys
 import copy
 import json
@@ -20,6 +20,7 @@ from torch.utils.data import DataLoader, Subset, random_split
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.notebook import tqdm
 import ray
+import warnings
 from ray import air, train, tune
 from ray.tune.schedulers import ASHAScheduler
 from ray.tune.search.optuna import OptunaSearch
@@ -32,29 +33,64 @@ from pytorch_models.base_model import BaseModel
 from pytorch_models_hyperparameter_optimization.base_model_hyperparameter_optimization import BaseModelHyperparameterOptimization
 from utils import (
     calculate_performance_metrics,
-    clean_result_dict,
-    create_identifier_column_dynamic,
     decode_labels_to_two_grams,
     filter_high_scoring_two_grams,
-    fuzzy_reconstruction_approach,
     get_hashes,
-    greedy_reconstruction,
-    load_dataframe,
-    lowercase_df,
     map_probabilities_to_two_grams,
     metrics_per_entry,
     print_and_save_result,
     read_header,
-    reconstruct_identities_with_llm,
-    reidentification_analysis,
     resolve_config,
     run_epoch,
     save_dea_runtime_log,
+    load_experiment_datasets,
+    log_epoch_metrics,
+    plot_loss_curves,
+    plot_metric_distributions,
+    get_not_reidentified_df,
+    get_reidentification_techniques,
+    run_selected_reidentification,
 )
 
 def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
+    """
+    Main experiment entry point. Handles configuration, dataset loading, training, evaluation, and analysis.
+    Uses load_experiment_datasets to load train/val/test splits as needed.
+    """
+    # Set default values for alignment and global configuration.
+    # ALIGN_CONFIG["RegWS"] is set to the maximum of 0.1 and one third of the overlap parameter.
+    # GLOBAL_CONFIG["Workers"] is set to the number of available CPU cores minus one.
     ALIGN_CONFIG["RegWS"] = max(0.1, GLOBAL_CONFIG["Overlap"] / 3)
     GLOBAL_CONFIG["Workers"] = os.cpu_count() - 1
+
+    # Ignore optuna warnings.
+    warnings.filterwarnings("ignore", category=UserWarning, module="optuna")
+
+    # Create a unique experiment directory for saving results and configuration.
+    # The directory name encodes the algorithm, dataset, and timestamp for traceability.
+    # All configuration dictionaries are saved to a config.txt file in this directory for reproducibility.
+    # TODO: Change saving config to json instead of txt
+    selected_dataset = GLOBAL_CONFIG["Data"].split("/")[-1].replace(".tsv", "")
+    experiment_tag = "experiment_" + ENC_CONFIG["AliceAlgo"] + "_" + selected_dataset + "_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    current_experiment_directory = f"experiment_results/{experiment_tag}"
+    os.makedirs(current_experiment_directory, exist_ok=True)
+    all_configs = {
+        "GLOBAL_CONFIG": GLOBAL_CONFIG,
+        "DEA_CONFIG": DEA_CONFIG,
+        "ENC_CONFIG": ENC_CONFIG,
+        "EMB_CONFIG": EMB_CONFIG,
+        "ALIGN_CONFIG": ALIGN_CONFIG
+    }
+    with open(os.path.join(current_experiment_directory, "config.txt"), "w") as f:
+        for config_name, config_dict in all_configs.items():
+            f.write(f"# === {config_name} ===\n")
+            f.write(json.dumps(config_dict, indent=4))
+            f.write("\n\n")
+
+    # Generate all possible two-character combinations (2-grams) from lowercase letters and digits.
+    # This includes letter-letter, letter-digit, and digit-digit pairs.
+    # The resulting list `all_two_grams` is used for encoding/decoding tasks,
+    # and `two_gram_dict` maps each index to its corresponding 2-gram.
     alphabet = string.ascii_lowercase
     digits = string.digits
     letter_letter_grams = [a + b for a in alphabet for b in alphabet]
@@ -62,17 +98,25 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     letter_digit_grams = [l + d for l in alphabet for d in digits]
     all_two_grams = letter_letter_grams + letter_digit_grams + digit_digit_grams
     two_gram_dict = {i: two_gram for i, two_gram in enumerate(all_two_grams)}
+
+    # Start timing the total run and the GMA run.
     if GLOBAL_CONFIG["BenchMode"]:
         start_total = time.time()
         start_gma = time.time()
-    data_dir = os.path.abspath("./data")
+
+    # Get the hashes for the encoding and embedding.
     eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash = get_hashes(
         GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG
     )
+
+    # Get the data directory and identifier for the current run to check if the data is already available.
+    data_dir = os.path.abspath("./data")
     identifier = f"{eve_enc_hash}_{alice_enc_hash}_{eve_emb_hash}_{alice_emb_hash}"
     path_reidentified = f"{data_dir}/available_to_eve/reidentified_individuals_{identifier}.h5"
     path_not_reidentified = f"{data_dir}/available_to_eve/not_reidentified_individuals_{identifier}.h5"
     path_all = f"{data_dir}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5"
+
+    # If the data is not available, run the GMA to generate it.
     if not (
         os.path.isfile(path_reidentified)
         and os.path.isfile(path_not_reidentified)
@@ -82,110 +126,33 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG,
             eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash
         )
+
+    # If the data is available, log the time taken for the GMA run.
     if GLOBAL_CONFIG["BenchMode"]:
         elapsed_gma = time.time() - start_gma
-    def get_cache_path(data_directory, identifier, alice_enc_hash, name="dataset"):
-        os.makedirs(f"{data_directory}/cache", exist_ok=True)
-        return os.path.join(data_directory, "cache", f"{name}_{identifier}_{alice_enc_hash}.pkl")
-    def load_data(data_directory, alice_enc_hash, identifier, load_test=False):
-        cache_path = get_cache_path(data_directory, identifier, alice_enc_hash)
-        if os.path.exists(cache_path):
-            with open(cache_path, 'rb') as f:
-                data_train, data_val, data_test = pickle.load(f)
-            return data_train, data_val, data_test
-        df_reidentified = load_dataframe(f"{data_directory}/available_to_eve/reidentified_individuals_{identifier}.h5")
-        df_test = None
-        if load_test:
-            df_not_reidentified = load_dataframe(f"{data_directory}/available_to_eve/not_reidentified_individuals_{identifier}.h5")
-            df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5")
-            df_test = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
-        def get_encoding_dataset_class():
-            algo = ENC_CONFIG["AliceAlgo"]
-            if algo == "BloomFilter":
-                return BloomFilterDataset
-            elif algo == "TabMinHash":
-                return TabMinHashDataset
-            elif algo == "TwoStepHash":
-                return TwoStepHashDataset
-            else:
-                raise ValueError(f"Unknown encoding algorithm: {algo}")
-        DatasetClass = get_encoding_dataset_class()
-        if ENC_CONFIG["AliceAlgo"] == "TwoStepHash":
-            unique_ints = sorted(set().union(*df_reidentified["twostephash"]))
-            dataset_args = {"all_integers": unique_ints}
-        else:
-            dataset_args = {}
-        common_args = {
-            "is_labeled": True,
-            "all_two_grams": all_two_grams,
-            "dev_mode": GLOBAL_CONFIG["DevMode"]
-        }
-        data_labeled = DatasetClass(df_reidentified, **common_args, **dataset_args)
-        data_test = DatasetClass(df_test, **common_args, **dataset_args) if load_test else None
-        train_size = int(DEA_CONFIG["TrainSize"] * len(data_labeled))
-        val_size = len(data_labeled) - train_size
-        data_train, data_val = random_split(data_labeled, [train_size, val_size])
-        with open(cache_path, 'wb') as f:
-            pickle.dump((data_train, data_val, data_test), f)
-        return data_train, data_val, data_test
-    def load_not_reidentified_data(data_directory, alice_enc_hash, identifier):
-            cache_path = get_cache_path(data_directory, identifier, alice_enc_hash, name="not_reidentified")
-            if os.path.exists(cache_path):
-                with open(cache_path, 'rb') as f:
-                    df_filtered = pickle.load(f)
-                return df_filtered
-            df_not_reidentified = load_dataframe(f"{data_directory}/available_to_eve/not_reidentified_individuals_{identifier}.h5")
-            df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5")
-            df_filtered = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
-            drop_col = df_filtered.columns[-2]
-            df_filtered = df_filtered.drop(columns=[drop_col])
-            with open(cache_path, 'wb') as f:
-                pickle.dump(df_filtered, f)
-            return df_filtered
-    selected_dataset = GLOBAL_CONFIG["Data"].split("/")[-1].replace(".tsv", "")
-    experiment_tag = "experiment_" + ENC_CONFIG["AliceAlgo"] + "_" + selected_dataset + "_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    save_to = f"experiment_results/{experiment_tag}"
-    os.makedirs(save_to, exist_ok=True)
-    all_configs = {
-        "GLOBAL_CONFIG": GLOBAL_CONFIG,
-        "DEA_CONFIG": DEA_CONFIG,
-        "ENC_CONFIG": ENC_CONFIG,
-        "EMB_CONFIG": EMB_CONFIG,
-        "ALIGN_CONFIG": ALIGN_CONFIG
-    }
-    with open(os.path.join(save_to, "config.txt"), "w") as f:
-        for config_name, config_dict in all_configs.items():
-            f.write(f"# === {config_name} ===\n")
-            f.write(json.dumps(config_dict, indent=4))
-            f.write("\n\n")
-    os.makedirs(f"{save_to}/hyperparameteroptimization", exist_ok=True)
-    data_train, data_val, data_test = load_data(data_dir, alice_enc_hash, identifier, load_test=True)
-    df_not_reidentified = load_not_reidentified_data(data_dir, alice_enc_hash, identifier)
-    if len(data_train) == 0 or len(data_val) == 0 or len(data_test) == 0 or df_not_reidentified.empty:
-        log_path = os.path.join(save_to, "termination_log.txt")
+
+    # Load the experiment datasets (train, val, test) and check for empty splits.
+    # If any split is empty, write a termination log and exit early to prevent downstream errors.
+    datasets = load_experiment_datasets(data_dir, alice_enc_hash, identifier, ENC_CONFIG, DEA_CONFIG, GLOBAL_CONFIG, all_two_grams, splits=("train", "val", "test"))
+    data_train, data_val, data_test = datasets["train"], datasets["val"], datasets["test"]
+    if len(data_train) == 0 or len(data_val) == 0 or len(data_test) == 0:
+        log_path = os.path.join(current_experiment_directory, "termination_log.txt")
         with open(log_path, "w") as f:
             f.write("Training process canceled due to empty dataset.\n")
             f.write(f"Length of data_train: {len(data_train)}\n")
             f.write(f"Length of data_val: {len(data_val)}\n")
             f.write(f"Length of data_test: {len(data_test)}\n")
-            f.write(f"Length of df_not_reidentified: {len(df_not_reidentified)}\n")
         print("One or more datasets are empty. Termination log written.")
         return 0
+
+    # Start timing the hyperparameter optimization run.
     if GLOBAL_CONFIG["BenchMode"]:
         start_hyperparameter_optimization = time.time()
-    # Optimization Potential: Yes. The code can be made more efficient, modular, and readable.
-    # - Avoid repeated sampling of hyperparameters (sample() calls) by sampling once and reusing.
-    # - Move device selection and model/loss/optimizer/scheduler creation outside the epoch loop.
-    # - Use local variables for config access to reduce dict lookups.
-    # - Use tqdm for progress bar if verbose.
-    # - Avoid unnecessary deep copies if not needed.
-    # - Use built-in Ray Tune features for reporting and checkpointing.
-    # - Remove unused lists if not needed (train_losses, val_losses).
-    # - Use dataloader.dataset length only if dataset implements __len__.
-    # - Consider using DataLoader pin_memory and num_workers for speedup.
 
-    def train_model(config, data_dir, output_dim, alice_enc_hash, identifier, patience, min_delta):
-        # Sample all hyperparameters up front to avoid repeated .sample() calls
+    # Define a function to train a model with a given configuration.
+    # This function is used by Ray Tune to train models with different hyperparameters.
+    def hyperparameter_training(config, data_dir, output_dim, alice_enc_hash, identifier, patience, min_delta):
+        # Sample all hyperparameters up front
         batch_size = int(config["batch_size"])
         num_layers = config["num_layers"]
         hidden_layer_size = config["hidden_layer_size"]
@@ -197,21 +164,21 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         lr_scheduler_cfg = config["lr_scheduler"]
 
         # Load data
-        data_train, data_val, _ = load_data(data_dir, alice_enc_hash, identifier, load_test=False)
+        datasets = load_experiment_datasets(data_dir, alice_enc_hash, identifier, ENC_CONFIG, DEA_CONFIG, GLOBAL_CONFIG, all_two_grams, splits=("train", "val"))
+        data_train, data_val = datasets["train"], datasets["val"]
         input_dim = data_train[0][0].shape[0]
+
         dataloader_train = DataLoader(
             data_train,
             batch_size=batch_size,
             shuffle=True,
             pin_memory=True,
-            num_workers=2 if torch.cuda.is_available() else 0,
         )
         dataloader_val = DataLoader(
             data_val,
             batch_size=batch_size,
             shuffle=False,
             pin_memory=True,
-            num_workers=2 if torch.cuda.is_available() else 0,
         )
 
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -222,7 +189,8 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             hidden_layer_size=hidden_layer_size,
             dropout_rate=dropout_rate,
             activation_fn=activation_fn
-        ).to(device)
+        )
+        model.to(device)
 
         # Loss function
         loss_functions = {
@@ -290,21 +258,25 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         else:
             raise ValueError(f"Unknown scheduler: {scheduler_name}")
 
+        # Initialize variables for tracking best validation loss, model state, performance metrics, and early stopping
         best_val_loss = float('inf')
         best_model_state = None
-        total_precision = total_recall = total_f1 = total_dice = total_val_loss = 0.0
+        total_precision = 0.0
+        total_recall = 0.0
+        total_f1 = 0.0
+        total_dice = 0.0
+        total_val_loss = 0.0
         num_samples = 0
         epochs = 0
         early_stopper = EarlyStopping(patience=patience, min_delta=min_delta)
 
+        # Train the model for a specified number of epochs.
         for _ in range(DEA_CONFIG["Epochs"]):
             epochs += 1
-            model.train()
             train_loss = run_epoch(
                 model, dataloader_train, criterion, optimizer, device,
                 is_training=True, verbose=GLOBAL_CONFIG["Verbose"], scheduler=scheduler
             )
-            model.eval()
             val_loss = run_epoch(
                 model, dataloader_val, criterion, optimizer, device,
                 is_training=False, verbose=GLOBAL_CONFIG["Verbose"], scheduler=scheduler
@@ -314,7 +286,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
                 best_model_state = copy.deepcopy(model.state_dict())
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                 scheduler.step(val_loss)
-            elif scheduler is not None and not isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+            elif scheduler is not None:
                 scheduler.step()
             total_val_loss += val_loss
             if early_stopper(val_loss):
@@ -322,22 +294,21 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
         if best_model_state is not None:
             model.load_state_dict(best_model_state)
-        model.eval()
-        with torch.no_grad():
-            for data, labels, _ in dataloader_val:
-                actual_two_grams = decode_labels_to_two_grams(two_gram_dict, labels)
-                data = data.to(device)
-                logits = model(data)
-                probabilities = torch.sigmoid(logits)
-                batch_two_gram_scores = map_probabilities_to_two_grams(two_gram_dict, probabilities)
-                batch_filtered_two_gram_scores = filter_high_scoring_two_grams(batch_two_gram_scores, threshold)
-                dice, precision, recall, f1 = calculate_performance_metrics(
-                    actual_two_grams, batch_filtered_two_gram_scores)
-                total_dice += dice
-                total_precision += precision
-                total_recall += recall
-                total_f1 += f1
-                num_samples += data.size(0)
+
+        for data, labels, _ in dataloader_val:
+            actual_two_grams = decode_labels_to_two_grams(two_gram_dict, labels)
+            data = data.to(device)
+            logits = model(data)
+            probabilities = torch.sigmoid(logits)
+            batch_two_gram_scores = map_probabilities_to_two_grams(two_gram_dict, probabilities)
+            batch_filtered_two_gram_scores = filter_high_scoring_two_grams(batch_two_gram_scores, threshold)
+            dice, precision, recall, f1 = calculate_performance_metrics(
+                actual_two_grams, batch_filtered_two_gram_scores)
+            total_dice += dice
+            total_precision += precision
+            total_recall += recall
+            total_f1 += f1
+            num_samples += data.size(0)
         train.report({
                 "average_dice": total_dice / num_samples,
                 "average_precision": total_precision / num_samples,
@@ -348,6 +319,8 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
                 "len_val": len(dataloader_val.dataset),
                 "epochs": epochs
             })
+
+    # Define the search space for the hyperparameters.
     search_space = {
         "output_dim": len(all_two_grams),
         "num_layers": tune.randint(1, 4),
@@ -373,6 +346,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         "batch_size": tune.choice([8, 16, 32, 64]),
     }
 
+    # Initialize Ray for hyperparameter optimization.
     ray.init(
         num_cpus=GLOBAL_CONFIG["Workers"],
         num_gpus=1 if GLOBAL_CONFIG["UseGPU"] else 0,
@@ -380,11 +354,13 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         logging_level="ERROR"
     )
 
+    # Initialize the Optuna search and the ASHAScheduler.
     optuna_search = OptunaSearch(metric=DEA_CONFIG["MetricToOptimize"], mode="max")
     scheduler = ASHAScheduler(metric="total_val_loss", mode="min")
 
+    # Define the trainable function.
     trainable = partial(
-        train_model,
+        hyperparameter_training,
         data_dir=data_dir,
         output_dim=len(all_two_grams),
         alice_enc_hash=alice_enc_hash,
@@ -393,12 +369,13 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         min_delta=DEA_CONFIG["MinDelta"]
     )
 
-    # Each trial gets 1 CPU and 1 GPU (if available)
+    # Wrap the trainable function with resources.
     trainable_with_resources = tune.with_resources(
         trainable,
         resources={"cpu": GLOBAL_CONFIG["Workers"], "gpu": 1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"], "gpu": 0}
     )
 
+    # Initialize the tuner.
     tuner = tune.Tuner(
         trainable_with_resources,
         tune_config=tune.TuneConfig(
@@ -409,71 +386,55 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         param_space=search_space,
         run_config=air.RunConfig(name="dea_hpo_run")
     )
+
+    # Run the hyperparameter optimization.
     results = tuner.fit()
+
+    # Shut down Ray.
     ray.shutdown()
 
-    result_grid = results
-    best_result = result_grid.get_best_result(metric=DEA_CONFIG["MetricToOptimize"], mode="max")
+    # Stop timing the hyperparameter optimization.
     if GLOBAL_CONFIG["BenchMode"]:
         elapsed_hyperparameter_optimization = time.time() - start_hyperparameter_optimization
+
+    # Save the results of hyperparameter optimization to a CSV file and a plot.
+    hyperparameter_optimization_directory = f"{current_experiment_directory}/hyperparameteroptimization"
+    os.makedirs(hyperparameter_optimization_directory, exist_ok=True)
+
+    # Get the best result.
+    best_result = results.get_best_result(metric=DEA_CONFIG["MetricToOptimize"], mode="max")
     if GLOBAL_CONFIG["SaveResults"]:
-        worst_result = result_grid.get_best_result(metric=DEA_CONFIG["MetricToOptimize"], mode="min")
-        df = pd.DataFrame([
-            {
-                **clean_result_dict(resolve_config(result.config)),
-                **{k: result.metrics.get(k) for k in ["average_dice", "average_precision", "average_recall", "average_f1"]},
-            }
-            for result in result_grid
-        ])
-        df.to_csv(f"{save_to}/hyperparameteroptimization/all_trial_results.csv", index=False)
-        print("✅ Results saved to all_trial_results.csv")
-        print_and_save_result("Best_Result", best_result, f"{save_to}/hyperparameteroptimization")
-        print_and_save_result("Worst_Result", worst_result, f"{save_to}/hyperparameteroptimization")
-        print("\n📊 Average Metrics Across All Trials")
-        avg_metrics = df[["average_dice", "average_precision", "average_recall", "average_f1"]].mean()
-        print("-" * 40)
-        for key, value in avg_metrics.items():
-            print(f"{key.capitalize()}: {value:.4f}")
-        plt.figure(figsize=(12, 6))
-        sns.boxplot(data=df[["average_dice", "average_recall", "average_f1", "average_precision"]])
-        plt.title("Distribution of Performance Metrics Across Trials")
-        plt.grid(True)
-        plt.savefig(f"{save_to}/hyperparameteroptimization/metric_distributions.png")
-        plt.close()
-        print("📊 Saved plot: metric_distributions.png")
-        exclude_cols = {"input_dim", "output_dim"}
-        numeric_config_cols = [
-            col for col in df.columns
-            if pd.api.types.is_numeric_dtype(df[col]) and col not in exclude_cols
-        ]
-        correlation_df = df[numeric_config_cols].corr()
-        plt.figure(figsize=(12, 8))
-        sns.heatmap(correlation_df, annot=True, cmap="coolwarm", fmt=".2f")
-        plt.title("Correlation Between Parameters and Metrics")
-        plt.tight_layout()
-        plt.savefig(f"{save_to}/hyperparameteroptimization/correlation_heatmap.png")
-        plt.close()
-        print("📌 Saved heatmap: correlation_heatmap.png")
+        print_and_save_result("Best Result", best_result, hyperparameter_optimization_directory)
+
+    # Start timing the model training.
     if GLOBAL_CONFIG["BenchMode"]:
         start_model_training = time.time()
+
     best_config = resolve_config(best_result.config)
-    data_train, data_val, data_test = load_data(data_dir, alice_enc_hash, identifier, load_test=True)
+    datasets = load_experiment_datasets(data_dir, alice_enc_hash, identifier, ENC_CONFIG, DEA_CONFIG, GLOBAL_CONFIG, all_two_grams, splits=("train", "val", "test"))
+    data_train, data_val, data_test = datasets["train"], datasets["val"], datasets["test"]
+
     input_dim=data_train[0][0].shape[0]
     dataloader_train = DataLoader(
         data_train,
         batch_size=int(best_config.get("batch_size", 32)),
-        shuffle=True
+        shuffle=True,
+        pin_memory=True,
     )
     dataloader_val = DataLoader(
         data_val,
         batch_size=int(best_config.get("batch_size", 32)),
-        shuffle=False
+        shuffle=False,
+        pin_memory=True,
     )
     dataloader_test = DataLoader(
         data_test,
         batch_size=int(best_config.get("batch_size", 32)),
-        shuffle=False
+        shuffle=False,
+        pin_memory=True,
     )
+
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = BaseModel(
                 input_dim=input_dim,
                 output_dim=len(all_two_grams),
@@ -482,7 +443,9 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
                 dropout_rate=best_config.get("dropout_rate", 0.2),
                 activation_fn=best_config.get("activation_fn", "relu")
             )
-    print(model)
+    model.to(device)
+
+    # Initialize the TensorBoard writer.
     if GLOBAL_CONFIG["SaveResults"]:
         run_name = "".join([
             best_config.get("loss_fn", "MultiLabelSoftMarginLoss"),
@@ -490,9 +453,9 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             ENC_CONFIG["AliceAlgo"],
             best_config.get("activation_fn", "relu"),
         ])
-        tb_writer = SummaryWriter(f"{save_to}/{run_name}")
-    compute_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model.to(compute_device)
+        tb_writer = SummaryWriter(f"{current_experiment_directory}/{run_name}")
+
+    # Initialize the loss function.
     match best_config.get("loss_fn", "MultiLabelSoftMarginLoss"):
         case "BCEWithLogitsLoss":
             criterion = nn.BCEWithLogitsLoss(reduction='mean')
@@ -502,6 +465,8 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             criterion = nn.SoftMarginLoss()
         case _:
             raise ValueError(f"Unsupported loss function: {best_config.get('loss_fn', 'MultiLabelSoftMarginLoss')}")
+
+    # Initialize the optimizer.
     match best_config.get("optimizer").get("name", "Adam"):
         case "Adam":
             optimizer = optim.Adam(model.parameters(), lr=best_config.get("optimizer").get("lr"))
@@ -515,6 +480,8 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             optimizer = optim.RMSprop(model.parameters(), lr=best_config.get("optimizer").get("lr"))
         case _:
             raise ValueError(f"Unsupported optimizer: {best_config.get('optimizer').get('name', 'Adam')}")
+
+    # Initialize the learning rate scheduler.
     match best_config.get("lr_scheduler").get("name", "None"):
         case "StepLR":
             scheduler = torch.optim.lr_scheduler.StepLR(
@@ -552,13 +519,8 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             scheduler = None
         case _:
             raise ValueError(f"Unsupported LR scheduler: {best_config.get('lr_scheduler').get('name', 'None')}")
-    def _log_epoch_metrics(epoch, total_epochs, train_loss, val_loss):
-        epoch_str = f"[{epoch + 1}/{total_epochs}]"
-        print(f"{epoch_str} 🔧 Train Loss: {train_loss:.4f} | 🔍 Val Loss: {val_loss:.4f}")
-        if DEA_CONFIG.get("SaveResults", False) and 'tb_writer' in globals():
-            tb_writer.add_scalar("Loss/train", train_loss, epoch + 1)
-            tb_writer.add_scalar("Loss/validation", val_loss, epoch + 1)
-    def train_model(model, dataloader_train, dataloader_val, criterion, optimizer, device, scheduler=None):
+
+    def train_final_model(model, dataloader_train, dataloader_val, criterion, optimizer, device, scheduler=None):
         num_epochs = best_config.get("epochs", DEA_CONFIG["Epochs"])
         verbose = GLOBAL_CONFIG["Verbose"]
         patience = DEA_CONFIG["Patience"]
@@ -567,96 +529,88 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         best_model_state = None
         early_stopper = EarlyStopping(patience=patience, min_delta=min_delta, verbose=verbose)
         train_losses, val_losses = [], []
+
         for epoch in range(num_epochs):
-            model.train()
             train_loss = run_epoch(
                 model, dataloader_train, criterion, optimizer,
                 device, is_training=True, verbose=verbose, scheduler=scheduler
             )
             train_losses.append(train_loss)
-            model.eval()
-            with torch.no_grad():
-                val_loss = run_epoch(
-                    model, dataloader_val, criterion, optimizer,
-                    device, is_training=False, verbose=verbose, scheduler=scheduler
-                )
+            val_loss = run_epoch(
+                model, dataloader_val, criterion, optimizer,
+                device, is_training=False, verbose=verbose, scheduler=scheduler
+            )
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 best_model_state = copy.deepcopy(model.state_dict())
             val_losses.append(val_loss)
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                 scheduler.step(val_loss)
-            _log_epoch_metrics(epoch, num_epochs, train_loss, val_loss)
+            elif scheduler is not None:
+                scheduler.step()
+
+            log_epoch_metrics(epoch, num_epochs, train_loss, val_loss, tb_writer=tb_writer if 'tb_writer' in locals() else None, save_results=GLOBAL_CONFIG["SaveResults"])
             if early_stopper(val_loss):
                 if verbose:
-                    print(f"⏹️ Early stopping triggered at epoch {epoch + 1}")
+                    print(f"Early stopping triggered at epoch {epoch + 1}")
                 break
         if best_model_state is not None:
             model.load_state_dict(best_model_state)
         return model, train_losses, val_losses
-    model, train_losses, val_losses = train_model(
+
+    # Train the final model.
+    model, train_losses, val_losses = train_final_model(
         model, dataloader_train, dataloader_val,
-        criterion, optimizer, compute_device,
+        criterion, optimizer, device,
         scheduler=scheduler
     )
+
+    # Stop timing the model training.
     if GLOBAL_CONFIG["BenchMode"]:
         elapsed_model_training = time.time() - start_model_training
-    plt.figure(figsize=(10, 6))
-    plt.plot(train_losses, label='Training loss', color='blue')
-    plt.plot(val_losses, label='Validation loss', color='red')
-    plt.legend()
-    plt.title("Training and Validation Loss over Epochs")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.grid(True)
-    if DEA_CONFIG.get("SaveResults", False):
-        plt.savefig(f"{save_to}/loss_curve.png")
-        plt.close()
-        print("📉 Saved loss curve to loss_curve.png")
-    base_path = os.path.join(
-        GLOBAL_CONFIG["LoadPath"] if GLOBAL_CONFIG["LoadResults"] else save_to,
+
+    # Define the paths for the model, config, result, and metrics files.
+    trained_model_directory = os.path.join(
+        current_experiment_directory,
         "trained_model"
     )
-    model_file   = f"{base_path}/model.pt"
-    config_file  = f"{base_path}/config.json"
-    result_file  = f"{base_path}/result.json"
-    metrics_file = f"{base_path}/metrics.txt"
-    def save_model_and_config(model, config, path):
-        os.makedirs(path, exist_ok=True)
-        torch.save(model.state_dict(), os.path.join(path, "model.pt"))
-        with open(os.path.join(path, "config.json"), "w") as f:
-            json.dump(config, f, indent=4)
-        print(f"✅ Saved model and config to {path}")
-    def load_model_and_config(model_cls, path, input_dim, output_dim):
-        with open(os.path.join(path, "config.json")) as f:
-            config = json.load(f)
-        model = model_cls(
-            input_dim=input_dim,
-            output_dim=output_dim,
-            hidden_layer=config.get("hidden_layer_size", 128),
-            num_layers=config.get("num_layers", 2),
-            dropout_rate=config.get("dropout_rate", 0.2),
-            activation_fn=config.get("activation_fn", "relu")
-        )
-        model.load_state_dict(torch.load(os.path.join(path, "model.pt")))
-        model.eval()
-        return model, config
+    os.makedirs(trained_model_directory, exist_ok=True)
+
+    # Plot the training and validation loss curves.
+    plot_loss_curves(
+        train_losses,
+        val_losses,
+        save_path=f"{trained_model_directory}/loss_curve.png",
+        save=GLOBAL_CONFIG["SaveResults"]
+    )
+
+
+
+    # Save the trained model and config if requested.
     if GLOBAL_CONFIG["SaveResults"]:
-        save_model_and_config(model, best_config, base_path)
-    if GLOBAL_CONFIG["LoadResults"]:
-        model, best_config = load_model_and_config(BaseModel, base_path, input_dim=1024, output_dim=len(all_two_grams))
-        model.to(compute_device)
+        torch.save(model.state_dict(), os.path.join(trained_model_directory, "model.pt"))
+        with open(os.path.join(trained_model_directory, "config.json"), "w") as f:
+            json.dump(best_config, f, indent=4)
+
+    # Start timing the application to encoded data.
     if GLOBAL_CONFIG["BenchMode"]:
         start_application_to_encoded_data = time.time()
+
+    # Initialize the metrics.
     total_dice = total_precision = total_recall = total_f1 = 0.0
     num_samples = 0
+
+    # Initialize the results.
     results = []
+
+    # Initialize the threshold.
     threshold = best_config.get("threshold", 0.5)
+
     model.eval()
     dataloader_iter = tqdm(dataloader_test, desc="Test loop") if GLOBAL_CONFIG["Verbose"] else dataloader_test
     with torch.no_grad():
         for data, labels, uids in dataloader_iter:
-            data, labels = data.to(compute_device), labels.to(compute_device)
+            data, labels = data.to(device), labels.to(device)
             logits = model(data)
             probs = torch.sigmoid(logits)
             actual_two_grams = decode_labels_to_two_grams(two_gram_dict, labels)
@@ -681,160 +635,60 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
                     "dice": metrics["dice"],
                     "jaccard": metrics["jaccard"]
                 })
-    if num_samples > 0:
-        avg_dice = total_dice / num_samples
-        avg_precision = total_precision / num_samples
-        avg_recall = total_recall / num_samples
-        avg_f1 = total_f1 / num_samples
-    else:
-        avg_dice = avg_precision = avg_recall = avg_f1 = 0.0
-    print(f"\n📊 Final Test Metrics:")
-    print(f"  Dice:      {avg_dice:.4f}")
-    print(f"  Precision: {avg_precision:.4f}")
-    print(f"  Recall:    {avg_recall:.4f}")
-    print(f"  F1 Score:  {avg_f1:.4f}")
+    avg_dice = total_dice / num_samples
+    avg_precision = total_precision / num_samples
+    avg_recall = total_recall / num_samples
+    avg_f1 = total_f1 / num_samples
+
+    # Stop timing the application to encoded data.
     if GLOBAL_CONFIG["BenchMode"]:
         elapsed_application_to_encoded_data = time.time() - start_application_to_encoded_data
+
+    # Save the metrics and results if requested.
     if GLOBAL_CONFIG["SaveResults"]:
-        with open(metrics_file, "w") as f:
+        with open(f"{trained_model_directory}/metrics.txt", "w") as f:
             f.write(f"Average Precision: {avg_precision:.4f}\n")
             f.write(f"Average Recall: {avg_recall:.4f}\n")
             f.write(f"Average F1 Score: {avg_f1:.4f}\n")
             f.write(f"Average Dice Similarity: {avg_dice:.4f}\n")
-        with open(result_file, 'w', encoding='utf-8') as f:
+        with open(f"{trained_model_directory}/results.json", 'w', encoding='utf-8') as f:
             json.dump(results, f, indent=4, ensure_ascii=False)
-    if GLOBAL_CONFIG["LoadResults"]:
-        with open(result_file, 'r', encoding='utf-8') as f:
-            result = json.load(f)
+
+    # Normalize the results.
     results_df = pd.json_normalize(results)
-    metric_cols = ["precision", "recall", "f1", "dice", "jaccard"]
-    melted = results_df.melt(value_vars=metric_cols,
-                            var_name="metric",
-                            value_name="score")
-    plt.figure(figsize=(10, 6))
-    sns.histplot(data=melted,
-                x="score",
-                hue="metric",
-                bins=20,
-                element="step",
-                fill=False,
-                kde=True,
-                palette="Set2")
-    plt.title("Distribution of Precision / Recall / F1 across Samples")
-    plt.xlabel("Score")
-    plt.ylabel("Frequency")
-    plt.grid(True)
-    plt.tight_layout()
-    if DEA_CONFIG.get("SaveResults", False):
-        plt.savefig(f"{save_to}/metric_distributions.png")
-        print("📊  Saved plot: metric_distributions.png")
-    plt.close()
-    print("\n🔍 Sample Reconstructions (first 5)")
-    for _, row in results_df.iloc[:5].iterrows():
-        print(f"UID: {row.uid}")
-        print(f"  Actual 2-grams:    {row.actual_two_grams}")
-        print(f"  Predicted 2-grams: {row.predicted_two_grams}")
-        print("-" * 60)
+
+    # Plot the metric distributions.
+    plot_metric_distributions(
+        results_df,
+        trained_model_directory,
+        save=GLOBAL_CONFIG["SaveResults"]
+    )
+
+    # Start timing the refinement and reconstruction.
     if GLOBAL_CONFIG["BenchMode"]:
         start_refinement_and_reconstruction = time.time()
-    @lru_cache(maxsize=None)
-    def get_not_reidentified_df(data_dir: str, identifier: str) -> pd.DataFrame:
-        df = load_not_reidentified_data(data_dir, alice_enc_hash, identifier)
-        return lowercase_df(df)
-    def create_identifier(df: pd.DataFrame, comps):
-        df = df.copy()
-        df["identifier"] = create_identifier_column_dynamic(df, comps)
-        return df[["uid", "identifier"]]
-    def run_reidentification_once(reconstructed, df_not_reidentified, merge_cols, technique, identifier_components=None):
-        df_reconstructed = lowercase_df(pd.DataFrame(reconstructed, columns=merge_cols))
-        if(identifier_components):
-            df_not_reidentified = create_identifier(df_not_reidentified, identifier_components)
-        return reidentification_analysis(
-            df_reconstructed,
-            df_not_reidentified,
-            merge_cols,
-            len(df_not_reidentified),
-            technique,
-            save_path=f"{save_to}/re_identification_results"
-        )
+
+
     header = read_header(GLOBAL_CONFIG["Data"])
     include_birthday = not (GLOBAL_CONFIG["Data"] == "./data/datasets/titanic_full.tsv")
-    TECHNIQUES = {
-        "ai": {
-            "fn": reconstruct_identities_with_llm,
-            "merge_cols": header[:3] + [header[-1]],
-            "identifier_comps": None,
-        },
-        "greedy": {
-            "fn": greedy_reconstruction,
-            "merge_cols": ["uid", "identifier"],
-            "identifier_comps": header[:-1],
-        },
-        "fuzzy": {
-            "fn": fuzzy_reconstruction_approach,
-            "merge_cols": (header[:3] if include_birthday else header[:2]) + [header[-1]],
-            "identifier_comps": None,
-        },
-    }
+    TECHNIQUES = get_reidentification_techniques(header, include_birthday)
     selected = DEA_CONFIG["MatchingTechnique"]
-    df_not_reid_cached = get_not_reidentified_df(data_dir, identifier)
-    save_dir = f"{save_to}/re_identification_results"
-    if selected == "fuzzy_and_greedy":
-        reidentified = {}
-        for name in ("greedy", "fuzzy"):
-            info = TECHNIQUES[name]
-            if name == "fuzzy":
-                recon = info["fn"](results, GLOBAL_CONFIG["Workers"], include_birthday )
-            else:
-                recon = info["fn"](results)
-            reidentified[name] = run_reidentification_once(
-                recon,
-                df_not_reid_cached,
-                info["merge_cols"],
-                name,
-                info["identifier_comps"],
-            )
-    else:
-        if selected not in TECHNIQUES:
-            raise ValueError(f"Unsupported matching technique: {selected}")
-        info = TECHNIQUES[selected]
-        if selected == "fuzzy":
-            recon = info["fn"](results, GLOBAL_CONFIG["Workers"], include_birthday)
-        if selected == "ai":
-            recon = info["fn"](results, info["merge_cols"][:-1])
-        else:
-            recon = info["fn"](results)
-        reidentified = run_reidentification_once(
-            recon,
-            df_not_reid_cached,
-            info["merge_cols"],
-            selected,
-            info["identifier_comps"],
-        )
-    if selected == "fuzzy_and_greedy":
-        uids_greedy = set(reidentified["greedy"]["uid"])
-        uids_fuzzy = set(reidentified["fuzzy"]["uid"])
-        combined_uids = uids_greedy.union(uids_fuzzy)
-        total_reidentified_combined = len(combined_uids)
-        df_not_reid_cached = get_not_reidentified_df(data_dir, identifier)
-        len_not_reidentified = len(df_not_reid_cached)
-        reidentification_rate_combined = (total_reidentified_combined / len_not_reidentified) * 100
-        print("\n🔁 Combined Reidentification (greedy ∪ fuzzy):")
-        print(f"Total not re-identified individuals: {len_not_reidentified}")
-        print(f"Total Unique Reidentified Individuals: {total_reidentified_combined}")
-        print(f"Combined Reidentification Rate: {reidentification_rate_combined:.2f}%")
-        save_dir = os.path.join(save_to, "re_identification_results")
-        os.makedirs(save_dir, exist_ok=True)
-        pd.DataFrame({"uid": list(combined_uids)}).to_csv(
-            os.path.join(save_dir, "result_fuzzy_and_greedy.csv"),
-            index=False
-        )
-        summary_path = os.path.join(save_dir, "summary_fuzzy_and_greedy.txt")
-        with open(summary_path, "w") as f:
-            f.write("Reidentification Method: fuzzy_and_greedy\n")
-            f.write(f"Total not re-identified individuals: {len_not_reidentified}\n")
-            f.write(f"Total Unique Reidentified Individuals: {total_reidentified_combined}\n")
-            f.write(f"Combined Reidentification Rate: {reidentification_rate_combined:.2f}%\n")
+    df_not_reid_cached = get_not_reidentified_df(data_dir, identifier, alice_enc_hash=alice_enc_hash)
+    re_identification_results_directory = f"{current_experiment_directory}/re_identification_results"
+
+    run_selected_reidentification(
+        selected,
+        TECHNIQUES,
+        results,
+        df_not_reid_cached,
+        GLOBAL_CONFIG,
+        current_experiment_directory,
+        data_dir,
+        identifier,
+        re_identification_results_directory
+    )
+
+    # Stop timing the refinement and reconstruction.
     if GLOBAL_CONFIG["BenchMode"]:
         elapsed_refinement_and_reconstruction = time.time() - start_refinement_and_reconstruction
         elapsed_total = time.time() - start_total
@@ -845,8 +699,9 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             elapsed_application_to_encoded_data=elapsed_application_to_encoded_data,
             elapsed_refinement_and_reconstruction=elapsed_refinement_and_reconstruction,
             elapsed_total=elapsed_total,
-            output_dir=save_to
+            output_dir=current_experiment_directory
         )
+
     return 0
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 {
     "GLOBAL_CONFIG": {
-        "Data": "./data/datasets/fakename_2k.tsv",
+        "Data": "./data/datasets/fakename_1k.tsv",
         "Overlap": 0.9,
         "DropFrom": "Eve",
         "Verbose": false,
@@ -11,8 +11,6 @@
         "SaveEveEncs": false,
         "DevMode": false,
         "BenchMode": true,
-        "LoadResults": false,
-        "LoadPath": "",
         "SaveResults": true,
         "UseGPU": false
     },

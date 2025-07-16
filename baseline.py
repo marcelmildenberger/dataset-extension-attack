@@ -1,7 +1,8 @@
 import pandas as pd
 import os
 from collections import Counter
-from utils import precision_recall_f1, extract_two_grams
+from utils import precision_recall_f1
+from string_utils import extract_two_grams
 import argparse
 
 def analyze_2gram_baseline(file_path):

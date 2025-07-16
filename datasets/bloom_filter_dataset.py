@@ -1,7 +1,7 @@
 from datasets.dataset_utils import *
 from torch.utils.data import Dataset
 
-from utils import extract_two_grams
+from string_utils import extract_two_grams
 
 class BloomFilterDataset(Dataset):
     def __init__(self, data, is_labeled=False, all_two_grams=None, dev_mode=False, reversed=False):
@@ -19,7 +19,7 @@ class BloomFilterDataset(Dataset):
         if dev_mode:
             self.data = data
             if self.isLabeled:
-                self.data['label'] = self.data.apply(lambda row: extract_two_grams("".join(row.iloc[:-2].astype(str)), self.allTwoGrams), axis=1)
+                self.data['label'] = self.data.apply(lambda row: extract_two_grams("".join(row.iloc[:-2].astype(str))), axis=1)
 
     def __len__(self):
         return len(self.bitStringTensors)

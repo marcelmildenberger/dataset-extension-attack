@@ -16,8 +16,14 @@ from collections import Counter
 from dotenv import load_dotenv
 from groq import Groq
 from joblib import Parallel, delayed
-from torch.utils.data import Subset
 from tqdm import tqdm
+import pickle
+from torch.utils.data import random_split, Subset
+from datasets.bloom_filter_dataset import BloomFilterDataset
+from datasets.tab_min_hash_dataset import TabMinHashDataset
+from datasets.two_step_hash_dataset import TwoStepHashDataset
+import seaborn as sns
+from string_utils import extract_two_grams, format_birthday, process_file, lowercase_df
 
 
 
@@ -32,6 +38,10 @@ keys_to_remove = [
     "trial_id", "date", "time_this_iter_s", "pid", "time_total_s", "hostname",
     "node_ip", "time_since_restore", "iterations_since_restore", "timestamp"
 ]
+
+def get_cache_path(data_directory, identifier, alice_enc_hash, name="dataset"):
+    os.makedirs(f"{data_directory}/cache", exist_ok=True)
+    return os.path.join(data_directory, "cache", f"{name}_{identifier}_{alice_enc_hash}.pkl")
 
 def read_tsv(path: str, skip_header: bool = True, as_dict: bool = False, delim: str = "\t") -> Sequence[Sequence[str]]:
     data = {} if as_dict else []
@@ -105,17 +115,6 @@ def get_hashes(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG):
                                                         GLOBAL_CONFIG["Overlap"])).encode()).hexdigest()
 
     return eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash
-
-def extract_two_grams(input_string, remove_spaces=False):
-    chars_to_remove = '"./'
-    translation_table = str.maketrans('', '', chars_to_remove)
-    cleaned = input_string.translate(translation_table).strip().lower()
-    if remove_spaces:
-        cleaned = cleaned.replace(' ', '')
-
-    # Generate 2-grams, excluding those containing spaces
-    return [cleaned[i:i+2] for i in range(len(cleaned) - 1) if ' ' not in cleaned[i:i+2]]
-
 
 def precision_recall_f1(y_true, y_pred):
     true_set, pred_set = set(y_true), set(y_pred)
@@ -256,7 +255,7 @@ def reconstruct_identities_with_llm(result, columns=["GivenName", "Surname", "Bi
 
 
 def print_and_save_result(label, result, save_to):
-    print(f"\n🔍 {label}")
+    print(f"\n {label}")
     print("-" * 40)
 
     config = resolve_config(result.config)
@@ -311,9 +310,6 @@ def metrics_per_entry(actual, predicted):
     }
 
 
-def lowercase_df(df):
-    return df.apply(lambda col: col.str.lower() if col.dtype == "object" else col)
-
 def dice_coefficient(set1: set, set2: set) -> float:
     set1, set2 = set(set1), set(set2)
     if not set1 and not set2:
@@ -330,19 +326,6 @@ def jaccard_similarity(set1, set2):
     union = len(set1 | set2)
     return intersection / union
 
-
-def process_file(filepath):
-    records = []
-    with open(filepath, 'r') as f:
-        for line in f:
-            name, _, count = line.strip().split(',')
-            grams = extract_two_grams(name)
-            records.append((name.lower(), set(grams), int(count)))
-    return records
-
-
-def format_birthday(date_str):
-    return f"{date_str[:2]}/{date_str[2:4]}/{date_str[4:]}"
 
 def find_most_likely_birthday(entry, all_birthday_records, similarity_metric='jaccard'):
     similarity_func = {
@@ -511,7 +494,8 @@ def reidentification_analysis(df_1, df_2, merge_on, len_not_reidentified, method
     total_reidentified = len(merged)
     total_not_reidentified = len_not_reidentified
 
-    print("\n🔍 Reidentification Analysis:")
+    print("Reidentification Analysis:")
+    print(f"Technique: {method_name}")
     print(f"Total Reidentified Individuals: {total_reidentified}")
     print(f"Total Not Reidentified Individuals: {total_not_reidentified}")
 
@@ -520,7 +504,7 @@ def reidentification_analysis(df_1, df_2, merge_on, len_not_reidentified, method
         print(f"Reidentification Rate: {reidentification_rate:.2f}%")
     else:
         reidentification_rate = None
-        print("⚠️ No not reidentified individuals to analyze.")
+        print("No not reidentified individuals to analyze.")
 
     if save_path:
         os.makedirs(save_path, exist_ok=True)
@@ -641,7 +625,6 @@ def fuzzy_reconstruction_approach(result, workers, reconstruct_birthday):
     Reconstructs all entries in parallel using joblib.Parallel.
     Loads reference records only once and shares them across workers.
     """
-    print("\n🔄 Reconstructing results using fuzzy matching (entry-wise, parallelized)...")
 
     # Load reference records once (shared, read-only)
     all_birthday_records = load_birthday_2gram_records()
@@ -679,4 +662,309 @@ def read_header(tsv_path):
         header_line = f.readline().strip()
         columns = header_line.split('\t')
         return columns
+
+
+def load_experiment_datasets(
+    data_directory, alice_enc_hash, identifier, ENC_CONFIG, DEA_CONFIG, GLOBAL_CONFIG, all_two_grams, splits=("train", "val", "test")
+):
+    cache_path = get_cache_path(data_directory, identifier, alice_enc_hash)
+    # Try to load from cache if all splits are present
+    if os.path.exists(cache_path):
+        with open(cache_path, 'rb') as f:
+            cached = pickle.load(f)
+            return {k: cached.get(k) for k in splits}
+
+    # Otherwise, create datasets
+    df_reidentified = load_dataframe(f"{data_directory}/available_to_eve/reidentified_individuals_{identifier}.h5")
+
+    df_not_reidentified = load_dataframe(f"{data_directory}/available_to_eve/not_reidentified_individuals_{identifier}.h5")
+    df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5")
+    df_test = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
+
+    DatasetClass = None
+    algo = ENC_CONFIG["AliceAlgo"]
+    if algo == "BloomFilter":
+        DatasetClass = BloomFilterDataset
+    elif algo == "TabMinHash":
+        DatasetClass = TabMinHashDataset
+    elif algo == "TwoStepHash":
+        DatasetClass = TwoStepHashDataset
+
+    if ENC_CONFIG["AliceAlgo"] == "TwoStepHash":
+        unique_ints = sorted(set().union(*df_reidentified["twostephash"]))
+        dataset_args = {"all_integers": unique_ints}
+    else:
+        dataset_args = {}
+    common_args = {
+        "is_labeled": True,
+        "all_two_grams": all_two_grams,
+        "dev_mode": GLOBAL_CONFIG["DevMode"]
+    }
+
+    data_labeled = DatasetClass(df_reidentified, **common_args, **dataset_args)
+    data_test = DatasetClass(df_test, **common_args, **dataset_args)
+    train_size = int(DEA_CONFIG["TrainSize"] * len(data_labeled))
+    val_size = len(data_labeled) - train_size
+    data_train, data_val = random_split(data_labeled, [train_size, val_size])
+    result = {"train": data_train, "val": data_val, "test": data_test}
+    # Save all splits to cache for future use
+    with open(cache_path, 'wb') as f:
+        pickle.dump(result, f)
+    # Return only the requested splits/datasets
+    return {k: result[k] for k in splits}
+
+def load_not_reidentified_data(data_directory, alice_enc_hash, identifier):
+    cache_path = get_cache_path(data_directory, identifier, alice_enc_hash, name="not_reidentified")
+    if os.path.exists(cache_path):
+        with open(cache_path, 'rb') as f:
+            df_filtered = pickle.load(f)
+        return df_filtered
+    df_not_reidentified = load_dataframe(f"{data_directory}/available_to_eve/not_reidentified_individuals_{identifier}.h5")
+    df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5")
+    df_filtered = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
+    drop_col = df_filtered.columns[-2]
+    df_filtered = df_filtered.drop(columns=[drop_col])
+    with open(cache_path, 'wb') as f:
+        pickle.dump(df_filtered, f)
+    return df_filtered
+
+def get_not_reidentified_df(data_dir: str, identifier: str, alice_enc_hash=None) -> pd.DataFrame:
+    """
+    Loads and lowercases the DataFrame of not re-identified individuals.
+    Args:
+        data_dir (str): Path to the data directory.
+        identifier (str): Unique identifier for the experiment/data split.
+        alice_enc_hash (str, optional): Hash for Alice's encoding. If not provided, must be passed by caller.
+    Returns:
+        pd.DataFrame: Lowercased DataFrame of not re-identified individuals.
+    """
+    if alice_enc_hash is None:
+        raise ValueError("alice_enc_hash must be provided.")
+    df = load_not_reidentified_data(data_dir, alice_enc_hash, identifier)
+    return lowercase_df(df)
+
+
+def create_identifier(df: pd.DataFrame, components):
+    """
+    Adds an 'identifier' column to the DataFrame using the specified components.
+    Args:
+        df (pd.DataFrame): Input DataFrame.
+        components (list): List of column names to use for identifier creation.
+    Returns:
+        pd.DataFrame: DataFrame with 'uid' and 'identifier' columns.
+    """
+    df = df.copy()
+    df["identifier"] = create_identifier_column_dynamic(df, components)
+    return df[["uid", "identifier"]]
+
+
+def run_reidentification_once(reconstructed_identities, df_not_reidentified, merge_cols, technique, current_experiment_directory, identifier_components=None):
+    """
+    Runs the reidentification analysis for a single technique.
+    Args:
+        reconstructed_identities (list/dict): Reconstructed identities.
+        df_not_reidentified (pd.DataFrame): Not re-identified DataFrame.
+        merge_cols (list): Columns to merge on.
+        technique (str): Name of the technique.
+        current_experiment_directory (str): Directory to save results.
+        identifier_components (list, optional): Components for identifier creation.
+    Returns:
+        dict: Result of reidentification_analysis.
+    """
+    # Convert reconstructed identities to DataFrame and lowercase
+    df_reconstructed = lowercase_df(pd.DataFrame(reconstructed_identities, columns=merge_cols))
+    # If identifier components are provided, create identifier column in not-reidentified DataFrame
+    if identifier_components:
+        df_not_reidentified = create_identifier(df_not_reidentified, identifier_components)
+    return reidentification_analysis(
+        df_reconstructed,
+        df_not_reidentified,
+        merge_cols,
+        len(df_not_reidentified),
+        technique,
+        save_path=f"{current_experiment_directory}/re_identification_results"
+    )
+
+
+def get_reidentification_techniques(header, include_birthday):
+    """
+    Returns the dictionary of available reidentification techniques and their configurations.
+    Args:
+        header (list): List of column names from the dataset.
+        include_birthday (bool): Whether to include birthday in the merge columns for fuzzy technique.
+    Returns:
+        dict: Dictionary mapping technique names to their configs.
+    """
+    return {
+        "ai": {
+            "fn": reconstruct_identities_with_llm,
+            "merge_cols": header[:3] + [header[-1]],
+            "identifier_comps": None,
+        },
+        "greedy": {
+            "fn": greedy_reconstruction,
+            "merge_cols": ["uid", "identifier"],
+            "identifier_comps": header[:-1],
+        },
+        "fuzzy": {
+            "fn": fuzzy_reconstruction_approach,
+            "merge_cols": (header[:3] if include_birthday else header[:2]) + [header[-1]],
+            "identifier_comps": None,
+        },
+    }
+
+
+def run_selected_reidentification(
+    selected,
+    techniques,
+    results,
+    df_not_reid_cached,
+    GLOBAL_CONFIG,
+    current_experiment_directory,
+    data_dir,
+    identifier,
+    save_dir
+):
+    """
+    Runs the selected reidentification technique(s), handles the 'fuzzy_and_greedy' case, saves results, and prints summaries.
+    Args:
+        selected (str): Selected technique or 'fuzzy_and_greedy'.
+        techniques (dict): Dictionary of available techniques.
+        results (list): Model results.
+        df_not_reid_cached (pd.DataFrame): Not re-identified DataFrame.
+        GLOBAL_CONFIG (dict): Global config.
+        current_experiment_directory (str): Directory for experiment results.
+        data_dir (str): Data directory.
+        identifier (str): Unique identifier for the experiment/data split.
+        save_dir (str): Directory to save reidentification results.
+    Returns:
+        None
+    """
+    if selected == "fuzzy_and_greedy":
+        reidentified = {}
+        for name in ("greedy", "fuzzy"):
+            info = techniques[name]
+            if name == "fuzzy":
+                # Fuzzy needs extra arguments
+                reconstructed_identities = info["fn"](results, GLOBAL_CONFIG["Workers"], not (GLOBAL_CONFIG["Data"] == "./data/datasets/titanic_full.tsv"))
+            else:
+                reconstructed_identities = info["fn"](results)
+            reidentified[name] = run_reidentification_once(
+                reconstructed_identities,
+                df_not_reid_cached,
+                info["merge_cols"],
+                name,
+                current_experiment_directory,
+                info["identifier_comps"],
+            )
+        # Combine UIDs from both methods
+        uids_greedy = set(reidentified["greedy"]["uid"])
+        uids_fuzzy = set(reidentified["fuzzy"]["uid"])
+        combined_uids = uids_greedy.union(uids_fuzzy)
+        total_reidentified_combined = len(combined_uids)
+        len_not_reidentified = len(df_not_reid_cached)
+        reidentification_rate_combined = (total_reidentified_combined / len_not_reidentified) * 100
+        print("Combined Reidentification (greedy ∪ fuzzy):")
+        print(f"Total not re-identified individuals: {len_not_reidentified}")
+        print(f"Total Unique Reidentified Individuals: {total_reidentified_combined}")
+        print(f"Combined Reidentification Rate: {reidentification_rate_combined:.2f}%")
+        os.makedirs(save_dir, exist_ok=True)
+        pd.DataFrame({"uid": list(combined_uids)}).to_csv(
+            os.path.join(save_dir, "result_fuzzy_and_greedy.csv"),
+            index=False
+        )
+        summary_path = os.path.join(save_dir, "summary_fuzzy_and_greedy.txt")
+        with open(summary_path, "w") as f:
+            f.write("Reidentification Method: fuzzy_and_greedy\n")
+            f.write(f"Total not re-identified individuals: {len_not_reidentified}\n")
+            f.write(f"Total Unique Reidentified Individuals: {total_reidentified_combined}\n")
+            f.write(f"Combined Reidentification Rate: {reidentification_rate_combined:.2f}%\n")
+    else:
+        if selected not in techniques:
+            raise ValueError(f"Unsupported matching technique: {selected}")
+        info = techniques[selected]
+        if selected == "fuzzy":
+            reconstructed_identities = info["fn"](results, GLOBAL_CONFIG["Workers"], not (GLOBAL_CONFIG["Data"] == "./data/datasets/titanic_full.tsv"))
+        elif selected == "ai":
+            reconstructed_identities = info["fn"](results, info["merge_cols"][:-1])
+        else:
+            reconstructed_identities = info["fn"](results)
+        run_reidentification_once(
+            reconstructed_identities,
+            df_not_reid_cached,
+            info["merge_cols"],
+            selected,
+            current_experiment_directory,
+            info["identifier_comps"],
+        )
+
+def log_epoch_metrics(epoch, total_epochs, train_loss, val_loss, tb_writer=None, save_results=False):
+    """
+    Log and optionally write train/val loss to TensorBoard for a given epoch.
+    Args:
+        epoch: Current epoch (int)
+        total_epochs: Total number of epochs (int)
+        train_loss: Training loss (float)
+        val_loss: Validation loss (float)
+        tb_writer: TensorBoard SummaryWriter (optional)
+        save_results: Whether to save results to TensorBoard (bool)
+    """
+    epoch_str = f"[{epoch + 1}/{total_epochs}]"
+    print(f"{epoch_str} Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
+    if save_results and tb_writer is not None:
+        tb_writer.add_scalar("Loss/train", train_loss, epoch + 1)
+        tb_writer.add_scalar("Loss/validation", val_loss, epoch + 1)
+
+
+def plot_loss_curves(train_losses, val_losses, save_path=None, save=False):
+    """
+    Plot training and validation loss curves. Optionally save to file if save=True.
+    Args:
+        train_losses: List of training losses per epoch
+        val_losses: List of validation losses per epoch
+        save_path: Path to save the plot (if save=True)
+        save: Whether to save the plot to file
+    """
+    plt.figure(figsize=(10, 6))
+    plt.plot(train_losses, label='Training loss', color='blue')
+    plt.plot(val_losses, label='Validation loss', color='red')
+    plt.legend()
+    plt.title("Training and Validation Loss over Epochs")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.grid(True)
+    if save and save_path is not None:
+        plt.savefig(save_path)
+    plt.close()
+
+def plot_metric_distributions(results_df, trained_model_directory, save=False):
+    """
+    Plot and optionally save the distribution of precision, recall, F1, dice, and jaccard metrics.
+    Args:
+        results_df: DataFrame with per-sample metrics
+        trained_model_directory: Directory to save the plot if save=True
+        save: Whether to save the plot
+    """
+    metric_cols = ["precision", "recall", "f1", "dice", "jaccard"]
+    melted = results_df.melt(value_vars=metric_cols,
+                            var_name="metric",
+                            value_name="score")
+    plt.figure(figsize=(10, 6))
+    sns.histplot(data=melted,
+                x="score",
+                hue="metric",
+                bins=20,
+                element="step",
+                fill=False,
+                kde=True,
+                palette="Set2")
+    plt.title("Distribution of Precision / Recall / F1 across Samples")
+    plt.xlabel("Score")
+    plt.ylabel("Frequency")
+    plt.grid(True)
+    plt.tight_layout()
+    if save:
+        out_path = os.path.join(trained_model_directory, "metric_distributions.png")
+        plt.savefig(out_path)
+    plt.close()
 
