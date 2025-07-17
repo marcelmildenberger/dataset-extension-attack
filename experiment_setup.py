@@ -119,10 +119,10 @@ ALIGN_CONFIG = {
     "Wasserstein": True,
 }
 
-encs = ["TwoStepHash"]
-datasets = ["euro_person.tsv"]
-drop = ["Both"]
-overlap = [0.8]
+encs = ["TabMinHash", "TwoStepHash"]
+datasets = ["fakename_20k.tsv", "fakename_50k.tsv"]
+drop = ["Eve", "Both"]
+overlap = [0.2, 0.4, 0.6, 0.8]
 
 
 failed_runs_path = os.path.join("experiment_results", "failed_runs.csv")
@@ -136,6 +136,8 @@ with open(failed_runs_path, mode="w", newline="", encoding="utf-8") as f:
         if encoding == "BloomFilter":
             ENC_CONFIG["EveAlgo"] = encoding
         for dataset in datasets:
+            if dataset == "fakename_20k.tsv" and encoding == "TabMinHash":
+                continue
             for drop_from in drop:
                 for ov in overlap:
                     GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
