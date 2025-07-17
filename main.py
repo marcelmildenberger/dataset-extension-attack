@@ -423,21 +423,21 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=True,
         pin_memory=True,
-        num_workers=4,
+        num_workers=GLOBAL_CONFIG["Workers"] // 3,
     )
     dataloader_val = DataLoader(
         data_val,
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=False,
         pin_memory=True,
-        num_workers=4,
+        num_workers=GLOBAL_CONFIG["Workers"] // 3,
     )
     dataloader_test = DataLoader(
         data_test,
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=False,
         pin_memory=True,
-        num_workers=4,
+        num_workers=GLOBAL_CONFIG["Workers"] // 3,
     )
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
