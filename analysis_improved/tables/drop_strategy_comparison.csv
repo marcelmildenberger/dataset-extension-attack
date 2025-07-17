@@ -1,0 +1,7 @@
+Encoding,DropFrom,ReidentificationRatePercent_mean,ReidentificationRatePercent_std,ReidentificationRatePercent_count,TrainedF1_mean,TrainedF1_std,TotalRuntime_mean,TotalRuntime_std
+BloomFilter,Both,0.7657,2.1197,14,0.4164,0.3365,54.4421,44.4372
+BloomFilter,Eve,1.9821,3.3977,14,0.6184,0.3054,67.205,44.6053
+TabMinHash,Both,1.3865,2.8779,20,0.5293,0.37,166.1795,141.636
+TabMinHash,Eve,2.0791,3.4857,23,0.6749,0.2674,188.4135,219.5876
+TwoStepHash,Both,1.5278,2.4034,9,0.6213,0.3454,239.3844,298.7817
+TwoStepHash,Eve,2.2253,3.5317,17,0.6485,0.3564,404.7835,521.3986
