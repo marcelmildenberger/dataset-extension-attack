@@ -119,10 +119,10 @@ ALIGN_CONFIG = {
     "Wasserstein": True,
 }
 
-encs = ["BloomFilter", "TabMinHash", "TwoStepHash"]
-datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv"]
-drop = ["Eve","Both"]
-overlap = [0.2, 0.4, 0.6, 0.8]
+encs = ["TwoStepHash"]
+datasets = ["euro_person.tsv"]
+drop = ["Both"]
+overlap = [0.8]
 
 
 failed_runs_path = os.path.join("experiment_results", "failed_runs.csv")
