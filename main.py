@@ -142,8 +142,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             f.write(f"Length of data_train: {len(data_train)}\n")
             f.write(f"Length of data_val: {len(data_val)}\n")
             f.write(f"Length of data_test: {len(data_test)}\n")
-        print("One or more datasets are empty. Termination log written.")
-        return 0
+        raise ValueError(f"Empty dataset: train={len(data_train)}, val={len(data_val)}, test={len(data_test)}")
 
     # Start timing the hyperparameter optimization run.
     if GLOBAL_CONFIG["BenchMode"]:
