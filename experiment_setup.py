@@ -120,7 +120,7 @@ ALIGN_CONFIG = {
 }
 
 
-encs = ["TwoStepHash", "BloomFilter"]
+encs = ["BloomFilter"]
 datasets = ["euro_person.tsv"]
 drop = ["Eve", "Both"]
 overlap = [0.2, 0.4, 0.6, 0.8]
@@ -133,13 +133,6 @@ for encoding in encs:
     for dataset in datasets:
         for drop_from in drop:
             for ov in overlap:
-                # Skip Eve Overlaps 0.2, 0.4, 0.6 for TwoStepHash
-                if (
-                    encoding == "TwoStepHash"
-                    and drop_from == "Eve"
-                    and ov in [0.2, 0.4, 0.6]
-                ):
-                    continue
                 GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
                 GLOBAL_CONFIG["DropFrom"] = drop_from
                 GLOBAL_CONFIG["Overlap"] = ov
@@ -154,7 +147,5 @@ for encoding in encs:
                 except Exception as e:
                     print(f"DEA run failed for dataset={dataset}, drop_from={drop_from}, overlap={ov}: {e}")
                     continue
-
-
 
 print("✅ Skript abgeschlossen!")

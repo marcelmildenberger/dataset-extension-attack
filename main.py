@@ -151,7 +151,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
     # Define a function to train a model with a given configuration.
     # This function is used by Ray Tune to train models with different hyperparameters.
-    def hyperparameter_training(config, data_dir, output_dim, alice_enc_hash, identifier, patience, min_delta):
+    def hyperparameter_training(config, data_dir, output_dim, alice_enc_hash, identifier, patience, min_delta, workers):
         # Sample all hyperparameters up front
         batch_size = int(config["batch_size"])
         num_layers = config["num_layers"]
@@ -173,12 +173,14 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             batch_size=batch_size,
             shuffle=True,
             pin_memory=True,
+            num_workers=workers,
         )
         dataloader_val = DataLoader(
             data_val,
             batch_size=batch_size,
             shuffle=False,
             pin_memory=True,
+            num_workers=workers,
         )
 
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -366,13 +368,14 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         alice_enc_hash=alice_enc_hash,
         identifier=identifier,
         patience=DEA_CONFIG["Patience"],
-        min_delta=DEA_CONFIG["MinDelta"]
+        min_delta=DEA_CONFIG["MinDelta"],
+        workers=GLOBAL_CONFIG["Workers"] // 5,
     )
 
     # Wrap the trainable function with resources.
     trainable_with_resources = tune.with_resources(
         trainable,
-        resources={"cpu": GLOBAL_CONFIG["Workers"], "gpu": 1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"], "gpu": 0}
+        resources={"cpu": int(GLOBAL_CONFIG["Workers"] // 5), "gpu": 0.2} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"], "gpu": 0}
     )
 
     # Initialize the tuner.
@@ -420,18 +423,21 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=True,
         pin_memory=True,
+        num_workers=4,
     )
     dataloader_val = DataLoader(
         data_val,
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=False,
         pin_memory=True,
+        num_workers=4,
     )
     dataloader_test = DataLoader(
         data_test,
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=False,
         pin_memory=True,
+        num_workers=4,
     )
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
