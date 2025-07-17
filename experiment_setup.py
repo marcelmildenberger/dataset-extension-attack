@@ -136,16 +136,12 @@ for encoding in encs:
                 GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
                 GLOBAL_CONFIG["DropFrom"] = drop_from
                 GLOBAL_CONFIG["Overlap"] = ov
-                try:
-                    run_dea(
-                        GLOBAL_CONFIG.copy(),
-                        ENC_CONFIG.copy(),
-                        EMB_CONFIG.copy(),
-                        ALIGN_CONFIG.copy(),
-                        DEA_CONFIG.copy()
-                    )
-                except Exception as e:
-                    print(f"DEA run failed for dataset={dataset}, drop_from={drop_from}, overlap={ov}: {e}")
-                    continue
+                run_dea(
+                    GLOBAL_CONFIG.copy(),
+                    ENC_CONFIG.copy(),
+                    EMB_CONFIG.copy(),
+                    ALIGN_CONFIG.copy(),
+                    DEA_CONFIG.copy()
+                )
 
 print("✅ Skript abgeschlossen!")
