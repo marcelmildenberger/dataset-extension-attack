@@ -14,7 +14,6 @@
 !/data/cache/ignore_me
 .env
 .DS_Store
-formatted_results.csv
 analysis/plots/*
 analysis/tables/*
 !/analysis/plots/ignore_me
