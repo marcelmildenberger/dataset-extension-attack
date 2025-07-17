@@ -61,7 +61,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # ALIGN_CONFIG["RegWS"] is set to the maximum of 0.1 and one third of the overlap parameter.
     # GLOBAL_CONFIG["Workers"] is set to the number of available CPU cores minus one.
     ALIGN_CONFIG["RegWS"] = max(0.1, GLOBAL_CONFIG["Overlap"] / 3)
-    GLOBAL_CONFIG["Workers"] = os.cpu_count() - 1
+    GLOBAL_CONFIG["Workers"] = os.cpu_count()
 
     # Ignore optuna warnings.
     warnings.filterwarnings("ignore", category=UserWarning, module="optuna")
@@ -369,13 +369,13 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         identifier=identifier,
         patience=DEA_CONFIG["Patience"],
         min_delta=DEA_CONFIG["MinDelta"],
-        workers=GLOBAL_CONFIG["Workers"] // 5,
+        workers=GLOBAL_CONFIG["Workers"] // 10,
     )
 
     # Wrap the trainable function with resources.
     trainable_with_resources = tune.with_resources(
         trainable,
-        resources={"cpu": int(GLOBAL_CONFIG["Workers"] // 5), "gpu": 0.2} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"], "gpu": 0}
+        resources={"cpu": GLOBAL_CONFIG["Workers"] // 10, "gpu": 0.1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"], "gpu": 0}
     )
 
     # Initialize the tuner.
