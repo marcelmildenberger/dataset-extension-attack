@@ -672,7 +672,11 @@ def load_experiment_datasets(
     if os.path.exists(cache_path):
         with open(cache_path, 'rb') as f:
             cached = pickle.load(f)
-            return {k: cached.get(k) for k in splits}
+            if isinstance(cached, dict):
+                return {k: cached.get(k) for k in splits}
+            else:
+                train, val, test = cached
+                return {"train": train, "val": val, "test": test}
 
     # Otherwise, create datasets
     df_reidentified = load_dataframe(f"{data_directory}/available_to_eve/reidentified_individuals_{identifier}.h5")
