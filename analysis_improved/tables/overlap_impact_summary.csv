@@ -1,0 +1,13 @@
+Encoding,Overlap,ReidentificationRatePercent,TrainedF1,TotalRuntime
+BloomFilter,0.2,0.0,0.269,105.8725
+BloomFilter,0.4,0.8275,0.3079,53.1988
+BloomFilter,0.6,3.3012,0.6786,49.9862
+BloomFilter,0.8,0.68,0.69,56.7612
+TabMinHash,0.2,0.2278,0.476,308.6922
+TabMinHash,0.4,1.217,0.487,155.041
+TabMinHash,0.6,2.2958,0.6924,142.2892
+TabMinHash,0.8,2.815,0.724,135.0825
+TwoStepHash,0.2,2.21,0.6426,255.9438
+TwoStepHash,0.4,2.5,0.5412,243.4167
+TwoStepHash,0.6,0.0,0.2002,15.44
+TwoStepHash,0.8,1.425,0.8147,597.755
