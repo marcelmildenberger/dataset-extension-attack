@@ -125,40 +125,40 @@ drop = ["Eve", "Both"]
 overlap = [0.2, 0.4, 0.6, 0.8]
 
 
-failed_runs_path = os.path.join("experiment_results", "failed_runs.csv")
-with open(failed_runs_path, mode="w", newline="", encoding="utf-8") as f:
-    writer = csv.writer(f)
-    writer.writerow(["Encoding", "Dataset", "DropFrom", "Overlap", "ExceptionType", "ExceptionMessage"])
+#failed_runs_path = os.path.join("experiment_results", "failed_runs.csv")
+#with open(failed_runs_path, mode="w", newline="", encoding="utf-8") as f:
+#    writer = csv.writer(f)
+#    writer.writerow(["Encoding", "Dataset", "DropFrom", "Overlap", "ExceptionType", "ExceptionMessage"])
 
-    for encoding in encs:
-        ENC_CONFIG["AliceAlgo"] = encoding
-        ENC_CONFIG["EveAlgo"] = "None"
-        if encoding == "BloomFilter":
-            ENC_CONFIG["EveAlgo"] = encoding
-        for dataset in datasets:
-            if dataset == "fakename_20k.tsv" and encoding == "TabMinHash":
-                continue
-            for drop_from in drop:
-                for ov in overlap:
-                    GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
-                    GLOBAL_CONFIG["DropFrom"] = drop_from
-                    GLOBAL_CONFIG["Overlap"] = ov
-                    try:
-                        run_dea(
-                            GLOBAL_CONFIG.copy(),
-                            ENC_CONFIG.copy(),
-                            EMB_CONFIG.copy(),
-                            ALIGN_CONFIG.copy(),
-                            DEA_CONFIG.copy()
-                        )
-                    except Exception as e:
-                        writer.writerow([
-                            encoding,
-                            dataset,
-                            drop_from,
-                            ov,
-                            type(e).__name__,
-                            str(e)
-                        ])
+for encoding in encs:
+    ENC_CONFIG["AliceAlgo"] = encoding
+    ENC_CONFIG["EveAlgo"] = "None"
+    if encoding == "BloomFilter":
+        ENC_CONFIG["EveAlgo"] = encoding
+    for dataset in datasets:
+        for drop_from in drop:
+            for ov in overlap:
+                if encoding == "TabMinHash":
+                    if dataset == "fakename_20k.tsv":
+                        continue
+                    if dataset == "fakename_50k.tsv":
+                        if drop_from == "Eve":
+                            continue
+                        if drop_from == "Both":
+                            if ov == 0.2:
+                                continue
+                GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
+                GLOBAL_CONFIG["DropFrom"] = drop_from
+                GLOBAL_CONFIG["Overlap"] = ov
+                try:
+                    run_dea(
+                        GLOBAL_CONFIG.copy(),
+                        ENC_CONFIG.copy(),
+                        EMB_CONFIG.copy(),
+                        ALIGN_CONFIG.copy(),
+                        DEA_CONFIG.copy()
+                    )
+                except Exception as e:
+                    print(e)
 
 print("✅ Skript abgeschlossen!")
