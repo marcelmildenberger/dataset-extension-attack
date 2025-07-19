@@ -16,7 +16,9 @@ GLOBAL_CONFIG = {
     "DevMode": False,
     "BenchMode": True,
     "SaveResults": True,
-    "UseGPU": True
+    "UseGPU": True,
+    "SaveModel": False,
+    "SavePredictions": False,
 }
 
 # === DEA Training Parameters ===
@@ -119,7 +121,7 @@ ALIGN_CONFIG = {
     "Wasserstein": True,
 }
 
-encs = ["TabMinHash", "TwoStepHash"]
+encs = ["TabMinHash", "BloomFilter", "TwoStepHash"]
 datasets = ["fakename_20k.tsv", "fakename_50k.tsv"]
 drop = ["Eve", "Both"]
 overlap = [0.2, 0.4, 0.6, 0.8]

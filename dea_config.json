@@ -12,7 +12,9 @@
         "DevMode": false,
         "BenchMode": true,
         "SaveResults": true,
-        "UseGPU": false
+        "UseGPU": false,
+        "SaveModel": false,
+        "SavePredictions": false
     },
     "ENC_CONFIG": {
         "AliceAlgo": "BloomFilter",

@@ -72,7 +72,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # TODO: Change saving config to json instead of txt
     selected_dataset = GLOBAL_CONFIG["Data"].split("/")[-1].replace(".tsv", "")
     experiment_tag = "experiment_" + ENC_CONFIG["AliceAlgo"] + "_" + selected_dataset + "_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    current_experiment_directory = f"experiment_results/{experiment_tag}"
+    current_experiment_directory = f"/mnt/nvme/marcelmildenberger/experiment_results/{experiment_tag}"
     os.makedirs(current_experiment_directory, exist_ok=True)
     all_configs = {
         "GLOBAL_CONFIG": GLOBAL_CONFIG,
@@ -592,7 +592,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
 
     # Save the trained model and config if requested.
-    if GLOBAL_CONFIG["SaveResults"]:
+    if GLOBAL_CONFIG["SaveModel"]:
         torch.save(model.state_dict(), os.path.join(trained_model_directory, "model.pt"))
         with open(os.path.join(trained_model_directory, "config.json"), "w") as f:
             json.dump(best_config, f, indent=4)
@@ -656,6 +656,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             f.write(f"Average Recall: {avg_recall:.4f}\n")
             f.write(f"Average F1 Score: {avg_f1:.4f}\n")
             f.write(f"Average Dice Similarity: {avg_dice:.4f}\n")
+    if GLOBAL_CONFIG["SavePredictions"]:
         with open(f"{trained_model_directory}/results.json", 'w', encoding='utf-8') as f:
             json.dump(results, f, indent=4, ensure_ascii=False)
 
