@@ -124,12 +124,6 @@ datasets = ["fakename_20k.tsv", "fakename_50k.tsv"]
 drop = ["Eve", "Both"]
 overlap = [0.2, 0.4, 0.6, 0.8]
 
-
-#failed_runs_path = os.path.join("experiment_results", "failed_runs.csv")
-#with open(failed_runs_path, mode="w", newline="", encoding="utf-8") as f:
-#    writer = csv.writer(f)
-#    writer.writerow(["Encoding", "Dataset", "DropFrom", "Overlap", "ExceptionType", "ExceptionMessage"])
-
 for encoding in encs:
     ENC_CONFIG["AliceAlgo"] = encoding
     ENC_CONFIG["EveAlgo"] = "None"
