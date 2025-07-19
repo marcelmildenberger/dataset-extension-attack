@@ -72,7 +72,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # TODO: Change saving config to json instead of txt
     selected_dataset = GLOBAL_CONFIG["Data"].split("/")[-1].replace(".tsv", "")
     experiment_tag = "experiment_" + ENC_CONFIG["AliceAlgo"] + "_" + selected_dataset + "_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    current_experiment_directory = f"/mnt/nvme/marcelmildenberger/experiment_results/{experiment_tag}"
+    current_experiment_directory = f"experiment_results/{experiment_tag}"
     os.makedirs(current_experiment_directory, exist_ok=True)
     all_configs = {
         "GLOBAL_CONFIG": GLOBAL_CONFIG,
