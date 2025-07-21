@@ -19,3 +19,4 @@ analysis/tables/*
 !/analysis/plots/ignore_me
 !/analysis/tables/ignore_me
 /experiment_results_filtered/*
+formatted_results.csv
