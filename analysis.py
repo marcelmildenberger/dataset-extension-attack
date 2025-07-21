@@ -299,6 +299,47 @@ plt.savefig("analysis/plots/dea_encoding_comparison_all_datasets.png", dpi=300, 
 plt.close()
 
 
+# DEA Encoding Comparison: Re-identification Rate instead of F1
+n_cols = 3
+n_rows = (len(datasets) + n_cols - 1) // n_cols
+fig, axes = plt.subplots(n_rows, n_cols, figsize=(6 * n_cols, 4.5 * n_rows))
+axes = axes.flatten()
+
+for i, dataset in enumerate(datasets):
+    ax = axes[i]
+    subset = df[df["Dataset"] == dataset]
+
+    # Group by encoding and DropFrom, averaging across overlap
+    grouped = (
+        subset.groupby(["Encoding", "DropFrom"])["ReidentificationRate"]
+        .mean()
+        .reset_index()
+    )
+    grouped["EncodingLabel"] = grouped["Encoding"].map(encoding_map)
+    grouped["ReidentificationRate"] = grouped["ReidentificationRate"] * 100
+
+    sns.barplot(
+        data=grouped,
+        x="EncodingLabel",
+        y="ReidentificationRate",
+        hue="DropFrom",
+        ax=ax,
+        errorbar="sd"
+    )
+    ax.set_title(dataset.replace(".tsv", "").replace("_", " "))
+    ax.set_ylabel("Re-identification Rate (%)")
+    ax.set_xlabel("Encoding")
+    ax.set_ylim(0, 100)
+    ax.legend(title="DropFromtegy", loc="upper right", fontsize="small")
+
+# Remove empty axes if any
+for j in range(i + 1, len(axes)):
+    fig.delaxes(axes[j])
+
+plt.tight_layout()
+plt.suptitle("DEA Re-identification Rate by Encoding, Aggregated over Overlap", fontsize=16, y=1.02)
+plt.savefig("analysis/plots/dea_encoding_reidrate_comparison_all_datasets.png", dpi=300, bbox_inches="tight")
+plt.close()
 
 
 # Map encoding names for readability
@@ -538,6 +579,43 @@ if not duplicate_groups.empty:
 else:
     # If no duplicates, write an empty file with header
     pd.DataFrame(columns=["Encoding", "Dataset", "DropFrom", "Overlap", "ExperimentFolders"]).to_csv("analysis/tables/duplicate_experiments.csv", index=False)
+
+
+# ================= Overlap vs. Re-identification Rate and F1 Score per Encoding (Aggregated over DropFrom) =====================
+desired_overlaps = [0.2, 0.4, 0.6, 0.8]
+for encoding, enc_label in encoding_map.items():
+    plot_dir = f"analysis/plots/{encoding}"
+    os.makedirs(plot_dir, exist_ok=True)
+    subset = df[(df["Encoding"] == encoding) & (df["Overlap"].isin(desired_overlaps))]
+    # Aggregate over DropFrom
+    agg = subset.groupby(["Dataset", "Overlap"]).agg({
+        "ReidentificationRate": "mean",
+        "TrainedF1": "mean"
+    }).reset_index()
+    plt.figure(figsize=(14, 6))
+    # Re-identification Rate plot
+    plt.subplot(1, 2, 1)
+    for dataset in agg["Dataset"].unique():
+        data = agg[agg["Dataset"] == dataset]
+        plt.plot(data["Overlap"], data["ReidentificationRate"] * 100, marker="o", label=dataset.replace(".tsv", "").replace("_", " "))
+    plt.xlabel("Overlap")
+    plt.ylabel("Re-identification Rate (%)")
+    plt.title(f"{enc_label}: Overlap vs. Re-identification Rate (mean over DropFrom)")
+    plt.legend(title="Dataset", fontsize="small")
+    plt.grid(True)
+    # F1 Score plot
+    plt.subplot(1, 2, 2)
+    for dataset in agg["Dataset"].unique():
+        data = agg[agg["Dataset"] == dataset]
+        plt.plot(data["Overlap"], data["TrainedF1"], marker="o", label=dataset.replace(".tsv", "").replace("_", " "))
+    plt.xlabel("Overlap")
+    plt.ylabel("F1 Score")
+    plt.title(f"{enc_label}: Overlap vs. F1 Score (mean over DropFrom)")
+    plt.legend(title="Dataset", fontsize="small")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(f"{plot_dir}/{encoding}_overlap_summary.png", dpi=300)
+    plt.close()
 
 
 
