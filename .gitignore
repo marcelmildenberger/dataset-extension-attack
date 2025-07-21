@@ -16,6 +16,7 @@
 .DS_Store
 analysis/plots/*
 analysis/tables/*
+analysis/
 !/analysis/plots/ignore_me
 !/analysis/tables/ignore_me
 /experiment_results_filtered/*

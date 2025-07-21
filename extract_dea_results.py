@@ -113,7 +113,7 @@ def collect_experiment_results(base_path: str, output_csv_path: str = None) -> p
         # Include flattened best config
         if best_result:
             record.update({
-                "HypOp": best_result.get("output_dim"),
+                "HypOpOutputDim": best_result.get("output_dim"),
                 "HypOpNumLayers": best_result.get("num_layers"),
                 "HypOpHiddenSize": best_result.get("hidden_layer_size"),
                 "HypOpDropout": best_result.get("dropout_rate"),

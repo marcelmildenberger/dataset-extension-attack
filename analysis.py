@@ -1,14 +1,10 @@
-# %% [markdown]
-# # Analysis of the Dataset Extension Attack
-
-# %%
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import os
 import re
+import numpy as np
 
-# %%
 # Load data
 df = pd.read_csv("formatted_results.csv")
 
@@ -18,7 +14,7 @@ def extract_dataset_size(name):
     if match:
         return int(match.group(1)) * 1000
     elif "euro" in name:
-        return 25000  # placeholder
+        return 26625  # placeholder
     return None
 
 df["DatasetSize"] = df["Dataset"].apply(extract_dataset_size)
@@ -30,14 +26,13 @@ os.makedirs("analysis/tables", exist_ok=True)
 
 # Metrics to visualize
 metrics = [
+    ("TrainedPrecision", "Precision"),
+    ("TrainedRecall", "Recall"),
     ("TrainedF1", "F1 Score"),
     ("ReidentificationRate", "Re-identification Rate"),
-    ("TrainedRecall", "Recall"),
-    ("TrainedPrecision", "Precision"),
-    ("TotalRuntime", "Total Runtime (min)")
 ]
 
-# Baseline metrics per dataset (dict format)
+# Baseline metrics per dataset
 baseline_metrics = {
     "fakename_1k":     {"Precision": 0.2162, "Recall": 0.2476, "F1": 0.2300},
     "fakename_2k":     {"Precision": 0.2131, "Recall": 0.2452, "F1": 0.2271},
@@ -49,13 +44,23 @@ baseline_metrics = {
     "euro_person":     {"Precision": 0.2197, "Recall": 0.2446, "F1": 0.2306}
 }
 
-# %%
+encoding_map = {
+    "BloomFilter": "Bloom Filter",
+    "TabMinHash": "Tabulation Minhash",
+    "TwoStepHash": "Two-Step Hash"
+}
+
+# Create plots for fixed encoding and dataset combinations
 # Loop through each (Encoding, Dataset) pair
 for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
+    # Create subfolder for this encoding if it doesn't exist
+    plot_dir = f"analysis/plots/{encoding}"
+    os.makedirs(plot_dir, exist_ok=True)
     fig, axes = plt.subplots(nrows=2, ncols=4, figsize=(20, 8))
 
     dataset_label = dataset.replace(".tsv", "").replace("_", " ")
-    title = f"{encoding} — {dataset_label}"
+    encoding_label = encoding_map[encoding]
+    title = f"{encoding_label} — {dataset_label}"
     fig.suptitle(title, fontsize=16)
 
     dataset_key = dataset.replace(".tsv", "")
@@ -79,7 +84,6 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
             if metric_key == "TrainedF1":
                 ax.axhline(y=baseline_metrics[dataset_key]["F1"], linestyle="--", color="gray", label="Baseline F1")
                 ax.legend()
-                ax.set_title("F1 & Dice Score")
             elif metric_key == "TrainedRecall":
                 ax.axhline(y=baseline_metrics[dataset_key]["Recall"], linestyle="--", color="gray", label="Baseline Recall")
                 ax.legend()
@@ -87,7 +91,7 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
                 ax.axhline(y=baseline_metrics[dataset_key]["Precision"], linestyle="--", color="gray", label="Baseline Precision")
                 ax.legend()
 
-    # ➕ Updated: Two subplots for Re-ID Comparison by DropFrom
+    # Two subplots for Re-ID Comparison by DropFrom
     melted = group.melt(
         id_vars=["Overlap", "DropFrom"],
         value_vars=["ReidentificationRateFuzzy", "ReidentificationRateGreedy", "ReidentificationRate"],
@@ -103,7 +107,7 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
     melted["Rate"] *= 100
 
     # Plot for DropFrom = Eve
-    ax = axes.flat[5]
+    ax = axes.flat[4]
     subset_eve = melted[melted["DropFrom"] == "Eve"]
     sns.lineplot(
         data=subset_eve,
@@ -113,12 +117,12 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
         marker="o",
         ax=ax
     )
-    ax.set_title("Re-ID (DropFrom = Eve)")
-    ax.set_ylabel("Re-ID Rate (%)")
+    ax.set_title("Re-identification Rate (DropFrom = Eve)")
+    ax.set_ylabel("Re-identification Rate (%)")
     ax.grid(True)
 
     # Plot for DropFrom = Both
-    ax = axes.flat[6]
+    ax = axes.flat[5]
     subset_both = melted[melted["DropFrom"] == "Both"]
     sns.lineplot(
         data=subset_both,
@@ -128,12 +132,12 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
         marker="o",
         ax=ax
     )
-    ax.set_title("Re-ID (DropFrom = Both)")
-    ax.set_ylabel("Re-ID Rate (%)")
+    ax.set_title("Re-identification Rate (DropFrom = Both)")
+    ax.set_ylabel("Re-identification Rate (%)")
     ax.grid(True)
 
-    # ➕ Subplot: Trained F1 vs. HypOp F1 (no DropFrom/Overlap)
-    ax = axes.flat[7]
+    # Scatter plot for TrainedF1 vs. HypOpF1
+    ax = axes.flat[6]
     sns.scatterplot(
         data=group,
         x="HypOpF1",
@@ -143,17 +147,43 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
         ax=ax
     )
     ax.plot([0, 1], [0, 1], linestyle="--", color="gray", label="x = y")
-    ax.set_title("Trained vs. HypOp F1")
-    ax.set_xlabel("HypOp F1 (Validation)")
-    ax.set_ylabel("Trained F1 (Full Data)")
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
+    ax.set_title("Trained vs. Hyperparameter Optimization F1")
+    ax.set_xlabel("Hyperparameter Op. F1")
+    ax.set_ylabel("Trained F1")
+    # Dynamic axis limits
+    x_min, x_max = group["HypOpF1"].min(), group["HypOpF1"].max()
+    y_min, y_max = group["TrainedF1"].min(), group["TrainedF1"].max()
+    margin = 0.05
+    ax.set_xlim(max(0, x_min - margin), min(1, x_max + margin))
+    ax.set_ylim(max(0, y_min - margin), min(1, y_max + margin))
     ax.grid(True)
     ax.legend(loc="lower right", fontsize="small")
 
+    # Privacy-Utility Trade-off plot with dynamic axis limits
+    ax = axes.flat[7]
+    x_min, x_max = group["TrainedF1"].min(), group["TrainedF1"].max()
+    y_min, y_max = (group["ReidentificationRate"] * 100).min(), (group["ReidentificationRate"] * 100).max()
+    margin_x = 0.05
+    margin_y = 2
+    x = group["TrainedF1"]
+    y = group["ReidentificationRate"] * 100
+    ax.scatter(x, y, color="purple", s=60, alpha=0.7)
+    # Linear regression fit
+    if len(x) > 1:
+        coeffs = np.polyfit(x, y, 1)
+        x_fit = np.linspace(x.min(), x.max(), 100)
+        y_fit = np.polyval(coeffs, x_fit)
+        ax.plot(x_fit, y_fit, color="orange", linestyle="--", label="Best Fit")
+    ax.set_xlabel("F1 Score")
+    ax.set_ylabel("Re-identification Rate (%)")
+    ax.set_title("Re-identification Rate vs. F1 Score")
+    ax.set_xlim(max(0, x_min - margin_x), min(1, x_max + margin_x))
+    ax.set_ylim(max(0, y_min - margin_y), min(100, y_max + margin_y))
+    ax.grid(True)
+    ax.legend()
 
     plt.tight_layout(rect=[0, 0, 1, 0.95])
-    filename = f"analysis/plots/{encoding}_{dataset_label.replace(' ', '_')}_metrics.png"
+    filename = f"{plot_dir}/{encoding}_{dataset_label.replace(' ', '_')}_metrics.png"
     plt.savefig(filename, dpi=300)
     plt.close()
 
@@ -178,13 +208,6 @@ summary_df = summary_df.sort_values(by=["Dataset", "Encoding", "Overlap", "DropF
 # Export to CSV
 summary_df.to_csv("analysis/tables/reidentification_summary.csv", index=False)
 
-# Display as a table
-summary_df.reset_index(drop=True, inplace=True)
-
-
-
-
-# %%
 # Ensure time columns are numeric
 time_cols = [
     "GraphMatchingAttackTime", "HyperparameterOptimizationTime",
@@ -193,46 +216,41 @@ time_cols = [
 ]
 df[time_cols] = df[time_cols].apply(pd.to_numeric, errors="coerce")
 
-# 1. Overall Runtime Breakdown
-avg_runtime = df[time_cols].mean().sort_values(ascending=False)
+# # 1. Overall Runtime Breakdown
+# avg_runtime = df[time_cols].mean().sort_values(ascending=False)
 
-plt.figure(figsize=(10, 6))
-sns.barplot(x=avg_runtime.values, y=avg_runtime.index)
-plt.title("Average Runtime Breakdown (All Experiments)")
-plt.xlabel("Time in Minutes")
-plt.tight_layout()
-plt.savefig("analysis/plots/dea_runtime_overall.png", dpi=300)
-plt.close()
+# plt.figure(figsize=(10, 6))
+# sns.barplot(x=avg_runtime.values, y=avg_runtime.index)
+# plt.title("Average Runtime Breakdown (All Experiments)")
+# plt.xlabel("Time in Minutes")
+# plt.tight_layout()
+# plt.savefig("analysis/plots/dea_runtime_overall.png", dpi=300)
+# plt.close()
 
-# 3 . Runtime Breakdown: Average vs. Max
-avg_times = df[time_cols].mean()
-max_times = df[time_cols].max()
-runtime_df = pd.DataFrame({
-    "Average Time (m)": avg_times,
-    "Max Time (m)": max_times
-}).sort_values("Average Time (m)", ascending=False)
+# # 3 . Runtime Breakdown: Average vs. Max
+# avg_times = df[time_cols].mean()
+# max_times = df[time_cols].max()
+# runtime_df = pd.DataFrame({
+#     "Average Time (m)": avg_times,
+#     "Max Time (m)": max_times
+# }).sort_values("Average Time (m)", ascending=False)
 
-# 2. Runtime by Encoding Scheme
-encoding_runtime = df.groupby("Encoding")[time_cols].mean().T
+# # 2. Runtime by Encoding Scheme
+# encoding_runtime = df.groupby("Encoding")[time_cols].mean().T
 
-encoding_runtime.plot(kind="bar", figsize=(12, 6))
-plt.title("Average Runtime per Step by Encoding Scheme")
-plt.ylabel("Time in Minutes")
-plt.xticks(rotation=45, ha="right")
-plt.tight_layout()
-plt.savefig("analysis/plots/dea_runtime_by_encoding.png", dpi=300)
-plt.close()
+# encoding_runtime.plot(kind="bar", figsize=(12, 6))
+# plt.title("Average Runtime per Step by Encoding Scheme")
+# plt.ylabel("Time in Minutes")
+# plt.xticks(rotation=45, ha="right")
+# plt.tight_layout()
+# plt.savefig("analysis/plots/dea_runtime_by_encoding.png", dpi=300)
+# plt.close()
 
 
-# %%
 # Set consistent color palette and styling
 sns.set(style="whitegrid")
-encoding_map = {
-    "BloomFilter": "Bloom Filter",
-    "TabMinHash": "TabMinHash",
-    "TwoStepHash": "TwoStepHash"
-}
-df["EncodingLabel"] = df["Encoding"].map(encoding_map)
+
+
 
 # Get sorted list of datasets
 datasets = sorted(df["Dataset"].unique())
@@ -249,10 +267,13 @@ for i, dataset in enumerate(datasets):
 
     # Group by encoding and DropFrom, averaging across overlap
     grouped = (
-        subset.groupby(["EncodingLabel", "DropFrom"])["TrainedF1"]
+        subset.groupby(["Encoding", "DropFrom"])["TrainedF1"]
         .mean()
         .reset_index()
     )
+
+    # Add a new column for the encoding label
+    grouped["EncodingLabel"] = grouped["Encoding"].map(encoding_map)
 
     sns.barplot(
         data=grouped,
@@ -266,7 +287,7 @@ for i, dataset in enumerate(datasets):
     ax.set_ylabel("F1 / Dice Score")
     ax.set_xlabel("Encoding")
     ax.set_ylim(0, 1)
-    ax.legend(title="Drop From", loc="upper right", fontsize="small")
+    ax.legend(title="DropFromtegy", loc="upper right", fontsize="small")
 
 # Remove empty axes if any
 for j in range(i + 1, len(axes)):
@@ -276,6 +297,247 @@ plt.tight_layout()
 plt.suptitle("DEA Performance by Encoding, Aggregated over Overlap", fontsize=16, y=1.02)
 plt.savefig("analysis/plots/dea_encoding_comparison_all_datasets.png", dpi=300, bbox_inches="tight")
 plt.close()
+
+
+
+
+# Map encoding names for readability
+df["EncodingLabel"] = df["Encoding"].map(encoding_map)
+
+# If Overlap is a float (e.g., 0.2), convert to percentage string for axis labels
+df["OverlapLabel"] = (df["Overlap"] * 100).astype(int).astype(str) + "%"
+
+# Only consider specific overlaps for the heatmap
+desired_overlaps = [0.2, 0.4, 0.6, 0.8]
+df_heatmap = df[df["Overlap"].isin(desired_overlaps)].copy()
+
+# Update OverlapLabel for the filtered DataFrame
+df_heatmap["OverlapLabel"] = (df_heatmap["Overlap"] * 100).astype(int).astype(str) + "%"
+
+# Group by encoding and overlap, take mean re-identification rate (or use another aggregation)
+heatmap_data = (
+    df_heatmap.groupby(["EncodingLabel", "OverlapLabel"])["ReidentificationRate"]
+    .mean()
+    .unstack()  # EncodingLabel as rows, OverlapLabel as columns
+)
+
+# Optionally, multiply by 100 if you want to show as percentage
+heatmap_data = heatmap_data * 100
+
+plt.figure(figsize=(10, 7))
+ax = sns.heatmap(
+    heatmap_data,
+    annot=True,
+    fmt=".1f",
+    cmap="Reds",
+    cbar_kws={'label': 'Re-identification Rate (%)'},
+    linewidths=0.5,
+    linecolor='white'
+)
+plt.title("Privacy Risk Heatmap: Re-identification Rates by Configuration", fontsize=16, weight='bold')
+plt.xlabel("Overlap Percentage")
+plt.ylabel("Encoding Scheme")
+plt.tight_layout()
+plt.savefig("analysis/plots/dea_reidentification_heatmap.png", dpi=300)
+plt.close()
+
+
+# Executive Summary for DEA
+
+summary_lines = []
+summary_lines.append("DATASET EXTENSION ATTACK (DEA) - EXECUTIVE SUMMARY")
+summary_lines.append("=" * 60)
+summary_lines.append("")
+
+# General stats
+total_experiments = len(df)
+encoding_schemes_tested = df["Encoding"].nunique()
+datasets_analyzed = df["Dataset"].nunique()
+avg_reid = df["ReidentificationRate"].mean() * 100
+max_reid = df["ReidentificationRate"].max() * 100
+avg_f1 = df["TrainedF1"].mean()
+max_f1 = df["TrainedF1"].max()
+avg_runtime = df["TotalRuntime"].mean()
+
+summary_lines.append(f"Total Experiments: {total_experiments}")
+summary_lines.append(f"Encoding Schemes Tested: {encoding_schemes_tested}")
+summary_lines.append(f"Datasets Analyzed: {datasets_analyzed}")
+summary_lines.append(f"Average Re-identification Rate: {avg_reid:.2f}%")
+summary_lines.append(f"Maximum Re-identification Rate: {max_reid:.2f}%")
+summary_lines.append(f"Average F1 Score: {avg_f1:.3f}")
+summary_lines.append(f"Maximum F1 Score: {max_f1:.3f}")
+summary_lines.append("")
+
+# Per-encoding stats
+summary_lines.append("ENCODING SCHEME PERFORMANCE:")
+summary_lines.append("-" * 30)
+
+for encoding, label in encoding_map.items():
+    subset = df[df["Encoding"] == encoding]
+    avg_reid_enc = subset["ReidentificationRate"].mean() * 100
+    avg_f1_enc = subset["TrainedF1"].mean()
+    n_exp = len(subset)
+    summary_lines.append(f"{label}:")
+    summary_lines.append(f"  - Avg Re-ID Rate: {avg_reid_enc:.2f}%")
+    summary_lines.append(f"  - Avg F1 Score: {avg_f1_enc:.3f}")
+    summary_lines.append(f"  - Experiments: {n_exp}")
+    summary_lines.append("")
+
+# Write to file
+summary_path = "analysis/dea_executive_summary.txt"
+with open(summary_path, "w") as f:
+    f.write("\n".join(summary_lines))
+
+print(f"Executive summary written to {summary_path}")
+
+
+# ================= Neural Network Architecture Parameter Distributions =====================
+# For each encoding scheme, generate a single PNG/PDF with subplots showing the distribution of all architecture parameters used.
+
+arch_cols = [
+    "Encoding", "EncodingLabel", "HypOpNumLayers", "HypOpHiddenSize", "HypOpDropout", "HypOpActivation", "HypOpOptimizer", "HypOpThreshold", "HypOpLRScheduler", "HypOpBatchSize", "HypOpEpochs"
+]
+arch_df = df[arch_cols].copy()
+arch_df = arch_df.dropna(subset=["HypOpNumLayers", "HypOpHiddenSize", "HypOpDropout", "HypOpActivation", "HypOpOptimizer", "HypOpThreshold", "HypOpLRScheduler", "HypOpBatchSize", "HypOpEpochs"])
+arch_df["HypOpNumLayers"] = pd.to_numeric(arch_df["HypOpNumLayers"], errors="coerce")
+arch_df["HypOpHiddenSize"] = pd.to_numeric(arch_df["HypOpHiddenSize"], errors="coerce")
+arch_df["HypOpDropout"] = pd.to_numeric(arch_df["HypOpDropout"], errors="coerce")
+arch_df["HypOpThreshold"] = pd.to_numeric(arch_df["HypOpThreshold"], errors="coerce")
+arch_df["HypOpBatchSize"] = pd.to_numeric(arch_df["HypOpBatchSize"], errors="coerce")
+arch_df["HypOpEpochs"] = pd.to_numeric(arch_df["HypOpEpochs"], errors="coerce")
+
+# Clean optimizer and LR scheduler name to just the name (e.g., AdamW from "{'name': 'AdamW', ...}")
+def extract_name_from_dict(val):
+    if isinstance(val, str):
+        match = re.search(r"'name': ?'([^']+)'", val)
+        if match:
+            return match.group(1)
+        # fallback: if just a name
+        return val.strip().split()[0].replace('"','').replace("'","")
+    return val
+arch_df["OptimizerName"] = arch_df["HypOpOptimizer"].apply(extract_name_from_dict)
+arch_df["LRSchedulerName"] = arch_df["HypOpLRScheduler"].apply(extract_name_from_dict)
+
+for encoding, group in arch_df.groupby(["Encoding", "EncodingLabel"]):
+    enc, enc_label = encoding
+    # Create subfolder for this encoding if it doesn't exist
+    plot_dir = f"analysis/plots/{enc}"
+    os.makedirs(plot_dir, exist_ok=True)
+    fig, axes = plt.subplots(3, 3, figsize=(22, 14))
+    axes = axes.flatten()
+    # NumLayers: bar plot of counts
+    ax = axes[0]
+    counts = group["HypOpNumLayers"].value_counts().sort_index()
+    counts.plot(kind="bar", ax=ax, color="skyblue", edgecolor="black")
+    ax.set_title("# Layers")
+    ax.set_xlabel("Num Layers")
+    ax.set_ylabel("Count")
+    # HiddenSize: bar plot of counts
+    ax = axes[1]
+    counts = group["HypOpHiddenSize"].value_counts().sort_index()
+    counts.plot(kind="bar", ax=ax, color="lightgreen", edgecolor="black")
+    ax.set_title("Hidden Size")
+    ax.set_xlabel("Hidden Size")
+    ax.set_ylabel("Count")
+    # Dropout: histogram with mean/std (if not all integer)
+    ax = axes[2]
+    vals = group["HypOpDropout"].dropna()
+    if (vals % 1 != 0).any():
+        mean = vals.mean()
+        std = vals.std()
+        ax.hist(vals, bins=10, color="plum", edgecolor="black")
+        ax.axvline(mean, color="red", linestyle="--", label=f"Mean: {mean:.2f}")
+        ax.axvline(mean+std, color="orange", linestyle=":", label=f"Std: {std:.2f}")
+        ax.axvline(mean-std, color="orange", linestyle=":")
+        ax.legend()
+    else:
+        counts = vals.value_counts().sort_index()
+        counts.plot(kind="bar", ax=ax, color="plum", edgecolor="black")
+    ax.set_title("Dropout")
+    ax.set_xlabel("Dropout")
+    ax.set_ylabel("Count")
+    # Categorical: Activation
+    ax = axes[3]
+    act_counts = group["HypOpActivation"].value_counts()
+    act_counts.plot(kind="bar", ax=ax, color="cornflowerblue", edgecolor="black")
+    ax.set_title("Activation Function")
+    ax.set_xlabel("Activation")
+    ax.set_ylabel("Count")
+    # Categorical: Optimizer (just name)
+    ax = axes[4]
+    opt_counts = group["OptimizerName"].value_counts()
+    opt_counts.plot(kind="bar", ax=ax, color="salmon", edgecolor="black")
+    ax.set_title("Optimizer")
+    ax.set_xlabel("Optimizer")
+    ax.set_ylabel("Count")
+    # Threshold: histogram with mean/std (if not all integer)
+    ax = axes[5]
+    vals = group["HypOpThreshold"].dropna()
+    if (vals % 1 != 0).any():
+        mean = vals.mean()
+        std = vals.std()
+        ax.hist(vals, bins=10, color="gold", edgecolor="black")
+        ax.axvline(mean, color="red", linestyle="--", label=f"Mean: {mean:.2f}")
+        ax.axvline(mean+std, color="orange", linestyle=":", label=f"Std: {std:.2f}")
+        ax.axvline(mean-std, color="orange", linestyle=":")
+        ax.legend()
+    else:
+        counts = vals.value_counts().sort_index()
+        counts.plot(kind="bar", ax=ax, color="gold", edgecolor="black")
+    ax.set_title("Threshold")
+    ax.set_xlabel("Threshold")
+    ax.set_ylabel("Count")
+    # Categorical: LR Scheduler (just name)
+    ax = axes[6]
+    lr_counts = group["LRSchedulerName"].value_counts()
+    lr_counts.plot(kind="bar", ax=ax, color="mediumorchid", edgecolor="black")
+    ax.set_title("LR Scheduler")
+    ax.set_xlabel("LR Scheduler")
+    ax.set_ylabel("Count")
+    # Batch Size: bar plot of counts (no mean/std)
+    ax = axes[7]
+    counts = group["HypOpBatchSize"].value_counts().sort_index()
+    counts.plot(kind="bar", ax=ax, color="deepskyblue", edgecolor="black")
+    ax.set_title("Batch Size")
+    ax.set_xlabel("Batch Size")
+    ax.set_ylabel("Count")
+    # Epochs: bar plot of counts with mean/std lines
+    ax = axes[8]
+    counts = group["HypOpEpochs"].value_counts().sort_index()
+    counts.plot(kind="bar", ax=ax, color="gray", edgecolor="black")
+    mean = group["HypOpEpochs"].mean()
+    std = group["HypOpEpochs"].std()
+    ax.axvline(mean, color="red", linestyle="--", label=f"Mean: {mean:.2f}")
+    ax.axvline(mean+std, color="orange", linestyle=":", label=f"Std: {std:.2f}")
+    ax.axvline(mean-std, color="orange", linestyle=":")
+    ax.set_title("Epochs")
+    ax.set_xlabel("Epochs")
+    ax.set_ylabel("Count")
+    ax.legend()
+    fig.suptitle(f"Neural Network Architecture Parameters — {enc_label}", fontsize=20)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig(f"{plot_dir}/{enc}_architecture.png", dpi=300)
+    plt.close()
+
+
+# ================= Find Duplicate Experiment Settings =====================
+# Find (Encoding, Dataset, DropFrom, Overlap) settings that occur more than once and store the experiment folder names for manual inspection.
+duplicate_groups = (
+    df.groupby(["Encoding", "Dataset", "DropFrom", "Overlap"])
+    .filter(lambda g: len(g) > 1)
+)
+if not duplicate_groups.empty:
+    dupe_summary = (
+        duplicate_groups.groupby(["Encoding", "Dataset", "DropFrom", "Overlap"])
+        .agg({"ExperimentFolder": lambda x: ";".join(x)})
+        .reset_index()
+        .rename(columns={"ExperimentFolder": "ExperimentFolders"})
+    )
+    os.makedirs("analysis/tables", exist_ok=True)
+    dupe_summary.to_csv("analysis/tables/duplicate_experiments.csv", index=False)
+else:
+    # If no duplicates, write an empty file with header
+    pd.DataFrame(columns=["Encoding", "Dataset", "DropFrom", "Overlap", "ExperimentFolders"]).to_csv("analysis/tables/duplicate_experiments.csv", index=False)
 
 
 
