@@ -121,8 +121,8 @@ ALIGN_CONFIG = {
     "Wasserstein": True,
 }
 
-encs = ["TabMinHash", "BloomFilter", "TwoStepHash"]
-datasets = ["fakename_20k.tsv", "fakename_50k.tsv"]
+encs = ["BloomFilter", "TwoStepHash"]
+datasets = ["fakename_20k.tsv", "euro_person.tsv"]
 drop = ["Eve", "Both"]
 overlap = [0.2, 0.4, 0.6, 0.8]
 
@@ -134,15 +134,8 @@ for encoding in encs:
     for dataset in datasets:
         for drop_from in drop:
             for ov in overlap:
-                if encoding == "TabMinHash":
-                    if dataset == "fakename_20k.tsv":
-                        continue
-                    if dataset == "fakename_50k.tsv":
-                        if drop_from == "Eve":
-                            continue
-                        if drop_from == "Both":
-                            if ov == 0.2:
-                                continue
+                if encoding == "BloomFilter" and drop_from == "Eve" and dataset == "fakename_20k.tsv":
+                    continue
                 GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
                 GLOBAL_CONFIG["DropFrom"] = drop_from
                 GLOBAL_CONFIG["Overlap"] = ov
