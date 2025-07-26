@@ -618,4 +618,135 @@ for encoding, enc_label in encoding_map.items():
     plt.close()
 
 
+# ================= Check for Missing Experiment Combinations =====================
+print("\n" + "="*80)
+print("CHECKING FOR MISSING EXPERIMENT COMBINATIONS")
+print("="*80)
+
+# Define expected combinations based on experiment_setup.py
+expected_encodings = ["TabMinHash", "TwoStepHash", "BloomFilter"]
+expected_datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv", "fakename_20k.tsv", "euro_person.tsv"]
+expected_drop_from = ["Eve", "Both"]
+expected_overlaps = [0.2, 0.4, 0.6, 0.8]
+
+# Create all expected combinations
+expected_combinations = []
+for encoding in expected_encodings:
+    for dataset in expected_datasets:
+        for drop_from in expected_drop_from:
+            for overlap in expected_overlaps:
+                # Special case: BloomFilter has EveAlgo = encoding, others have EveAlgo = "None"
+                if encoding == "BloomFilter":
+                    expected_combinations.append((encoding, dataset, drop_from, overlap))
+                else:
+                    expected_combinations.append((encoding, dataset, drop_from, overlap))
+
+# Get actual combinations from results
+actual_combinations = []
+for _, row in df.iterrows():
+    actual_combinations.append((row["Encoding"], row["Dataset"], row["DropFrom"], row["Overlap"]))
+
+# Convert to sets for comparison
+expected_set = set(expected_combinations)
+actual_set = set(actual_combinations)
+
+# Find missing combinations
+missing_combinations = expected_set - actual_set
+extra_combinations = actual_set - expected_set
+
+# Create summary report
+summary_lines = []
+summary_lines.append("EXPERIMENT COVERAGE ANALYSIS")
+summary_lines.append("=" * 50)
+summary_lines.append(f"Expected combinations: {len(expected_combinations)}")
+summary_lines.append(f"Actual combinations: {len(actual_combinations)}")
+summary_lines.append(f"Missing combinations: {len(missing_combinations)}")
+summary_lines.append(f"Extra combinations: {len(extra_combinations)}")
+summary_lines.append(f"Coverage: {len(actual_combinations)/len(expected_combinations)*100:.1f}%")
+summary_lines.append("")
+
+if missing_combinations:
+    summary_lines.append("MISSING COMBINATIONS:")
+    summary_lines.append("-" * 25)
+    for encoding, dataset, drop_from, overlap in sorted(missing_combinations):
+        summary_lines.append(f"  {encoding} | {dataset} | {drop_from} | {overlap}")
+    summary_lines.append("")
+else:
+    summary_lines.append("✅ ALL EXPECTED COMBINATIONS COMPLETED!")
+    summary_lines.append("")
+
+if extra_combinations:
+    summary_lines.append("EXTRA COMBINATIONS (not in original plan):")
+    summary_lines.append("-" * 40)
+    for encoding, dataset, drop_from, overlap in sorted(extra_combinations):
+        summary_lines.append(f"  {encoding} | {dataset} | {drop_from} | {overlap}")
+    summary_lines.append("")
+
+# Detailed breakdown by encoding
+summary_lines.append("BREAKDOWN BY ENCODING:")
+summary_lines.append("-" * 25)
+for encoding in expected_encodings:
+    expected_for_encoding = len([c for c in expected_combinations if c[0] == encoding])
+    actual_for_encoding = len([c for c in actual_combinations if c[0] == encoding])
+    missing_for_encoding = len([c for c in missing_combinations if c[0] == encoding])
+    coverage = actual_for_encoding / expected_for_encoding * 100
+    summary_lines.append(f"  {encoding}: {actual_for_encoding}/{expected_for_encoding} ({coverage:.1f}%) - {missing_for_encoding} missing")
+
+summary_lines.append("")
+
+# Detailed breakdown by dataset
+summary_lines.append("BREAKDOWN BY DATASET:")
+summary_lines.append("-" * 25)
+for dataset in expected_datasets:
+    expected_for_dataset = len([c for c in expected_combinations if c[1] == dataset])
+    actual_for_dataset = len([c for c in actual_combinations if c[1] == dataset])
+    missing_for_dataset = len([c for c in missing_combinations if c[1] == dataset])
+    coverage = actual_for_dataset / expected_for_dataset * 100
+    summary_lines.append(f"  {dataset}: {actual_for_dataset}/{expected_for_dataset} ({coverage:.1f}%) - {missing_for_dataset} missing")
+
+summary_lines.append("")
+
+# Detailed breakdown by overlap
+summary_lines.append("BREAKDOWN BY OVERLAP:")
+summary_lines.append("-" * 25)
+for overlap in expected_overlaps:
+    expected_for_overlap = len([c for c in expected_combinations if c[3] == overlap])
+    actual_for_overlap = len([c for c in actual_combinations if c[3] == overlap])
+    missing_for_overlap = len([c for c in missing_combinations if c[3] == overlap])
+    coverage = actual_for_overlap / expected_for_overlap * 100
+    summary_lines.append(f"  {overlap}: {actual_for_overlap}/{expected_for_overlap} ({coverage:.1f}%) - {missing_for_overlap} missing")
+
+# Write detailed report to file
+os.makedirs("analysis/tables", exist_ok=True)
+coverage_report_path = "analysis/tables/experiment_coverage_report.txt"
+with open(coverage_report_path, "w") as f:
+    f.write("\n".join(summary_lines))
+
+# Also print to console
+print("\n".join(summary_lines))
+print(f"\nDetailed coverage report saved to: {coverage_report_path}")
+
+# Create a CSV with missing combinations for easy reference
+if missing_combinations:
+    missing_df = pd.DataFrame(list(missing_combinations),
+                             columns=["Encoding", "Dataset", "DropFrom", "Overlap"])
+    missing_df.to_csv("analysis/tables/missing_experiments.csv", index=False)
+    print(f"Missing experiments list saved to: analysis/tables/missing_experiments.csv")
+
+# Create a CSV with all expected vs actual combinations
+coverage_df = pd.DataFrame({
+    "Encoding": [c[0] for c in expected_combinations],
+    "Dataset": [c[1] for c in expected_combinations],
+    "DropFrom": [c[2] for c in expected_combinations],
+    "Overlap": [c[3] for c in expected_combinations],
+    "Status": ["Completed" if c in actual_set else "Missing" for c in expected_combinations]
+})
+coverage_df.to_csv("analysis/tables/experiment_coverage_matrix.csv", index=False)
+print(f"Complete coverage matrix saved to: analysis/tables/experiment_coverage_matrix.csv")
+
+print("\n" + "="*80)
+print("EXPERIMENT COVERAGE ANALYSIS COMPLETE")
+print("="*80)
+
+
 

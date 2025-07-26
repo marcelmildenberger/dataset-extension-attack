@@ -27,7 +27,7 @@ DEA_CONFIG = {
     "Patience": 5,
     "MinDelta": 1e-4,
     "NumSamples": 125,
-    "Epochs": 20,
+    "Epochs": 5,
     "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
     "MatchingTechnique": "fuzzy_and_greedy",  # Options: "ai", "greedy", "fuzzy", ...
 }
@@ -121,8 +121,8 @@ ALIGN_CONFIG = {
     "Wasserstein": True,
 }
 
-encs = ["TwoStepHash", "BloomFilter"]
-datasets = ["euro_person.tsv", "fakename_20k.tsv"]
+encs = ["TabMinHash", "TwoStepHash", "BloomFilter"]
+datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv", "fakename_20k.tsv", "euro_person.tsv"]
 drop = ["Eve", "Both"]
 overlap = [0.2, 0.4, 0.6, 0.8]
 
@@ -134,10 +134,6 @@ for encoding in encs:
     for dataset in datasets:
         for drop_from in drop:
             for ov in overlap:
-                if encoding == "TwoStepHash" and dataset == "euro_person.tsv":
-                    continue
-                if encoding == "BloomFilter" and drop_from == "Eve" and dataset == "fakename_20k.tsv":
-                    continue
                 GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
                 GLOBAL_CONFIG["DropFrom"] = drop_from
                 GLOBAL_CONFIG["Overlap"] = ov

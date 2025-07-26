@@ -68,17 +68,27 @@ def parse_runtime_txt(path):
 
 def collect_experiment_results(base_path: str, output_csv_path: str = None) -> pd.DataFrame:
     experiment_dirs = list(Path(base_path).glob("experiment_*"))
+    print(f"Found {len(experiment_dirs)} experiment directories")
 
     def safe_read_file(path, parser_fn, default=None):
         try:
             return parser_fn(path)
-        except:
+        except Exception as e:
+            print(f"Error reading {path}: {e}")
             return default
 
     data_records = []
+    skipped_count = 0
+    termination_count = 0
+    missing_config_count = 0
+    missing_metrics_count = 0
+
     for exp_dir in experiment_dirs:
         exp_dir = Path(exp_dir)
+
+        # Check for termination log
         if (exp_dir / "termination_log.txt").exists():
+            termination_count += 1
             continue
 
         config = safe_read_file(exp_dir / "config.txt", parse_config_txt)
@@ -92,7 +102,14 @@ def collect_experiment_results(base_path: str, output_csv_path: str = None) -> p
             parse_best_result_csv
         )
 
-        if not config or not metrics:
+        if not config:
+            missing_config_count += 1
+            print(f"Missing config for: {exp_dir.name}")
+            continue
+
+        if not metrics:
+            missing_metrics_count += 1
+            print(f"Missing metrics for: {exp_dir.name}")
             continue
 
         record = {
@@ -148,6 +165,12 @@ def collect_experiment_results(base_path: str, output_csv_path: str = None) -> p
 
         data_records.append(record)
 
+    print(f"\nExtraction Summary:")
+    print(f"Total experiments found: {len(experiment_dirs)}")
+    print(f"Experiments with termination logs: {termination_count}")
+    print(f"Experiments missing config: {missing_config_count}")
+    print(f"Experiments missing metrics: {missing_metrics_count}")
+    print(f"Successfully extracted: {len(data_records)}")
 
     df = pd.DataFrame(data_records)
     if output_csv_path:
