@@ -27,7 +27,7 @@ DEA_CONFIG = {
     "Patience": 5,
     "MinDelta": 1e-4,
     "NumSamples": 125,
-    "Epochs": 5,
+    "Epochs": 20,
     "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
     "MatchingTechnique": "fuzzy_and_greedy",  # Options: "ai", "greedy", "fuzzy", ...
 }
@@ -121,31 +121,59 @@ ALIGN_CONFIG = {
     "Wasserstein": True,
 }
 
-encs = ["TabMinHash", "TwoStepHash", "BloomFilter"]
-datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv", "fakename_20k.tsv", "euro_person.tsv"]
-drop = ["Eve", "Both"]
-overlap = [0.2, 0.4, 0.6, 0.8]
+# Define the missing experiment combinations (excluding fakename_1k, fakename_2k, titanic_full)
+missing_experiments = [
+    # Only including experiments for fakename_20k and euro_person
+    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.6},
+    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Eve", "overlap": 0.8},
+    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.4},
+    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Eve", "overlap": 0.6},
+    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.2},
 
-for encoding in encs:
-    ENC_CONFIG["AliceAlgo"] = encoding
+    {"encoding": "BloomFilter", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.2},
+    {"encoding": "BloomFilter", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.6},
+    {"encoding": "BloomFilter", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.4},
+
+    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Eve", "overlap": 0.4},
+    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Both", "overlap": 0.6},
+    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Eve", "overlap": 0.8},
+    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Eve", "overlap": 0.2},
+    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Both", "overlap": 0.4},
+    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Eve", "overlap": 0.6},
+    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Both", "overlap": 0.8},
+    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Both", "overlap": 0.2},
+]
+
+print(f"🚀 Starting {len(missing_experiments)} missing experiments...")
+print("=" * 80)
+
+for i, exp in enumerate(missing_experiments, 1):
+    print(f"\n[{i}/{len(missing_experiments)}] Running: {exp['encoding']} | {exp['dataset']} | {exp['drop_from']} | {exp['overlap']}")
+
+    # Set encoding configuration
+    ENC_CONFIG["AliceAlgo"] = exp["encoding"]
     ENC_CONFIG["EveAlgo"] = "None"
-    if encoding == "BloomFilter":
-        ENC_CONFIG["EveAlgo"] = encoding
-    for dataset in datasets:
-        for drop_from in drop:
-            for ov in overlap:
-                GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
-                GLOBAL_CONFIG["DropFrom"] = drop_from
-                GLOBAL_CONFIG["Overlap"] = ov
-                try:
-                    run_dea(
-                        GLOBAL_CONFIG.copy(),
-                        ENC_CONFIG.copy(),
-                        EMB_CONFIG.copy(),
-                        ALIGN_CONFIG.copy(),
-                        DEA_CONFIG.copy()
-                    )
-                except Exception as e:
-                    print(e)
+    if exp["encoding"] == "BloomFilter":
+        ENC_CONFIG["EveAlgo"] = exp["encoding"]
 
-print("✅ Skript abgeschlossen!")
+    # Set global configuration
+    GLOBAL_CONFIG["Data"] = f"./data/datasets/{exp['dataset']}"
+    GLOBAL_CONFIG["DropFrom"] = exp["drop_from"]
+    GLOBAL_CONFIG["Overlap"] = exp["overlap"]
+
+    try:
+        run_dea(
+            GLOBAL_CONFIG.copy(),
+            ENC_CONFIG.copy(),
+            EMB_CONFIG.copy(),
+            ALIGN_CONFIG.copy(),
+            DEA_CONFIG.copy()
+        )
+        print(f"✅ Success: {exp['encoding']} | {exp['dataset']} | {exp['drop_from']} | {exp['overlap']}")
+    except Exception as e:
+        print(f"❌ Failed: {exp['encoding']} | {exp['dataset']} | {exp['drop_from']} | {exp['overlap']}")
+        print(f"   Error: {e}")
+
+print("\n" + "=" * 80)
+print("✅ All missing experiments completed!")
+print(f"📊 Total experiments run: {len(missing_experiments)}")

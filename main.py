@@ -368,13 +368,13 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         identifier=identifier,
         patience=DEA_CONFIG["Patience"],
         min_delta=DEA_CONFIG["MinDelta"],
-        workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else GLOBAL_CONFIG["Workers"],
+        workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
 
     # Wrap the trainable function with resources for 10 trials
     trainable_with_resources = tune.with_resources(
         trainable,
-        resources={"cpu": GLOBAL_CONFIG["Workers"] // 10, "gpu": 0.1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"] // 5, "gpu": 0}
+        resources={"cpu": GLOBAL_CONFIG["Workers"] // 10, "gpu": 0.1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"] // 10, "gpu": 0}
     )
 
     # Initialize the tuner.
@@ -406,7 +406,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # Get the best result.
     best_result = results.get_best_result(metric=DEA_CONFIG["MetricToOptimize"], mode="max")
     if GLOBAL_CONFIG["SaveResults"]:
-        print_and_save_result("Best Result", best_result, hyperparameter_optimization_directory)
+        print_and_save_result("Best_Result", best_result, hyperparameter_optimization_directory)
 
     # Start timing the model training.
     if GLOBAL_CONFIG["BenchMode"]:
