@@ -124,24 +124,24 @@ ALIGN_CONFIG = {
 # Define the missing experiment combinations (excluding fakename_1k, fakename_2k, titanic_full)
 missing_experiments = [
     # Only including experiments for fakename_20k and euro_person
-    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.6},
-    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Eve", "overlap": 0.8},
-    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.4},
-    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Eve", "overlap": 0.6},
-    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.2},
+    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.65},
+    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Eve", "overlap": 0.85},
+    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.45},
+    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Eve", "overlap": 0.65},
+    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.25},
 
-    {"encoding": "BloomFilter", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.2},
-    {"encoding": "BloomFilter", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.6},
-    {"encoding": "BloomFilter", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.4},
+    {"encoding": "BloomFilter", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.25},
+    {"encoding": "BloomFilter", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.65},
+    {"encoding": "BloomFilter", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.45},
 
-    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Eve", "overlap": 0.4},
-    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Both", "overlap": 0.6},
-    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Eve", "overlap": 0.8},
-    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Eve", "overlap": 0.2},
-    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Both", "overlap": 0.4},
-    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Eve", "overlap": 0.6},
-    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Both", "overlap": 0.8},
-    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Both", "overlap": 0.2},
+    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Eve", "overlap": 0.45},
+    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Both", "overlap": 0.65},
+    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Eve", "overlap": 0.85},
+    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Eve", "overlap": 0.25},
+    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Both", "overlap": 0.45},
+    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Eve", "overlap": 0.65},
+    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Both", "overlap": 0.85},
+    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Both", "overlap": 0.25},
 ]
 
 print(f"🚀 Starting {len(missing_experiments)} missing experiments...")
