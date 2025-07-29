@@ -121,58 +121,59 @@ ALIGN_CONFIG = {
     "Wasserstein": True,
 }
 
-# Define the missing experiment combinations (excluding fakename_1k, fakename_2k, titanic_full)
+# Define the missing experiment combinations (including titanic_full.tsv experiments)
 missing_experiments = [
-    # Only including experiments for fakename_20k and euro_person
-    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.65},
-    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Eve", "overlap": 0.85},
-    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.45},
-    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Eve", "overlap": 0.65},
-    {"encoding": "TwoStepHash", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.25},
-
-    {"encoding": "BloomFilter", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.25},
-    {"encoding": "BloomFilter", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.65},
-    {"encoding": "BloomFilter", "dataset": "fakename_20k.tsv", "drop_from": "Both", "overlap": 0.45},
-
-    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Eve", "overlap": 0.45},
-    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Both", "overlap": 0.65},
-    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Eve", "overlap": 0.85},
-    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Eve", "overlap": 0.25},
-    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Both", "overlap": 0.45},
-    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Eve", "overlap": 0.65},
-    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Both", "overlap": 0.85},
-    {"encoding": "BloomFilter", "dataset": "euro_person.tsv", "drop_from": "Both", "overlap": 0.25},
+    # Missing titanic_full.tsv experiments from missing_experiments.csv
+    {"encoding": "TwoStepHash", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.2},
+    {"encoding": "BloomFilter", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.4},
+    {"encoding": "TabMinHash", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.4},
+    {"encoding": "TabMinHash", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.4},
+    {"encoding": "TwoStepHash", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.4},
+    {"encoding": "BloomFilter", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.4},
+    {"encoding": "BloomFilter", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.6},
+    {"encoding": "TabMinHash", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.6},
+    {"encoding": "TabMinHash", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.6},
+    {"encoding": "TwoStepHash", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.6},
+    {"encoding": "TwoStepHash", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.4},
+    {"encoding": "BloomFilter", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.6},
+    {"encoding": "BloomFilter", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.2},
+    {"encoding": "TabMinHash", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.2},
+    {"encoding": "TwoStepHash", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.6},
+    {"encoding": "TwoStepHash", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.2},
+    {"encoding": "BloomFilter", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.2},
+    {"encoding": "TabMinHash", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.2},
 ]
 
-print(f"🚀 Starting {len(missing_experiments)} missing experiments...")
+print(f"🚀 Starting {len(missing_experiments)} missing titanic_full.tsv experiments...")
+print("📋 Running all missing experiments from missing_experiments.csv")
 print("=" * 80)
 
 for i, exp in enumerate(missing_experiments, 1):
-    print(f"\n[{i}/{len(missing_experiments)}] Running: {exp['encoding']} | {exp['dataset']} | {exp['drop_from']} | {exp['overlap']}")
+        print(f"\n[{i}/{len(missing_experiments)}] Running: {exp['encoding']} | {exp['dataset']} | {exp['drop_from']} | {exp['overlap']}")
 
-    # Set encoding configuration
-    ENC_CONFIG["AliceAlgo"] = exp["encoding"]
-    ENC_CONFIG["EveAlgo"] = "None"
-    if exp["encoding"] == "BloomFilter":
-        ENC_CONFIG["EveAlgo"] = exp["encoding"]
+        # Set encoding configuration
+        ENC_CONFIG["AliceAlgo"] = exp["encoding"]
+        ENC_CONFIG["EveAlgo"] = "None"
+        if exp["encoding"] == "BloomFilter":
+            ENC_CONFIG["EveAlgo"] = exp["encoding"]
 
-    # Set global configuration
-    GLOBAL_CONFIG["Data"] = f"./data/datasets/{exp['dataset']}"
-    GLOBAL_CONFIG["DropFrom"] = exp["drop_from"]
-    GLOBAL_CONFIG["Overlap"] = exp["overlap"]
+        # Set global configuration
+        GLOBAL_CONFIG["Data"] = f"./data/datasets/{exp['dataset']}"
+        GLOBAL_CONFIG["DropFrom"] = exp["drop_from"]
+        GLOBAL_CONFIG["Overlap"] = exp["overlap"]
 
-    try:
-        run_dea(
-            GLOBAL_CONFIG.copy(),
-            ENC_CONFIG.copy(),
-            EMB_CONFIG.copy(),
-            ALIGN_CONFIG.copy(),
-            DEA_CONFIG.copy()
-        )
-        print(f"✅ Success: {exp['encoding']} | {exp['dataset']} | {exp['drop_from']} | {exp['overlap']}")
-    except Exception as e:
-        print(f"❌ Failed: {exp['encoding']} | {exp['dataset']} | {exp['drop_from']} | {exp['overlap']}")
-        print(f"   Error: {e}")
+        try:
+            run_dea(
+                GLOBAL_CONFIG.copy(),
+                ENC_CONFIG.copy(),
+                EMB_CONFIG.copy(),
+                ALIGN_CONFIG.copy(),
+                DEA_CONFIG.copy()
+            )
+            print(f"✅ Success: {exp['encoding']} | {exp['dataset']} | {exp['drop_from']} | {exp['overlap']}")
+        except Exception as e:
+            print(f"❌ Failed: {exp['encoding']} | {exp['dataset']} | {exp['drop_from']} | {exp['overlap']}")
+            print(f"   Error: {e}")
 
 print("\n" + "=" * 80)
 print("✅ All missing experiments completed!")

@@ -348,38 +348,45 @@ df["EncodingLabel"] = df["Encoding"].map(encoding_map)
 # If Overlap is a float (e.g., 0.2), convert to percentage string for axis labels
 df["OverlapLabel"] = (df["Overlap"] * 100).astype(int).astype(str) + "%"
 
-# Only consider specific overlaps for the heatmap
+# Create line charts for re-identification rate and F1 score by encoding scheme
+# Only consider specific overlaps
 desired_overlaps = [0.2, 0.4, 0.6, 0.8]
-df_heatmap = df[df["Overlap"].isin(desired_overlaps)].copy()
+line_data = df[df["Overlap"].isin(desired_overlaps)].groupby(["EncodingLabel", "Overlap"])[["ReidentificationRate", "TrainedF1"]].mean().reset_index()
 
-# Update OverlapLabel for the filtered DataFrame
-df_heatmap["OverlapLabel"] = (df_heatmap["Overlap"] * 100).astype(int).astype(str) + "%"
+# Convert re-identification rate to percentage
+line_data["ReidentificationRate"] = line_data["ReidentificationRate"] * 100
 
-# Group by encoding and overlap, take mean re-identification rate (or use another aggregation)
-heatmap_data = (
-    df_heatmap.groupby(["EncodingLabel", "OverlapLabel"])["ReidentificationRate"]
-    .mean()
-    .unstack()  # EncodingLabel as rows, OverlapLabel as columns
-)
+# Create figure with two subplots
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
 
-# Optionally, multiply by 100 if you want to show as percentage
-heatmap_data = heatmap_data * 100
+# Plot 1: Re-identification Rate vs Overlap
+for encoding in line_data["EncodingLabel"].unique():
+    subset = line_data[line_data["EncodingLabel"] == encoding]
+    ax1.plot(subset["Overlap"], subset["ReidentificationRate"],
+             marker="o", linewidth=2, markersize=6, label=encoding)
 
-plt.figure(figsize=(10, 7))
-ax = sns.heatmap(
-    heatmap_data,
-    annot=True,
-    fmt=".1f",
-    cmap="Reds",
-    cbar_kws={'label': 'Re-identification Rate (%)'},
-    linewidths=0.5,
-    linecolor='white'
-)
-plt.title("Privacy Risk Heatmap: Re-identification Rates by Configuration", fontsize=16, weight='bold')
-plt.xlabel("Overlap Percentage")
-plt.ylabel("Encoding Scheme")
+ax1.set_xlabel("Overlap")
+ax1.set_ylabel("Re-identification Rate (%)")
+ax1.set_title("Re-identification Rate by Encoding Scheme", fontsize=14, weight='bold')
+ax1.grid(True, alpha=0.3)
+ax1.legend()
+ax1.set_xlim(0, 1)
+
+# Plot 2: F1 Score vs Overlap
+for encoding in line_data["EncodingLabel"].unique():
+    subset = line_data[line_data["EncodingLabel"] == encoding]
+    ax2.plot(subset["Overlap"], subset["TrainedF1"],
+             marker="s", linewidth=2, markersize=6, label=encoding)
+
+ax2.set_xlabel("Overlap")
+ax2.set_ylabel("F1 Score")
+ax2.set_title("F1 Score by Encoding Scheme", fontsize=14, weight='bold')
+ax2.grid(True, alpha=0.3)
+ax2.legend()
+ax2.set_xlim(0, 1)
+
 plt.tight_layout()
-plt.savefig("analysis/plots/dea_reidentification_heatmap.png", dpi=300)
+plt.savefig("analysis/plots/dea_encoding_comparison_line_charts.png", dpi=300, bbox_inches="tight")
 plt.close()
 
 
