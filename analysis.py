@@ -67,8 +67,22 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
 
     # Regular metric plots
     for ax, (metric_key, metric_label) in zip(axes.flat[:6], metrics):
+        # Handle re-identification rate differently (convert to percentage)
+        if metric_key == "ReidentificationRate":
+            # Create a copy of the data with percentage conversion
+            plot_data = group.copy()
+            plot_data[metric_key] = plot_data[metric_key] * 100
+            y_label = "Re-identification Rate (%)"
+            # Dynamic scaling based on actual values
+            max_rate = plot_data[metric_key].max()
+            y_lim = (0, min(100, max_rate * 1.1))  # Add 10% margin, cap at 100%
+        else:
+            plot_data = group
+            y_label = metric_label
+            y_lim = None
+
         sns.lineplot(
-            data=group,
+            data=plot_data,
             x="Overlap",
             y=metric_key,
             hue="DropFrom",
@@ -77,6 +91,9 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
         )
         ax.set_title(metric_label)
         ax.set_xlabel("Overlap")
+        ax.set_ylabel(y_label)
+        if y_lim:
+            ax.set_ylim(y_lim)
         ax.grid(True)
 
         # Baselines
@@ -119,6 +136,9 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
     )
     ax.set_title("Re-identification Rate (DropFrom = Eve)")
     ax.set_ylabel("Re-identification Rate (%)")
+    # Dynamic scaling based on actual values
+    max_rate = subset_eve["Rate"].max()
+    ax.set_ylim(0, min(100, max_rate * 1.1))  # Add 10% margin, cap at 100%
     ax.grid(True)
 
     # Plot for DropFrom = Both
@@ -134,6 +154,9 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
     )
     ax.set_title("Re-identification Rate (DropFrom = Both)")
     ax.set_ylabel("Re-identification Rate (%)")
+    # Dynamic scaling based on actual values
+    max_rate = subset_both["Rate"].max()
+    ax.set_ylim(0, min(100, max_rate * 1.1))  # Add 10% margin, cap at 100%
     ax.grid(True)
 
     # Scatter plot for TrainedF1 vs. HypOpF1
