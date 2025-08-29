@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,3,256,0.11712311620422819,tanh,"{'name': 'SGD', 'lr': 0.002441206645913936, 'momentum': 0.9819969966675333}",BCEWithLogitsLoss,0.554862272324546,"{'name': 'CyclicLR', 'base_lr': 3.0742618488031106e-05, 'max_lr': 0.01285522578476455, 'step_size_up': 2000, 'mode_cyclic': 'triangular2'}",8,0.0,0.0,0.0,0.0,13.785734148153336,1712,429,20

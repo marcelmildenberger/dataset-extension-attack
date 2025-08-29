@@ -1,0 +1,5 @@
+Training process canceled due to empty dataset.
+Length of data_train: 0
+Length of data_val: 1
+Length of data_test: 624
+Length of df_not_reidentified: 624

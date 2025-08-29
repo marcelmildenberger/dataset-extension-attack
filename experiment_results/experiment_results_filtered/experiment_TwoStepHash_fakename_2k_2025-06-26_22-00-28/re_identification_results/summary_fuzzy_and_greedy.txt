@@ -1,0 +1,4 @@
+Reidentification Method: fuzzy_and_greedy
+Total not re-identified individuals: 335
+Total Unique Reidentified Individuals: 1
+Combined Reidentification Rate: 0.30%

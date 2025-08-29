@@ -1,0 +1,17 @@
+{
+    "output_dim": 1036,
+    "num_layers": 1,
+    "hidden_layer_size": 2048,
+    "dropout_rate": 0.2082834659280884,
+    "activation_fn": "tanh",
+    "optimizer": {
+        "name": "RMSprop",
+        "lr": 0.00016552065914284382
+    },
+    "loss_fn": "MultiLabelSoftMarginLoss",
+    "threshold": 0.447831780927404,
+    "lr_scheduler": {
+        "name": "None"
+    },
+    "batch_size": 32
+}

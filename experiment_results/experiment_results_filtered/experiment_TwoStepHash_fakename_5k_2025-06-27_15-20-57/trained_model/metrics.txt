@@ -1,0 +1,4 @@
+Average Precision: 0.9959
+Average Recall: 0.7254
+Average F1 Score: 0.8347
+Average Dice Similarity: 0.8347

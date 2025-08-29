@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,1,2048,0.30545717061526334,elu,"{'name': 'AdamW', 'lr': 4.13723453522527e-05}",MultiLabelSoftMarginLoss,0.4869991785937592,"{'name': 'CosineAnnealingLR', 'T_max': 41.51801168180811, 'eta_min': 0}",8,0.6307811188811188,0.9654505556603458,0.47856315758353646,0.6307763832782395,0.7346815325423971,572,143,17

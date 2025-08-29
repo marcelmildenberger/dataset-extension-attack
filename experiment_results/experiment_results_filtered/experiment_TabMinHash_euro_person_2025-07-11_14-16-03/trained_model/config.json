@@ -1,0 +1,20 @@
+{
+    "output_dim": 1036,
+    "num_layers": 1,
+    "hidden_layer_size": 1024,
+    "dropout_rate": 0.24364598353076483,
+    "activation_fn": "elu",
+    "optimizer": {
+        "name": "Adam",
+        "lr": 1.9559052697084147e-05
+    },
+    "loss_fn": "BCEWithLogitsLoss",
+    "threshold": 0.351892032622522,
+    "lr_scheduler": {
+        "name": "ReduceLROnPlateau",
+        "mode": "min",
+        "factor": 0.4377071501620158,
+        "patience": 15
+    },
+    "batch_size": 8
+}

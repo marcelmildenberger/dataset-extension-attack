@@ -1,0 +1,17 @@
+{
+    "output_dim": 1036,
+    "num_layers": 1,
+    "hidden_layer_size": 1024,
+    "dropout_rate": 0.3511353626279838,
+    "activation_fn": "leaky_relu",
+    "optimizer": {
+        "name": "RMSprop",
+        "lr": 9.000352827812129e-05
+    },
+    "loss_fn": "BCEWithLogitsLoss",
+    "threshold": 0.3289750247674498,
+    "lr_scheduler": {
+        "name": "None"
+    },
+    "batch_size": 8
+}

@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,2,2048,0.10100638323116518,gelu,"{'name': 'RMSprop', 'lr': 2.969286031462114e-05}",BCEWithLogitsLoss,0.3616092439146623,"{'name': 'CosineAnnealingLR', 'T_max': 20.24953699687968, 'eta_min': 1e-05}",32,0.261,0.47916666666666663,0.1875,0.26096491228070173,1.7256055399775505,5,2,12

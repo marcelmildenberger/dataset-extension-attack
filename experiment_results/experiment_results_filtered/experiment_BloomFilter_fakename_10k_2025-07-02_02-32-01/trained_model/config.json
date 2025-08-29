@@ -1,0 +1,20 @@
+{
+    "output_dim": 1036,
+    "num_layers": 1,
+    "hidden_layer_size": 2048,
+    "dropout_rate": 0.1256667363079712,
+    "activation_fn": "tanh",
+    "optimizer": {
+        "name": "Adam",
+        "lr": 3.823817447958946e-05
+    },
+    "loss_fn": "BCEWithLogitsLoss",
+    "threshold": 0.31167852711349336,
+    "lr_scheduler": {
+        "name": "ReduceLROnPlateau",
+        "mode": "min",
+        "factor": 0.48055448736019113,
+        "patience": 15
+    },
+    "batch_size": 8
+}

@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,3,1024,0.3305913903176765,gelu,"{'name': 'RMSprop', 'lr': 0.00037901998406563125}",MultiLabelSoftMarginLoss,0.6201970640260162,"{'name': 'ExponentialLR', 'gamma': 0.8645715792675223}",32,0.0,0.0,0.0,0.0,13.711536347866058,32,8,20

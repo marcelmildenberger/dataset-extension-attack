@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,1,2048,0.31686607261170335,elu,"{'name': 'AdamW', 'lr': 0.0007928224656448954}",MultiLabelSoftMarginLoss,0.5547320348155418,{'name': 'None'},8,0.9780765833333331,0.9938373289639486,0.9640514723646045,0.9780776326186604,0.09493463452003195,9599,2400,20

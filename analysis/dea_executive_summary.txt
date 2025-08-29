@@ -1,0 +1,27 @@
+DATASET EXTENSION ATTACK (DEA) - EXECUTIVE SUMMARY
+============================================================
+
+Total Experiments: 134
+Encoding Schemes Tested: 3
+Datasets Analyzed: 7
+Average Re-identification Rate: 2.95%
+Maximum Re-identification Rate: 28.75%
+Average F1 Score: 0.629
+Maximum F1 Score: 0.992
+
+ENCODING SCHEME PERFORMANCE:
+------------------------------
+Bloom Filter:
+  - Avg Re-ID Rate: 3.80%
+  - Avg F1 Score: 0.606
+  - Experiments: 39
+
+Tabulation Minhash:
+  - Avg Re-ID Rate: 1.54%
+  - Avg F1 Score: 0.593
+  - Experiments: 49
+
+Two-Step Hash:
+  - Avg Re-ID Rate: 3.69%
+  - Avg F1 Score: 0.688
+  - Experiments: 46

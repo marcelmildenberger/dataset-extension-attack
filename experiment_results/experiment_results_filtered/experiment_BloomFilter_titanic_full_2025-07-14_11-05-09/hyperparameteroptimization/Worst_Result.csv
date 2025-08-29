@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,2,512,0.22518673972266748,tanh,"{'name': 'SGD', 'lr': 0.0008853989388658631, 'momentum': 0.4071398744940804}",MultiLabelSoftMarginLoss,0.6879935407737479,"{'name': 'CyclicLR', 'base_lr': 0.0007242430235684115, 'max_lr': 0.0048647802022143295, 'step_size_up': 2000, 'mode_cyclic': 'triangular2'}",64,0.0,0.0,0.0,0.0,13.837982952594757,637,160,20

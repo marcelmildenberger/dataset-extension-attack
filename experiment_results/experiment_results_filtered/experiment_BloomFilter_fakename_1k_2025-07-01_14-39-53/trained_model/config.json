@@ -1,0 +1,17 @@
+{
+    "output_dim": 1036,
+    "num_layers": 1,
+    "hidden_layer_size": 1024,
+    "dropout_rate": 0.10888096685293654,
+    "activation_fn": "elu",
+    "optimizer": {
+        "name": "Adam",
+        "lr": 0.00023493361971798762
+    },
+    "loss_fn": "SoftMarginLoss",
+    "threshold": 0.6613015564350011,
+    "lr_scheduler": {
+        "name": "None"
+    },
+    "batch_size": 64
+}

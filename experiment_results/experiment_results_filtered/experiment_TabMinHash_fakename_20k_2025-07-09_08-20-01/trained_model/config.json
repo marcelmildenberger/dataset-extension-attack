@@ -1,0 +1,20 @@
+{
+    "output_dim": 1036,
+    "num_layers": 2,
+    "hidden_layer_size": 512,
+    "dropout_rate": 0.3280409334880256,
+    "activation_fn": "tanh",
+    "optimizer": {
+        "name": "Adam",
+        "lr": 2.342217246510162e-05
+    },
+    "loss_fn": "SoftMarginLoss",
+    "threshold": 0.40627092781453417,
+    "lr_scheduler": {
+        "name": "ReduceLROnPlateau",
+        "mode": "min",
+        "factor": 0.48749007022587587,
+        "patience": 10
+    },
+    "batch_size": 8
+}

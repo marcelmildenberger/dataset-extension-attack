@@ -1,0 +1,21 @@
+{
+    "output_dim": 1036,
+    "num_layers": 1,
+    "hidden_layer_size": 2048,
+    "dropout_rate": 0.32215178899117447,
+    "activation_fn": "elu",
+    "optimizer": {
+        "name": "RMSprop",
+        "lr": 0.00036760824635741245
+    },
+    "loss_fn": "MultiLabelSoftMarginLoss",
+    "threshold": 0.4081055511457071,
+    "lr_scheduler": {
+        "name": "CyclicLR",
+        "base_lr": 0.0001553176186452725,
+        "max_lr": 0.008994645314513309,
+        "step_size_up": 2000,
+        "mode_cyclic": "triangular2"
+    },
+    "batch_size": 16
+}

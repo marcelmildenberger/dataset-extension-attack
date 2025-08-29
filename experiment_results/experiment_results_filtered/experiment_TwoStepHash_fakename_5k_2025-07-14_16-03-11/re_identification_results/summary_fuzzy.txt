@@ -1,0 +1,4 @@
+Reidentification Method: fuzzy
+Total Reidentified Individuals: 23
+Total Not Reidentified Individuals: 2001
+Reidentification Rate: 1.15%

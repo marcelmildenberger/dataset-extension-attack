@@ -1,0 +1,7 @@
+DEA Runtime (in minutes):
+Graph Matching Attack: 57.2m
+Hyperparameter Optimization: 48.36m
+Model Training: 0.86m
+Application to Encoded Data: 3.51m
+Refinement and Reconstruction: 6.71m
+Total Runtime: 119.67m

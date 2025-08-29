@@ -1,0 +1,21 @@
+{
+    "output_dim": 1036,
+    "num_layers": 1,
+    "hidden_layer_size": 512,
+    "dropout_rate": 0.35256896910363145,
+    "activation_fn": "elu",
+    "optimizer": {
+        "name": "RMSprop",
+        "lr": 0.0006765213066974808
+    },
+    "loss_fn": "BCEWithLogitsLoss",
+    "threshold": 0.3088011133888216,
+    "lr_scheduler": {
+        "name": "CyclicLR",
+        "base_lr": 0.0002807921054447764,
+        "max_lr": 0.04277911843816916,
+        "step_size_up": 4000,
+        "mode_cyclic": "triangular2"
+    },
+    "batch_size": 16
+}

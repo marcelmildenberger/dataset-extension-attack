@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,2,128,0.30137717944037357,relu,"{'name': 'SGD', 'lr': 0.002036259144683035, 'momentum': 0.6189101932544172}",BCEWithLogitsLoss,0.562677161863964,"{'name': 'StepLR', 'step_size': 5, 'gamma': 0.8524245733455722}",8,0.0,0.0,0.0,0.0,6.9287253220876055,71,18,10

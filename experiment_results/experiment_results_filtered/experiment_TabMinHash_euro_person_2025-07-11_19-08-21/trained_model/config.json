@@ -1,0 +1,20 @@
+{
+    "output_dim": 1036,
+    "num_layers": 1,
+    "hidden_layer_size": 2048,
+    "dropout_rate": 0.38178910738837973,
+    "activation_fn": "elu",
+    "optimizer": {
+        "name": "AdamW",
+        "lr": 1.1669796697909418e-05
+    },
+    "loss_fn": "MultiLabelSoftMarginLoss",
+    "threshold": 0.4369241053282777,
+    "lr_scheduler": {
+        "name": "ReduceLROnPlateau",
+        "mode": "min",
+        "factor": 0.47324516860148835,
+        "patience": 15
+    },
+    "batch_size": 32
+}

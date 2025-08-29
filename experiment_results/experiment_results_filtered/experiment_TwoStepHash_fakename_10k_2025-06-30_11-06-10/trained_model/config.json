@@ -1,0 +1,21 @@
+{
+    "output_dim": 1036,
+    "num_layers": 1,
+    "hidden_layer_size": 1024,
+    "dropout_rate": 0.21454468155325698,
+    "activation_fn": "selu",
+    "optimizer": {
+        "name": "Adam",
+        "lr": 0.0001503689840123284
+    },
+    "loss_fn": "MultiLabelSoftMarginLoss",
+    "threshold": 0.5579702607809112,
+    "lr_scheduler": {
+        "name": "CyclicLR",
+        "base_lr": 0.0004159849443881306,
+        "max_lr": 0.016004803371711222,
+        "step_size_up": 2000,
+        "mode_cyclic": "exp_range"
+    },
+    "batch_size": 64
+}

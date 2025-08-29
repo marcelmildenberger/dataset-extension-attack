@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,1,1024,0.3751740856056149,elu,"{'name': 'SGD', 'lr': 0.0001764459159871386, 'momentum': 0.48158214557413703}",BCEWithLogitsLoss,0.651506285537355,"{'name': 'ReduceLROnPlateau', 'mode': 'min', 'factor': 0.35008682346114095, 'patience': 10}",16,0.009254368932038834,0.042071197411003236,0.005483018789700686,0.009254049383410342,13.980844212967215,410,103,20

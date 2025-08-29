@@ -1,0 +1,90 @@
+EXPERIMENT COVERAGE ANALYSIS
+==================================================
+Expected combinations: 168
+Actual combinations: 134
+Missing combinations: 44
+Extra combinations: 10
+Coverage: 79.8%
+
+MISSING COMBINATIONS:
+-------------------------
+  BloomFilter | euro_person.tsv | Both | 0.2
+  BloomFilter | euro_person.tsv | Both | 0.4
+  BloomFilter | euro_person.tsv | Both | 0.6
+  BloomFilter | euro_person.tsv | Eve | 0.2
+  BloomFilter | euro_person.tsv | Eve | 0.4
+  BloomFilter | euro_person.tsv | Eve | 0.6
+  BloomFilter | fakename_1k.tsv | Both | 0.2
+  BloomFilter | fakename_1k.tsv | Eve | 0.2
+  BloomFilter | fakename_20k.tsv | Both | 0.2
+  BloomFilter | fakename_20k.tsv | Both | 0.4
+  BloomFilter | fakename_20k.tsv | Both | 0.6
+  BloomFilter | fakename_2k.tsv | Both | 0.2
+  BloomFilter | fakename_2k.tsv | Eve | 0.2
+  BloomFilter | titanic_full.tsv | Both | 0.2
+  BloomFilter | titanic_full.tsv | Both | 0.4
+  BloomFilter | titanic_full.tsv | Both | 0.6
+  BloomFilter | titanic_full.tsv | Eve | 0.2
+  BloomFilter | titanic_full.tsv | Eve | 0.4
+  BloomFilter | titanic_full.tsv | Eve | 0.6
+  TabMinHash | fakename_1k.tsv | Both | 0.2
+  TabMinHash | fakename_1k.tsv | Eve | 0.2
+  TabMinHash | fakename_2k.tsv | Both | 0.2
+  TabMinHash | fakename_2k.tsv | Both | 0.4
+  TabMinHash | fakename_2k.tsv | Eve | 0.2
+  TabMinHash | titanic_full.tsv | Both | 0.2
+  TabMinHash | titanic_full.tsv | Both | 0.4
+  TabMinHash | titanic_full.tsv | Both | 0.6
+  TabMinHash | titanic_full.tsv | Eve | 0.2
+  TabMinHash | titanic_full.tsv | Eve | 0.4
+  TabMinHash | titanic_full.tsv | Eve | 0.6
+  TwoStepHash | fakename_1k.tsv | Both | 0.2
+  TwoStepHash | fakename_1k.tsv | Both | 0.4
+  TwoStepHash | fakename_1k.tsv | Eve | 0.2
+  TwoStepHash | fakename_20k.tsv | Both | 0.2
+  TwoStepHash | fakename_20k.tsv | Both | 0.4
+  TwoStepHash | fakename_20k.tsv | Both | 0.6
+  TwoStepHash | fakename_20k.tsv | Eve | 0.6
+  TwoStepHash | fakename_2k.tsv | Both | 0.2
+  TwoStepHash | titanic_full.tsv | Both | 0.2
+  TwoStepHash | titanic_full.tsv | Both | 0.4
+  TwoStepHash | titanic_full.tsv | Both | 0.6
+  TwoStepHash | titanic_full.tsv | Eve | 0.2
+  TwoStepHash | titanic_full.tsv | Eve | 0.4
+  TwoStepHash | titanic_full.tsv | Eve | 0.6
+
+EXTRA COMBINATIONS (not in original plan):
+----------------------------------------
+  BloomFilter | titanic_full.tsv | Both | 0.9
+  BloomFilter | titanic_full.tsv | Eve | 0.9
+  TabMinHash | titanic_full.tsv | Both | 0.7
+  TabMinHash | titanic_full.tsv | Both | 0.9
+  TabMinHash | titanic_full.tsv | Eve | 0.7
+  TabMinHash | titanic_full.tsv | Eve | 0.9
+  TwoStepHash | titanic_full.tsv | Both | 0.7
+  TwoStepHash | titanic_full.tsv | Both | 0.9
+  TwoStepHash | titanic_full.tsv | Eve | 0.7
+  TwoStepHash | titanic_full.tsv | Eve | 0.9
+
+BREAKDOWN BY ENCODING:
+-------------------------
+  TabMinHash: 49/56 (87.5%) - 11 missing
+  TwoStepHash: 46/56 (82.1%) - 14 missing
+  BloomFilter: 39/56 (69.6%) - 19 missing
+
+BREAKDOWN BY DATASET:
+-------------------------
+  titanic_full.tsv: 16/24 (66.7%) - 18 missing
+  fakename_1k.tsv: 17/24 (70.8%) - 7 missing
+  fakename_2k.tsv: 18/24 (75.0%) - 6 missing
+  fakename_5k.tsv: 24/24 (100.0%) - 0 missing
+  fakename_10k.tsv: 24/24 (100.0%) - 0 missing
+  fakename_20k.tsv: 17/24 (70.8%) - 7 missing
+  euro_person.tsv: 18/24 (75.0%) - 6 missing
+
+BREAKDOWN BY OVERLAP:
+-------------------------
+  0.2: 21/42 (50.0%) - 21 missing
+  0.4: 30/42 (71.4%) - 12 missing
+  0.6: 31/42 (73.8%) - 11 missing
+  0.8: 42/42 (100.0%) - 0 missing

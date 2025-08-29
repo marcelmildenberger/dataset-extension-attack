@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,2,1024,0.2761028084908393,gelu,"{'name': 'AdamW', 'lr': 0.0001338399403946068}",MultiLabelSoftMarginLoss,0.6844193189719161,"{'name': 'ReduceLROnPlateau', 'mode': 'min', 'factor': 0.3459259810622545, 'patience': 5}",64,0.0,0.0,0.0,0.0,13.772782266139984,10,3,20

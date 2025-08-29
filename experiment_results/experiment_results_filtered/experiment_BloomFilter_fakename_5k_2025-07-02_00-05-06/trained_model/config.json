@@ -1,0 +1,20 @@
+{
+    "output_dim": 1036,
+    "num_layers": 1,
+    "hidden_layer_size": 2048,
+    "dropout_rate": 0.38483465699893554,
+    "activation_fn": "selu",
+    "optimizer": {
+        "name": "RMSprop",
+        "lr": 2.5566007478477383e-05
+    },
+    "loss_fn": "SoftMarginLoss",
+    "threshold": 0.44301172769494357,
+    "lr_scheduler": {
+        "name": "ReduceLROnPlateau",
+        "mode": "min",
+        "factor": 0.11523979881031564,
+        "patience": 15
+    },
+    "batch_size": 32
+}

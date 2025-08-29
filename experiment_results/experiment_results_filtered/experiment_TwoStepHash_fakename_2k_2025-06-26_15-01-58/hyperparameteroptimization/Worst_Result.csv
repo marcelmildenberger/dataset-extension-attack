@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,5,512,0.2564779601977116,gelu,"{'name': 'SGD', 'lr': 0.0011919060386438407, 'momentum': 0.06984456307279564}",BCEWithLogitsLoss,0.7602882991836375,"{'name': 'CosineAnnealingLR', 'T_max': 44.96359670999698, 'eta_min': 0}",32,0.0,0.0,0.0,0.0,4.159295558929443,2,1,6

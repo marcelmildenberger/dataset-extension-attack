@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,3,256,0.35657429564489207,gelu,"{'name': 'SGD', 'lr': 0.00043371929439905955, 'momentum': 0.8858017287660401}",MultiLabelSoftMarginLoss,0.6808844168753785,{'name': 'None'},64,0.0,0.0,0.0,0.0,4.155504165793494,552,139,6

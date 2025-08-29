@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,2,128,0.3513682383498894,leaky_relu,"{'name': 'SGD', 'lr': 0.0038468687195486006, 'momentum': 0.5794336845840317}",SoftMarginLoss,0.7314949619264601,"{'name': 'ReduceLROnPlateau', 'mode': 'min', 'factor': 0.3665251183520014, 'patience': 5}",16,0.0,0.0,0.0,0.0,4.159506431431837,17036,4260,6

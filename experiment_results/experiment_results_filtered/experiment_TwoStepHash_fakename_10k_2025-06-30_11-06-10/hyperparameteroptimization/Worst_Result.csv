@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,1,2048,0.1664683863922201,tanh,"{'name': 'AdamW', 'lr': 0.0008706538327064915}",MultiLabelSoftMarginLoss,0.6012476189818519,"{'name': 'ExponentialLR', 'gamma': 0.9759002148729382}",16,0.0,0.0,0.0,0.0,4.043923659324646,3199,800,6

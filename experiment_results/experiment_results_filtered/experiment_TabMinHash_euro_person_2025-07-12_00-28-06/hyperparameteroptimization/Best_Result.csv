@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,1,2048,0.3224016254351271,selu,"{'name': 'Adam', 'lr': 0.0007001418256872363}",BCEWithLogitsLoss,0.3031470885405891,{'name': 'None'},8,0.9693431611893585,0.971341163049262,0.9689218328859462,0.9693438656866596,0.08588881836223951,12776,3195,16

@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,3,2048,0.3899134398167753,tanh,"{'name': 'RMSprop', 'lr': 0.0005853287405822809}",MultiLabelSoftMarginLoss,0.47643826103636483,"{'name': 'ReduceLROnPlateau', 'mode': 'min', 'factor': 0.40121478478036565, 'patience': 5}",8,0.7340889724310778,0.8723207260154775,0.6413652908366272,0.7340864203613999,0.7098913549826035,1596,399,20

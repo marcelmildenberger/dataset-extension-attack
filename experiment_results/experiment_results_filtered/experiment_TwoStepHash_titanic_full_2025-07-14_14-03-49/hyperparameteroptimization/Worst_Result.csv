@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,1,256,0.1936523159769157,leaky_relu,"{'name': 'RMSprop', 'lr': 4.561254103131611e-05}",MultiLabelSoftMarginLoss,0.7434891582420199,"{'name': 'StepLR', 'step_size': 10, 'gamma': 0.5050971366050095}",16,0.0,0.0,0.0,0.0,4.782214488182868,572,143,7

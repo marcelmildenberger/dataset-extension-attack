@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,3,256,0.3458746459240707,relu,"{'name': 'RMSprop', 'lr': 8.344510707498771e-05}",BCEWithLogitsLoss,0.619859851684411,"{'name': 'StepLR', 'step_size': 20, 'gamma': 0.43913006999010584}",64,0.0,0.0,0.0,0.0,8.00091529914311,838,210,12

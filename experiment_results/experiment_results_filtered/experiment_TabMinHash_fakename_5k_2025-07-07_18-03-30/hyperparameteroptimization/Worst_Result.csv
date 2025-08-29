@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,3,512,0.3495417142357467,relu,"{'name': 'Adam', 'lr': 0.0006272241618037958}",BCEWithLogitsLoss,0.7727013680196674,"{'name': 'StepLR', 'step_size': 5, 'gamma': 0.40428432599104214}",64,0.0,0.0,0.0,0.0,6.683624299569824,2664,667,10

@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,1,2048,0.12322070456384845,tanh,"{'name': 'AdamW', 'lr': 0.00022993452556212499}",BCEWithLogitsLoss,0.6392135620502863,"{'name': 'CosineAnnealingLR', 'T_max': 11.50901089294408, 'eta_min': 0}",8,0.8857977977977977,0.9822983142470582,0.8122280968841368,0.8857961711575785,0.3210689964880411,3994,999,20

@@ -1,0 +1,20 @@
+{
+    "output_dim": 1036,
+    "num_layers": 1,
+    "hidden_layer_size": 2048,
+    "dropout_rate": 0.22182311222120896,
+    "activation_fn": "leaky_relu",
+    "optimizer": {
+        "name": "RMSprop",
+        "lr": 1.7089741376802483e-05
+    },
+    "loss_fn": "MultiLabelSoftMarginLoss",
+    "threshold": 0.640766716412969,
+    "lr_scheduler": {
+        "name": "ReduceLROnPlateau",
+        "mode": "min",
+        "factor": 0.4011742793526393,
+        "patience": 5
+    },
+    "batch_size": 16
+}

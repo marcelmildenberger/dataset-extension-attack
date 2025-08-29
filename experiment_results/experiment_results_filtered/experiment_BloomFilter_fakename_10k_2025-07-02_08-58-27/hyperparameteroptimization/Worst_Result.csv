@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,2,2048,0.21278241261118036,selu,"{'name': 'SGD', 'lr': 0.0006016337247711886, 'momentum': 0.41136009610731106}",SoftMarginLoss,0.7972580197790382,"{'name': 'CosineAnnealingLR', 'T_max': 20.05556249001069, 'eta_min': 1e-06}",32,0.0,0.0,0.0,0.0,4.1590919005870814,6399,1600,6

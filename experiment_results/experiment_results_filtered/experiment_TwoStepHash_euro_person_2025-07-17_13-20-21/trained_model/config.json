@@ -1,0 +1,19 @@
+{
+    "output_dim": 1036,
+    "num_layers": 1,
+    "hidden_layer_size": 2048,
+    "dropout_rate": 0.2555508441436064,
+    "activation_fn": "gelu",
+    "optimizer": {
+        "name": "Adam",
+        "lr": 0.0003185155426349044
+    },
+    "loss_fn": "MultiLabelSoftMarginLoss",
+    "threshold": 0.3706271190999845,
+    "lr_scheduler": {
+        "name": "CosineAnnealingLR",
+        "T_max": 15.649301154317921,
+        "eta_min": 1e-06
+    },
+    "batch_size": 8
+}

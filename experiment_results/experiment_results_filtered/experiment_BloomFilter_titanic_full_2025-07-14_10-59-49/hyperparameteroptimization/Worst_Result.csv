@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,3,128,0.2305616032142645,tanh,"{'name': 'RMSprop', 'lr': 5.588166071539717e-05}",BCEWithLogitsLoss,0.721286129113291,"{'name': 'CyclicLR', 'base_lr': 0.00023852561919460112, 'max_lr': 0.02197813933010298, 'step_size_up': 4000, 'mode_cyclic': 'triangular2'}",64,0.0,0.0,0.0,0.0,2.1575191539251106,411,103,20

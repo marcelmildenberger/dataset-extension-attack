@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,1,2048,0.22932156580736204,leaky_relu,"{'name': 'SGD', 'lr': 0.00032750656297579004, 'momentum': 0.44244420298742265}",MultiLabelSoftMarginLoss,0.7548349491275825,"{'name': 'CyclicLR', 'base_lr': 9.384008660455515e-05, 'max_lr': 0.006739914996734459, 'step_size_up': 4000, 'mode_cyclic': 'triangular2'}",64,0.0,0.0,0.0,0.0,13.431602469863856,6396,1599,20

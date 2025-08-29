@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,1,512,0.1258776151924688,selu,"{'name': 'RMSprop', 'lr': 0.0003124598285210984}",MultiLabelSoftMarginLoss,0.30918204458266885,"{'name': 'CosineAnnealingLR', 'T_max': 22.449979573449546, 'eta_min': 1e-05}",16,0.9642782445611405,0.9892992903311061,0.9426230573275804,0.9642789681262501,0.23639086760519054,5332,1333,20

@@ -1,0 +1,19 @@
+{
+    "output_dim": 1036,
+    "num_layers": 1,
+    "hidden_layer_size": 2048,
+    "dropout_rate": 0.12359321320403265,
+    "activation_fn": "selu",
+    "optimizer": {
+        "name": "Adam",
+        "lr": 8.934145956929773e-05
+    },
+    "loss_fn": "SoftMarginLoss",
+    "threshold": 0.34135408464404127,
+    "lr_scheduler": {
+        "name": "StepLR",
+        "step_size": 20,
+        "gamma": 0.3133627445097714
+    },
+    "batch_size": 64
+}

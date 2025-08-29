@@ -1,0 +1,18 @@
+{
+    "output_dim": 1036,
+    "num_layers": 1,
+    "hidden_layer_size": 2048,
+    "dropout_rate": 0.3993983642402358,
+    "activation_fn": "relu",
+    "optimizer": {
+        "name": "RMSprop",
+        "lr": 1.8983470228020368e-05
+    },
+    "loss_fn": "MultiLabelSoftMarginLoss",
+    "threshold": 0.38547886747245597,
+    "lr_scheduler": {
+        "name": "ExponentialLR",
+        "gamma": 0.8504742987175694
+    },
+    "batch_size": 16
+}

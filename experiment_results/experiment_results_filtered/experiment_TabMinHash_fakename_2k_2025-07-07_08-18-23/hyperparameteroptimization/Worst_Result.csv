@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,1,1024,0.3019081020253827,selu,"{'name': 'Adam', 'lr': 0.0001071419684932445}",BCEWithLogitsLoss,0.6199264373511146,"{'name': 'CosineAnnealingLR', 'T_max': 12.341832881205185, 'eta_min': 0}",16,0.0,0.0,0.0,0.0,12.393005728721619,4,2,20

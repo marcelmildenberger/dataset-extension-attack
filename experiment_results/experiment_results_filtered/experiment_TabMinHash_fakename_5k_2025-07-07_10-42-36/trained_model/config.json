@@ -1,0 +1,19 @@
+{
+    "output_dim": 1036,
+    "num_layers": 2,
+    "hidden_layer_size": 2048,
+    "dropout_rate": 0.10100638323116518,
+    "activation_fn": "gelu",
+    "optimizer": {
+        "name": "RMSprop",
+        "lr": 0.0003210659435774795
+    },
+    "loss_fn": "BCEWithLogitsLoss",
+    "threshold": 0.3616092439146623,
+    "lr_scheduler": {
+        "name": "CosineAnnealingLR",
+        "T_max": 30.64698777558796,
+        "eta_min": 1e-05
+    },
+    "batch_size": 32
+}

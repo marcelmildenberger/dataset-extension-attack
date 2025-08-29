@@ -1,0 +1,2 @@
+output_dim,num_layers,hidden_layer_size,dropout_rate,activation_fn,optimizer,loss_fn,threshold,lr_scheduler,batch_size,average_dice,average_precision,average_recall,average_f1,total_val_loss,len_train,len_val,epochs
+1036,3,256,0.1285901931158217,tanh,"{'name': 'Adam', 'lr': 0.0008418370866433383}",MultiLabelSoftMarginLoss,0.7366835555274169,"{'name': 'StepLR', 'step_size': 20, 'gamma': 0.6902143854220544}",16,0.0,0.0,0.0,0.0,1.7972349918657735,2352,589,6

@@ -1,0 +1,17 @@
+{
+    "output_dim": 1036,
+    "num_layers": 1,
+    "hidden_layer_size": 2048,
+    "dropout_rate": 0.35115316852717426,
+    "activation_fn": "elu",
+    "optimizer": {
+        "name": "RMSprop",
+        "lr": 0.0005354875417668332
+    },
+    "loss_fn": "BCEWithLogitsLoss",
+    "threshold": 0.3737266930400247,
+    "lr_scheduler": {
+        "name": "None"
+    },
+    "batch_size": 32
+}

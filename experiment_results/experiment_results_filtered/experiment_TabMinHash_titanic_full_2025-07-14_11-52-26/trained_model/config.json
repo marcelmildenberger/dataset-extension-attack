@@ -1,0 +1,21 @@
+{
+    "output_dim": 1036,
+    "num_layers": 1,
+    "hidden_layer_size": 1024,
+    "dropout_rate": 0.1374112713088741,
+    "activation_fn": "tanh",
+    "optimizer": {
+        "name": "AdamW",
+        "lr": 1.0125172564194746e-05
+    },
+    "loss_fn": "MultiLabelSoftMarginLoss",
+    "threshold": 0.4554696699431374,
+    "lr_scheduler": {
+        "name": "CyclicLR",
+        "base_lr": 7.331665659172447e-05,
+        "max_lr": 0.010151443499875895,
+        "step_size_up": 4000,
+        "mode_cyclic": "exp_range"
+    },
+    "batch_size": 8
+}

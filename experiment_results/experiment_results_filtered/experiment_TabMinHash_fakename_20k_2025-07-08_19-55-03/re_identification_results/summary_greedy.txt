@@ -1,0 +1,4 @@
+Reidentification Method: greedy
+Total Reidentified Individuals: 408
+Total Not Reidentified Individuals: 8005
+Reidentification Rate: 5.10%
