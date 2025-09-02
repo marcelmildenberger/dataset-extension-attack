@@ -62,7 +62,6 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # GLOBAL_CONFIG["Workers"] is set to the number of available CPU cores minus one.
     ALIGN_CONFIG["RegWS"] = max(0.1, GLOBAL_CONFIG["Overlap"] / 3)
     GLOBAL_CONFIG["Workers"] = os.cpu_count()
-    print(os.cpu_count())
 
     # Ignore optuna warnings.
     warnings.filterwarnings("ignore", category=UserWarning, module="optuna")

@@ -132,32 +132,36 @@ drop = ["Eve","Both"]
 
 overlap = [0.2, 0.4, 0.6, 0.8]
 
-for enc in encs:
-    ENC_CONFIG["AliceAlgo"] = enc
-    if enc == "BloomFilter":
-        ENC_CONFIG["EveAlgo"] = "BloomFilter"
-    else:
-        ENC_CONFIG["EveAlgo"] = None
-    
+for encoding in encs:
+    ENC_CONFIG["AliceAlgo"] = encoding
+    ENC_CONFIG["EveAlgo"] = "None"
+    if encoding == "BloomFilter":
+        ENC_CONFIG["EveAlgo"] = encoding
     for dataset in datasets:
-        GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
         for drop_from in drop:
-            GLOBAL_CONFIG["DropFrom"] = drop_from
-            for overlap_val in overlap:
-                GLOBAL_CONFIG["Overlap"] = overlap_val
+            for ov in overlap:
+                GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
+                GLOBAL_CONFIG["DropFrom"] = drop_from
+                GLOBAL_CONFIG["Overlap"] = ov
                 try:
-                    run_dea(GLOBAL_CONFIG.copy(), DEA_CONFIG.copy(), ENC_CONFIG.copy(), EMB_CONFIG.copy(), ALIGN_CONFIG.copy())
+                    run_dea(
+                        GLOBAL_CONFIG.copy(),
+                        ENC_CONFIG.copy(),
+                        EMB_CONFIG.copy(),
+                        ALIGN_CONFIG.copy(),
+                        DEA_CONFIG.copy()
+                    )
                 except Exception as e:
                     # Record failed experiment
                     failed_experiments.append({
-                        "encoding": enc,
+                        "encoding": encoding,
                         "dataset": dataset,
                         "drop_from": drop_from,
-                        "overlap": overlap_val,
+                        "overlap": ov,
                         "error_message": str(e),
                         "error_type": type(e).__name__,
                     })
-                    print(f"Failed: {enc} - {dataset} - {drop_from} - {overlap_val}: {e}")
+                    print(f"Failed: {encoding} - {dataset} - {drop_from} - {ov}: {e}")
                     continue
 
 # Save failed experiments to CSV
