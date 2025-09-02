@@ -270,7 +270,9 @@ def print_and_save_result(label, result, save_to):
     result_record = {**config, **metrics}
     clean_result_dict(result_record)
 
-    pd.DataFrame([result_record]).to_csv(f"{save_to}/{label}.csv", index=False)
+    # Save as JSON for better analysis
+    with open(f"{save_to}/{label}.json", 'w') as f:
+        json.dump(result_record, f, indent=4)
 
 
 def clean_result_dict(result_dict):
@@ -476,7 +478,7 @@ def load_givenname_and_surname_records(min_count=10, use_filtered=True):
 def load_birthday_2gram_records():
     date_range = pd.date_range(start="1900-01-01", end="2004-12-31", freq='D')
     return [
-        (d.strftime("%-m/%-d/%Y"), extract_two_grams(d.strftime("%-m/%-d/%Y")))
+        (d.strftime("%#m/%#d/%Y"), extract_two_grams(d.strftime("%#m/%#d/%Y")))
         for d in date_range
     ]
 
@@ -513,16 +515,14 @@ def reidentification_analysis(df_1, df_2, merge_on, len_not_reidentified, method
         result_csv_path = os.path.join(save_path, f"result_{method_name or 'unknown'}.csv")
         merged.to_csv(result_csv_path, index=False)
 
-        # Save summary
-        summary_txt_path = os.path.join(save_path, f"summary_{method_name or 'unknown'}.txt")
-        with open(summary_txt_path, "w") as f:
-            f.write(f"Reidentification Method: {method_name or 'Unknown'}\n")
-            f.write(f"Total Reidentified Individuals: {total_reidentified}\n")
-            f.write(f"Total Not Reidentified Individuals: {total_not_reidentified}\n")
-            if reidentification_rate is not None:
-                f.write(f"Reidentification Rate: {reidentification_rate:.2f}%\n")
-            else:
-                f.write("No not reidentified individuals to analyze.\n")
+        # Save summary as CSV for better analysis
+        summary_data = {
+            "metric": ["reidentification_method", "total_reidentified_individuals", "total_not_reidentified_individuals", "reidentification_rate"],
+            "value": [method_name or 'Unknown', total_reidentified, total_not_reidentified, f"{reidentification_rate:.2f}%" if reidentification_rate is not None else "N/A"]
+        }
+        summary_df = pd.DataFrame(summary_data)
+        summary_csv_path = os.path.join(save_path, f"summary_{method_name or 'unknown'}.csv")
+        summary_df.to_csv(summary_csv_path, index=False)
 
     return merged
 
@@ -542,21 +542,28 @@ def save_dea_runtime_log(
     output_dir="dea_runtime_logs"
 ):
     os.makedirs(output_dir, exist_ok=True)
-    output_file = os.path.join(output_dir, "dea_runtime_log.txt")
-
+    
+    # Save as CSV for better analysis
     runtimes = {
-        "Graph Matching Attack": elapsed_gma,
-        "Hyperparameter Optimization": elapsed_hyperparameter_optimization,
-        "Model Training": elapsed_model_training,
-        "Application to Encoded Data": elapsed_application_to_encoded_data,
-        "Refinement and Reconstruction": elapsed_refinement_and_reconstruction,
-        "Total Runtime": elapsed_total
+        "gma": elapsed_gma,
+        "hyperparameter_optimization": elapsed_hyperparameter_optimization,
+        "model_training": elapsed_model_training,
+        "application_to_encoded_data": elapsed_application_to_encoded_data,
+        "refinement_and_reconstruction": elapsed_refinement_and_reconstruction,
+        "total_runtime": elapsed_total
     }
-
-    with open(output_file, "w") as f:
-        f.write("DEA Runtime (in minutes):\n")
-        for label, seconds in runtimes.items():
-            f.write(f"{label}: {to_minutes(seconds)}m\n")
+    
+    # Convert to DataFrame and save as CSV
+    runtime_data = []
+    for label, seconds in runtimes.items():
+        runtime_data.append({
+            "phase": label,
+            "runtime_seconds": seconds,
+            "runtime_minutes": to_minutes(seconds)
+        })
+    
+    runtime_df = pd.DataFrame(runtime_data)
+    runtime_df.to_csv(os.path.join(output_dir, "dea_runtime_log.csv"), index=False)
 
 
 def load_dataframe(path):
@@ -829,21 +836,6 @@ def run_selected_reidentification(
     identifier,
     save_dir
 ):
-    """
-    Runs the selected reidentification technique(s), handles the 'fuzzy_and_greedy' case, saves results, and prints summaries.
-    Args:
-        selected (str): Selected technique or 'fuzzy_and_greedy'.
-        techniques (dict): Dictionary of available techniques.
-        results (list): Model results.
-        df_not_reid_cached (pd.DataFrame): Not re-identified DataFrame.
-        GLOBAL_CONFIG (dict): Global config.
-        current_experiment_directory (str): Directory for experiment results.
-        data_dir (str): Data directory.
-        identifier (str): Unique identifier for the experiment/data split.
-        save_dir (str): Directory to save reidentification results.
-    Returns:
-        None
-    """
     if selected == "fuzzy_and_greedy":
         reidentified = {}
         for name in ("greedy", "fuzzy"):
@@ -877,12 +869,15 @@ def run_selected_reidentification(
             os.path.join(save_dir, "result_fuzzy_and_greedy.csv"),
             index=False
         )
-        summary_path = os.path.join(save_dir, "summary_fuzzy_and_greedy.txt")
-        with open(summary_path, "w") as f:
-            f.write("Reidentification Method: fuzzy_and_greedy\n")
-            f.write(f"Total not re-identified individuals: {len_not_reidentified}\n")
-            f.write(f"Total Unique Reidentified Individuals: {total_reidentified_combined}\n")
-            f.write(f"Combined Reidentification Rate: {reidentification_rate_combined:.2f}%\n")
+        # Save combined summary as CSV for better analysis
+        combined_summary_data = {
+            "metric": ["Reidentification Method", "Total not re-identified individuals", "Total Unique Reidentified Individuals", "Combined Reidentification Rate"],
+            "value": ["fuzzy_and_greedy", len_not_reidentified, total_reidentified_combined, f"{reidentification_rate_combined:.2f}%"]
+        }
+        combined_summary_df = pd.DataFrame(combined_summary_data)
+        combined_summary_csv_path = os.path.join(save_dir, "summary_fuzzy_and_greedy.csv")
+        combined_summary_df.to_csv(combined_summary_csv_path, index=False)
+    
     else:
         if selected not in techniques:
             raise ValueError(f"Unsupported matching technique: {selected}")

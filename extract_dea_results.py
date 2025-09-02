@@ -4,67 +4,95 @@ import re
 import pandas as pd
 from pathlib import Path
 import ast
-import ast
 
-def parse_best_result_csv(path):
+def parse_best_result_json(path):
+    """Parse the best result from hyperparameter optimization JSON file"""
     try:
-        df = pd.read_csv(path)
-        if df.empty:
-            return None
-        row = df.iloc[0].to_dict()
-
-        for key in ["optimizer", "lr_scheduler"]:
-            if key in row and isinstance(row[key], str):
-                try:
-                    row[key] = ast.literal_eval(row[key])
-                except:
-                    pass
-        return row
-    except:
+        with open(path, 'r') as f:
+            result = json.load(f)
+        return result
+    except Exception as e:
+        print(f"Error reading {path}: {e}")
         return None
 
+def parse_config_json(path):
+    """Parse the experiment configuration from JSON file"""
+    try:
+        with open(path, 'r') as f:
+            config = json.load(f)
+        return config
+    except Exception as e:
+        print(f"Error reading {path}: {e}")
+        return None
 
+def parse_metrics_csv(path):
+    """Parse the trained model metrics from CSV file"""
+    try:
+        df = pd.read_csv(path)
+        metrics = {}
+        for _, row in df.iterrows():
+            metric_name = row['metric']
+            value = row['value']
+            # Convert numeric values
+            try:
+                if isinstance(value, str) and value.replace('.', '').replace('-', '').isdigit():
+                    value = float(value)
+            except:
+                pass
+            metrics[metric_name] = value
+        return metrics
+    except Exception as e:
+        print(f"Error reading {path}: {e}")
+        return None
 
-def parse_config_txt(path):
-    config = {}
-    with open(path, 'r') as f:
-        raw = f.read()
-    for block in raw.split("# === ")[1:]:
-        name, content = block.split(" ===\n", 1)
-        config[name.strip()] = json.loads(content)
-    return config
+def parse_summary_csv(path):
+    """Parse the reidentification summary from CSV file"""
+    try:
+        df = pd.read_csv(path)
+        # Look for reidentification rate
+        for _, row in df.iterrows():
+            if 'reidentification_rate' in row['metric'].lower():
+                value = row['value']
+                if isinstance(value, str) and '%' in value:
+                    # Extract numeric value from percentage string
+                    rate_str = value.replace('%', '').strip()
+                    try:
+                        return float(rate_str) / 100
+                    except:
+                        pass
+        return None
+    except Exception as e:
+        print(f"Error reading {path}: {e}")
+        return None
 
-def parse_metrics_txt(path):
-    metrics = {}
-    with open(path, 'r') as f:
-        for line in f:
-            if ':' in line:
-                key, value = line.strip().split(':')
-                metrics[key.strip()] = float(value)
-    return metrics
-
-def parse_summary_txt(path):
-    with open(path, 'r') as f:
-        text = f.read()
-    match = re.search(r"(Reidentification Rate|Combined Reidentification Rate):\s*([\d.]+)%", text)
-    return float(match.group(2)) / 100 if match else None
-
-def parse_runtime_txt(path):
-    with open(path, 'r') as f:
-        text = f.read()
-
-    # Dictionary to store all extracted runtimes
-    runtimes = {}
-
-    # Regex pattern for all steps
-    pattern = r"([\w\s]+):\s*([\d.]+)m"
-
-    for step, minutes in re.findall(pattern, text):
-        key = step.strip().replace(" ", "")  # e.g., "GraphMatchingAttack"
-        runtimes[key] = float(minutes)
-
-    return runtimes
-
+def parse_runtime_csv(path):
+    """Parse the DEA runtime log from CSV file"""
+    try:
+        df = pd.read_csv(path)
+        runtimes = {}
+        for _, row in df.iterrows():
+            phase = row['phase']
+            # Convert phase names to match expected format
+            if phase == "gma":
+                key = "GraphMatchingAttack"
+            elif phase == "hyperparameter_optimization":
+                key = "HyperparameterOptimization"
+            elif phase == "model_training":
+                key = "ModelTraining"
+            elif phase == "application_to_encoded_data":
+                key = "ApplicationtoEncodedData"
+            elif phase == "refinement_and_reconstruction":
+                key = "RefinementandReconstruction"
+            elif phase == "total_runtime":
+                key = "TotalRuntime"
+            else:
+                key = phase.replace(" ", "")
+            
+            runtimes[key] = row['runtime_minutes']
+        return runtimes
+    except Exception as e:
+        print(f"Error reading {path}: {e}")
+        return None
 
 def collect_experiment_results(base_path: str, output_csv_path: str = None) -> pd.DataFrame:
     experiment_dirs = list(Path(base_path).glob("experiment_*"))
@@ -72,7 +100,9 @@ def collect_experiment_results(base_path: str, output_csv_path: str = None) -> p
 
     def safe_read_file(path, parser_fn, default=None):
         try:
-            return parser_fn(path)
+            if path.exists():
+                return parser_fn(path)
+            return default
         except Exception as e:
             print(f"Error reading {path}: {e}")
             return default
@@ -87,19 +117,20 @@ def collect_experiment_results(base_path: str, output_csv_path: str = None) -> p
         exp_dir = Path(exp_dir)
 
         # Check for termination log
-        if (exp_dir / "termination_log.txt").exists():
+        if (exp_dir / "termination_log.csv").exists():
             termination_count += 1
             continue
 
-        config = safe_read_file(exp_dir / "config.txt", parse_config_txt)
-        metrics = safe_read_file(exp_dir / "trained_model" / "metrics.txt", parse_metrics_txt)
-        reid_rate = safe_read_file(exp_dir / "re_identification_results" / "summary_fuzzy_and_greedy.txt", parse_summary_txt)
-        reid_rate_fuzzy = safe_read_file(exp_dir / "re_identification_results" / "summary_fuzzy.txt", parse_summary_txt)
-        reid_rate_greedy = safe_read_file(exp_dir / "re_identification_results" / "summary_greedy.txt", parse_summary_txt)
-        runtime = safe_read_file(exp_dir / "dea_runtime_log.txt", parse_runtime_txt)
+        # Parse new file formats
+        config = safe_read_file(exp_dir / "config.json", parse_config_json)
+        metrics = safe_read_file(exp_dir / "trained_model" / "metrics.csv", parse_metrics_csv)
+        reid_rate = safe_read_file(exp_dir / "re_identification_results" / "summary_fuzzy_and_greedy.csv", parse_summary_csv)
+        reid_rate_fuzzy = safe_read_file(exp_dir / "re_identification_results" / "summary_fuzzy.csv", parse_summary_csv)
+        reid_rate_greedy = safe_read_file(exp_dir / "re_identification_results" / "summary_greedy.csv", parse_summary_csv)
+        runtime = safe_read_file(exp_dir / "dea_runtime_log.csv", parse_runtime_csv)
         best_result = safe_read_file(
-            exp_dir / "hyperparameteroptimization" / "Best_Result.csv",
-            parse_best_result_csv
+            exp_dir / "hyperparameteroptimization" / "best_result.json",
+            parse_best_result_json
         )
 
         if not config:
@@ -118,10 +149,10 @@ def collect_experiment_results(base_path: str, output_csv_path: str = None) -> p
             "Dataset": os.path.basename(config["GLOBAL_CONFIG"]["Data"]),
             "DropFrom": config["GLOBAL_CONFIG"]["DropFrom"],
             "Overlap": config["GLOBAL_CONFIG"]["Overlap"],
-            "TrainedPrecision": metrics.get("Average Precision"),
-            "TrainedRecall": metrics.get("Average Recall"),
-            "TrainedF1": metrics.get("Average F1 Score"),
-            "TrainedDice": metrics.get("Average Dice Similarity"),
+            "TrainedPrecision": metrics.get("avg_precision"),
+            "TrainedRecall": metrics.get("avg_recall"),
+            "TrainedF1": metrics.get("avg_f1"),
+            "TrainedDice": metrics.get("avg_dice"),
             "ReidentificationRate": reid_rate,
             "ReidentificationRateFuzzy": reid_rate_fuzzy,
             "ReidentificationRateGreedy": reid_rate_greedy,
@@ -142,7 +173,6 @@ def collect_experiment_results(base_path: str, output_csv_path: str = None) -> p
                 "HypOpBatchSize": best_result.get("batch_size"),
                 "HypOpValLoss": best_result.get("total_val_loss"),
                 "HypOpEpochs": best_result.get("epochs"),
-                "HypOpBatchSize": best_result.get("batch_size"),
                 "HypOpF1": best_result.get("average_f1"),
                 "HypOpPrecision": best_result.get("average_precision"),
                 "HypOpRecall": best_result.get("average_recall"),
@@ -150,7 +180,6 @@ def collect_experiment_results(base_path: str, output_csv_path: str = None) -> p
                 "LenTrain": best_result.get("len_train"),
                 "LenVal": best_result.get("len_val"),
             })
-
 
         # Merge runtime fields into the record
         if runtime:
@@ -177,4 +206,5 @@ def collect_experiment_results(base_path: str, output_csv_path: str = None) -> p
         df.to_csv(output_csv_path, index=False)
     return df
 
-collect_experiment_results("experiment_results/experiment_results_filtered", "formatted_results.csv")
+# Update the call to use the correct path
+collect_experiment_results("experiment_results", "formatted_results.csv")

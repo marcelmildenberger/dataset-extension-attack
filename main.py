@@ -62,6 +62,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # GLOBAL_CONFIG["Workers"] is set to the number of available CPU cores minus one.
     ALIGN_CONFIG["RegWS"] = max(0.1, GLOBAL_CONFIG["Overlap"] / 3)
     GLOBAL_CONFIG["Workers"] = os.cpu_count()
+    print(os.cpu_count())
 
     # Ignore optuna warnings.
     warnings.filterwarnings("ignore", category=UserWarning, module="optuna")
@@ -69,11 +70,12 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # Create a unique experiment directory for saving results and configuration.
     # The directory name encodes the algorithm, dataset, and timestamp for traceability.
     # All configuration dictionaries are saved to a config.txt file in this directory for reproducibility.
-    # TODO: Change saving config to json instead of txt
+    # Save configs as CSV for better analysis
     selected_dataset = GLOBAL_CONFIG["Data"].split("/")[-1].replace(".tsv", "")
     experiment_tag = "experiment_" + ENC_CONFIG["AliceAlgo"] + "_" + selected_dataset + "_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     current_experiment_directory = f"experiment_results/{experiment_tag}"
     os.makedirs(current_experiment_directory, exist_ok=True)
+
     all_configs = {
         "GLOBAL_CONFIG": GLOBAL_CONFIG,
         "DEA_CONFIG": DEA_CONFIG,
@@ -81,11 +83,10 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         "EMB_CONFIG": EMB_CONFIG,
         "ALIGN_CONFIG": ALIGN_CONFIG
     }
-    with open(os.path.join(current_experiment_directory, "config.txt"), "w") as f:
-        for config_name, config_dict in all_configs.items():
-            f.write(f"# === {config_name} ===\n")
-            f.write(json.dumps(config_dict, indent=4))
-            f.write("\n\n")
+    
+    # Also save as JSON for reference
+    with open(os.path.join(current_experiment_directory, "config.json"), "w") as f:
+        json.dump(all_configs, f, indent=4)
 
     # Generate all possible two-character combinations (2-grams) from lowercase letters and digits.
     # This includes letter-letter, letter-digit, and digit-digit pairs.
@@ -136,13 +137,14 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     datasets = load_experiment_datasets(data_dir, alice_enc_hash, identifier, ENC_CONFIG, DEA_CONFIG, GLOBAL_CONFIG, all_two_grams, splits=("train", "val", "test"))
     data_train, data_val, data_test = datasets["train"], datasets["val"], datasets["test"]
     if len(data_train) == 0 or len(data_val) == 0 or len(data_test) == 0:
-        log_path = os.path.join(current_experiment_directory, "termination_log.txt")
-        with open(log_path, "w") as f:
-            f.write("Training process canceled due to empty dataset.\n")
-            f.write(f"Length of data_train: {len(data_train)}\n")
-            f.write(f"Length of data_val: {len(data_val)}\n")
-            f.write(f"Length of data_test: {len(data_test)}\n")
-        raise ValueError(f"Empty dataset: train={len(data_train)}, val={len(data_val)}, test={len(data_test)}")
+        # Save termination log as CSV for better analysis
+        termination_data = {
+            "metric": ["Status", "Length of data_train", "Length of data_val", "Length of data_test"],
+            "value": ["Training process canceled due to empty dataset", len(data_train), len(data_val), len(data_test)]
+        }
+        termination_df = pd.DataFrame(termination_data)
+        termination_csv_path = os.path.join(current_experiment_directory, "termination_log.csv")
+        termination_df.to_csv(termination_csv_path, index=False)
 
     # Start timing the hyperparameter optimization run.
     if GLOBAL_CONFIG["BenchMode"]:
@@ -324,14 +326,13 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # Define the search space for the hyperparameters.
     search_space = {
         "output_dim": len(all_two_grams),
-        "num_layers": tune.randint(1, 4),
-        "hidden_layer_size": tune.choice([128, 256, 512, 1024, 2048]),
+        "num_layers": tune.randint(1, 3),
+        "hidden_layer_size": tune.choice([128, 256, 512, 1024, 2048, 4096]),
         "dropout_rate": tune.uniform(0.1, 0.4),
         "activation_fn": tune.choice(["relu", "leaky_relu", "gelu", "elu", "selu", "tanh"]),
         "optimizer": tune.choice([
             {"name": "Adam", "lr": tune.loguniform(1e-5, 1e-3)},
             {"name": "AdamW", "lr": tune.loguniform(1e-5, 1e-3)},
-            {"name": "SGD", "lr": tune.loguniform(1e-4, 1e-2), "momentum": tune.uniform(0.0, 0.99)},
             {"name": "RMSprop", "lr": tune.loguniform(1e-5, 1e-3)},
         ]),
         "loss_fn": tune.choice(["BCEWithLogitsLoss", "MultiLabelSoftMarginLoss", "SoftMarginLoss"]),
@@ -368,13 +369,13 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         identifier=identifier,
         patience=DEA_CONFIG["Patience"],
         min_delta=DEA_CONFIG["MinDelta"],
-        workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
+        workers=GLOBAL_CONFIG["Workers"] // 4 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
 
     # Wrap the trainable function with resources for 10 trials
     trainable_with_resources = tune.with_resources(
         trainable,
-        resources={"cpu": GLOBAL_CONFIG["Workers"] // 10, "gpu": 0.1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"] // 10, "gpu": 0}
+        resources={"cpu": GLOBAL_CONFIG["Workers"] // 4, "gpu": 0.1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"] // 4, "gpu": 0}
     )
 
     # Initialize the tuner.
@@ -406,7 +407,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # Get the best result.
     best_result = results.get_best_result(metric=DEA_CONFIG["MetricToOptimize"], mode="max")
     if GLOBAL_CONFIG["SaveResults"]:
-        print_and_save_result("Best_Result", best_result, hyperparameter_optimization_directory)
+        print_and_save_result("best_result", best_result, hyperparameter_optimization_directory)
 
     # Start timing the model training.
     if GLOBAL_CONFIG["BenchMode"]:
@@ -651,11 +652,14 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
     # Save the metrics and results if requested.
     if GLOBAL_CONFIG["SaveResults"]:
-        with open(f"{trained_model_directory}/metrics.txt", "w") as f:
-            f.write(f"Average Precision: {avg_precision:.4f}\n")
-            f.write(f"Average Recall: {avg_recall:.4f}\n")
-            f.write(f"Average F1 Score: {avg_f1:.4f}\n")
-            f.write(f"Average Dice Similarity: {avg_dice:.4f}\n")
+        # Save metrics as CSV for better analysis
+        metrics_data = {
+            "metric": ["avg_precision", "avg_recall", "avg_f1", "avg_dice"],
+            "value": [avg_precision, avg_recall, avg_f1, avg_dice]
+        }
+        metrics_df = pd.DataFrame(metrics_data)
+        metrics_df.to_csv(f"{trained_model_directory}/metrics.csv", index=False)
+
     if GLOBAL_CONFIG["SavePredictions"]:
         with open(f"{trained_model_directory}/results.json", 'w', encoding='utf-8') as f:
             json.dump(results, f, indent=4, ensure_ascii=False)

@@ -1,6 +1,5 @@
 from main import run_dea
-import os
-import csv
+import pandas as pd
 
 # === General Parameters ===
 GLOBAL_CONFIG = {
@@ -26,7 +25,7 @@ DEA_CONFIG = {
     "TrainSize": 0.8,
     "Patience": 5,
     "MinDelta": 1e-4,
-    "NumSamples": 125,
+    "NumSamples": 100,
     "Epochs": 20,
     "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
     "MatchingTechnique": "fuzzy_and_greedy",  # Options: "ai", "greedy", "fuzzy", ...
@@ -121,60 +120,50 @@ ALIGN_CONFIG = {
     "Wasserstein": True,
 }
 
-# Define the missing experiment combinations (including titanic_full.tsv experiments)
-missing_experiments = [
-    # Missing titanic_full.tsv experiments from missing_experiments.csv
-    {"encoding": "TwoStepHash", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.2},
-    {"encoding": "BloomFilter", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.4},
-    {"encoding": "TabMinHash", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.4},
-    {"encoding": "TabMinHash", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.4},
-    {"encoding": "TwoStepHash", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.4},
-    {"encoding": "BloomFilter", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.4},
-    {"encoding": "BloomFilter", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.6},
-    {"encoding": "TabMinHash", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.6},
-    {"encoding": "TabMinHash", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.6},
-    {"encoding": "TwoStepHash", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.6},
-    {"encoding": "TwoStepHash", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.4},
-    {"encoding": "BloomFilter", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.6},
-    {"encoding": "BloomFilter", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.2},
-    {"encoding": "TabMinHash", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.2},
-    {"encoding": "TwoStepHash", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.6},
-    {"encoding": "TwoStepHash", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.2},
-    {"encoding": "BloomFilter", "dataset": "titanic_full.tsv", "drop_from": "Eve", "overlap": 0.2},
-    {"encoding": "TabMinHash", "dataset": "titanic_full.tsv", "drop_from": "Both", "overlap": 0.2},
-]
+# List to store failed experiments
+failed_experiments = []
 
-print(f"🚀 Starting {len(missing_experiments)} missing titanic_full.tsv experiments...")
-print("📋 Running all missing experiments from missing_experiments.csv")
-print("=" * 80)
+encs = ["TwoStepHash", "BloomFilter", "TabMinHash"]
 
-for i, exp in enumerate(missing_experiments, 1):
-        print(f"\n[{i}/{len(missing_experiments)}] Running: {exp['encoding']} | {exp['dataset']} | {exp['drop_from']} | {exp['overlap']}")
+datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv",
+            "fakename_20k.tsv", "fakename_50k.tsv", "euro_full.tsv", "ncvoter.tsv"]
 
-        # Set encoding configuration
-        ENC_CONFIG["AliceAlgo"] = exp["encoding"]
-        ENC_CONFIG["EveAlgo"] = "None"
-        if exp["encoding"] == "BloomFilter":
-            ENC_CONFIG["EveAlgo"] = exp["encoding"]
+drop = ["Eve","Both"]
 
-        # Set global configuration
-        GLOBAL_CONFIG["Data"] = f"./data/datasets/{exp['dataset']}"
-        GLOBAL_CONFIG["DropFrom"] = exp["drop_from"]
-        GLOBAL_CONFIG["Overlap"] = exp["overlap"]
+overlap = [0.2, 0.4, 0.6, 0.8]
 
-        try:
-            run_dea(
-                GLOBAL_CONFIG.copy(),
-                ENC_CONFIG.copy(),
-                EMB_CONFIG.copy(),
-                ALIGN_CONFIG.copy(),
-                DEA_CONFIG.copy()
-            )
-            print(f"✅ Success: {exp['encoding']} | {exp['dataset']} | {exp['drop_from']} | {exp['overlap']}")
-        except Exception as e:
-            print(f"❌ Failed: {exp['encoding']} | {exp['dataset']} | {exp['drop_from']} | {exp['overlap']}")
-            print(f"   Error: {e}")
+for enc in encs:
+    ENC_CONFIG["AliceAlgo"] = enc
+    if enc == "BloomFilter":
+        ENC_CONFIG["EveAlgo"] = "BloomFilter"
+    else:
+        ENC_CONFIG["EveAlgo"] = None
+    
+    for dataset in datasets:
+        GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
+        for drop_from in drop:
+            GLOBAL_CONFIG["DropFrom"] = drop_from
+            for overlap_val in overlap:
+                GLOBAL_CONFIG["Overlap"] = overlap_val
+                try:
+                    run_dea(GLOBAL_CONFIG.copy(), DEA_CONFIG.copy(), ENC_CONFIG.copy(), EMB_CONFIG.copy(), ALIGN_CONFIG.copy())
+                except Exception as e:
+                    # Record failed experiment
+                    failed_experiments.append({
+                        "encoding": enc,
+                        "dataset": dataset,
+                        "drop_from": drop_from,
+                        "overlap": overlap_val,
+                        "error_message": str(e),
+                        "error_type": type(e).__name__,
+                    })
+                    print(f"Failed: {enc} - {dataset} - {drop_from} - {overlap_val}: {e}")
+                    continue
 
-print("\n" + "=" * 80)
-print("✅ All missing experiments completed!")
-print(f"📊 Total experiments run: {len(missing_experiments)}")
+# Save failed experiments to CSV
+if failed_experiments:
+    failed_df = pd.DataFrame(failed_experiments)
+    failed_df.to_csv("experiment_results/failed_experiments.csv", index=False)
+    print(f"\nSaved {len(failed_experiments)} failed experiments to failed_experiments.csv")
+else:
+    print("\nNo failed experiments to save.")
