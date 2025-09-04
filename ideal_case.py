@@ -60,7 +60,6 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # Set default values for alignment and global configuration.
     # ALIGN_CONFIG["RegWS"] is set to the maximum of 0.1 and one third of the overlap parameter.
     # GLOBAL_CONFIG["Workers"] is set to the number of available CPU cores minus one.
-    ALIGN_CONFIG["RegWS"] = max(0.1, GLOBAL_CONFIG["Overlap"] / 3)
     GLOBAL_CONFIG["Workers"] = os.cpu_count()
 
     # Ignore optuna warnings.
@@ -656,7 +655,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     include_birthday = not (os.path.basename(GLOBAL_CONFIG["Data"]) == "titanic_full.tsv")
     TECHNIQUES = get_reidentification_techniques(header, include_birthday)
     selected = DEA_CONFIG["MatchingTechnique"]
-    df_not_reid_cached = get_not_reidentified_df(dataset_name)
+    df_not_reid_cached = get_not_reidentified_df(dataset_name, DEA_CONFIG["Overlap"])
     re_identification_results_directory = f"{current_experiment_directory}/re_identification_results"
 
     run_selected_reidentification(

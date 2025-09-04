@@ -675,11 +675,12 @@ def read_header(tsv_path):
         return columns
 
 
+## NEED TO CONSIDER OVERLAP
 def load_experiment_datasets(
     dataset_name, overlap, all_two_grams, ENC_CONFIG, GLOBAL_CONFIG, DEA_CONFIG, splits=("train", "val", "test")
 ):
-    cache_path = get_cache_path(dataset_name)
-    cache_path_not_reidentified = get_cache_path(dataset_name, name="not_reidentified")
+    cache_path = get_cache_path(dataset_name + "_" + str(overlap))
+    cache_path_not_reidentified = get_cache_path(dataset_name + "_" + str(overlap), name="not_reidentified")
     # Try to load from cache if all splits are present
     if os.path.exists(cache_path):
         with open(cache_path, 'rb') as f:
@@ -707,10 +708,6 @@ def load_experiment_datasets(
         pickle.dump(df_not_reidentified, f)
 
     df_test = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
-
-    print("Length of df_reidentified: ", len(df_reidentified))
-    print("Length of df_not_reidentified: ", len(df_not_reidentified))
-    print("Length of df_test: ", len(df_test))
 
     DatasetClass = None
     algo = ENC_CONFIG["AliceAlgo"]
@@ -744,16 +741,16 @@ def load_experiment_datasets(
     # Return only the requested splits/datasets
     return {k: result[k] for k in splits}
 
-def load_not_reidentified_data(dataset_name):
-    cache_path = get_cache_path(dataset_name, name="not_reidentified")
+def load_not_reidentified_data(dataset_name, overlap):
+    cache_path = get_cache_path(dataset_name + "_" + str(overlap), name="not_reidentified")
     if os.path.exists(cache_path):
         with open(cache_path, 'rb') as f:
             df_filtered = pickle.load(f)
         return df_filtered
     return None
 
-def get_not_reidentified_df(dataset_name: str) -> pd.DataFrame:
-    df = load_not_reidentified_data(dataset_name)
+def get_not_reidentified_df(dataset_name: str, overlap: float) -> pd.DataFrame:
+    df = load_not_reidentified_data(dataset_name, overlap)
     return lowercase_df(df)
 
 
