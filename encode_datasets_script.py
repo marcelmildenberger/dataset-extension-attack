@@ -104,8 +104,10 @@ def process_dataset(dataset_path, encoder_type, enc_config, global_config):
         header_copy = header.copy()
         if encoder_type == 'BF':
             header_copy.insert(-1, "bloomfilter")
-        else:
-            header_copy[-2] = encoder_type.lower()
+        if encoder_type == 'TMH':
+            header_copy.insert(-1, "tabminhash")
+        if encoder_type == 'TSH':
+            header_copy.insert(-1, "twostephash")
         
         # Encode the data
         print(f"Encoding data with {encoder_type}...")
