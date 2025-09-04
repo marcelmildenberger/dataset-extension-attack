@@ -15,7 +15,7 @@ GLOBAL_CONFIG = {
     "DevMode": False,
     "BenchMode": True,
     "SaveResults": True,
-    "UseGPU": False,
+    "UseGPU": True,
     "SaveModel": False,
     "SavePredictions": False,
 }
