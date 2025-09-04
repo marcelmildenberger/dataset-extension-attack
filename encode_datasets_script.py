@@ -58,23 +58,23 @@ def create_encoder(encoder_type, enc_config, global_config):
         )
     elif encoder_type == 'TMH':
         return TMHEncoder(
-            num_hash_func=enc_config["AliceNHash"],
-            num_hash_bits=enc_config["AliceNHashBits"],
-            num_sub_keys=enc_config["AliceNSubKeys"],
-            ngram_size=enc_config["AliceN"],
-            one_bit_hash=enc_config["Alice1BitHash"],
-            random_seed=enc_config["AliceSecret"],
+            enc_config["AliceNHash"], 
+            enc_config["AliceNHashBits"],
+            enc_config["AliceNSubKeys"], 
+            enc_config["AliceN"],
+            enc_config["Alice1BitHash"],
+            random_seed=enc_config["AliceSecret"], 
             verbose=global_config["Verbose"],
             workers=global_config["Workers"]
         )
     elif encoder_type == 'TSH':
         return TSHEncoder(
-            num_hash_func=enc_config["AliceNHashFunc"],
-            num_hash_col=enc_config["AliceNHashCol"],
-            ngram_size=enc_config["AliceN"],
-            rand_mode=enc_config["AliceRandMode"],
+            enc_config["AliceNHashFunc"], 
+            enc_config["AliceNHashCol"], 
+            enc_config["AliceN"],
+            enc_config["AliceRandMode"], 
             secret=enc_config["AliceSecret"],
-            verbose=global_config["Verbose"],
+            verbose=global_config["Verbose"], 
             workers=global_config["Workers"]
         )
     else:
@@ -100,9 +100,12 @@ def process_dataset(dataset_path, encoder_type, enc_config, global_config):
         encoder = create_encoder(encoder_type, enc_config, global_config)
         print(f"Created {encoder_type} encoder")
         
-        # Update header for encoding column
+        # Update header for encoding column - insert before the last column (uid)
         header_copy = header.copy()
-        header_copy[-2] = encoder_type.lower()
+        if encoder_type == 'BF':
+            header_copy.insert(-1, "bloomfilter")
+        else:
+            header_copy[-2] = encoder_type.lower()
         
         # Encode the data
         print(f"Encoding data with {encoder_type}...")

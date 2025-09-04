@@ -24,6 +24,7 @@ from datasets.tab_min_hash_dataset import TabMinHashDataset
 from datasets.two_step_hash_dataset import TwoStepHashDataset
 import seaborn as sns
 from string_utils import extract_two_grams, format_birthday, process_file, lowercase_df
+import numpy as np
 
 
 
@@ -39,9 +40,12 @@ keys_to_remove = [
     "node_ip", "time_since_restore", "iterations_since_restore", "timestamp"
 ]
 
-def get_cache_path(data_directory, identifier, alice_enc_hash, name="dataset"):
-    os.makedirs(f"{data_directory}/cache", exist_ok=True)
-    return os.path.join(data_directory, "cache", f"{name}_{identifier}_{alice_enc_hash}.pkl")
+def get_cache_path(dataset_name, name="dataset"):
+    project_dir = os.path.dirname(os.path.abspath(__file__))
+    data_directory = os.path.join(project_dir, "data")
+    cache_directory = os.path.join(data_directory, "cache")
+    os.makedirs(cache_directory, exist_ok=True)
+    return os.path.join(cache_directory, f"{name}_{dataset_name}.pkl")
 
 def read_tsv(path: str, skip_header: bool = True, as_dict: bool = False, delim: str = "\t") -> Sequence[Sequence[str]]:
     data = {} if as_dict else []
@@ -672,9 +676,10 @@ def read_header(tsv_path):
 
 
 def load_experiment_datasets(
-    data_directory, alice_enc_hash, identifier, ENC_CONFIG, DEA_CONFIG, GLOBAL_CONFIG, all_two_grams, splits=("train", "val", "test")
+    dataset_name, overlap, all_two_grams, ENC_CONFIG, GLOBAL_CONFIG, DEA_CONFIG, splits=("train", "val", "test")
 ):
-    cache_path = get_cache_path(data_directory, identifier, alice_enc_hash)
+    cache_path = get_cache_path(dataset_name)
+    cache_path_not_reidentified = get_cache_path(dataset_name, name="not_reidentified")
     # Try to load from cache if all splits are present
     if os.path.exists(cache_path):
         with open(cache_path, 'rb') as f:
@@ -684,13 +689,28 @@ def load_experiment_datasets(
             else:
                 train, val, test = cached
                 return {"train": train, "val": val, "test": test}
-
     # Otherwise, create datasets
-    df_reidentified = load_dataframe(f"{data_directory}/available_to_eve/reidentified_individuals_{identifier}.h5")
+    # Use absolute path to the project directory to avoid issues with Ray Tune workers running in different directories
+    project_dir = os.path.dirname(os.path.abspath(__file__))
+    dataset_path = os.path.join(project_dir, "data", "datasets", f"{dataset_name}.tsv")
+    data, uids, header = read_tsv(dataset_path, skip_header=False)
+    data = np.column_stack((data, uids))
+    df_all = pd.DataFrame(data, columns=header)
+    
+    n_total = len(df_all)
+    n_reid = int(round(n_total * overlap))
 
-    df_not_reidentified = load_dataframe(f"{data_directory}/available_to_eve/not_reidentified_individuals_{identifier}.h5")
-    df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5")
+    df_reidentified = df_all.sample(n=n_reid, replace=False, random_state=None).reset_index(drop=True)
+    df_not_reidentified = df_all.drop(df_reidentified.index).reset_index(drop=True)
+
+    with open(cache_path_not_reidentified, 'wb') as f:
+        pickle.dump(df_not_reidentified, f)
+
     df_test = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
+
+    print("Length of df_reidentified: ", len(df_reidentified))
+    print("Length of df_not_reidentified: ", len(df_not_reidentified))
+    print("Length of df_test: ", len(df_test))
 
     DatasetClass = None
     algo = ENC_CONFIG["AliceAlgo"]
@@ -724,34 +744,16 @@ def load_experiment_datasets(
     # Return only the requested splits/datasets
     return {k: result[k] for k in splits}
 
-def load_not_reidentified_data(data_directory, alice_enc_hash, identifier):
-    cache_path = get_cache_path(data_directory, identifier, alice_enc_hash, name="not_reidentified")
+def load_not_reidentified_data(dataset_name):
+    cache_path = get_cache_path(dataset_name, name="not_reidentified")
     if os.path.exists(cache_path):
         with open(cache_path, 'rb') as f:
             df_filtered = pickle.load(f)
         return df_filtered
-    df_not_reidentified = load_dataframe(f"{data_directory}/available_to_eve/not_reidentified_individuals_{identifier}.h5")
-    df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5")
-    df_filtered = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
-    drop_col = df_filtered.columns[-2]
-    df_filtered = df_filtered.drop(columns=[drop_col])
-    with open(cache_path, 'wb') as f:
-        pickle.dump(df_filtered, f)
-    return df_filtered
+    return None
 
-def get_not_reidentified_df(data_dir: str, identifier: str, alice_enc_hash=None) -> pd.DataFrame:
-    """
-    Loads and lowercases the DataFrame of not re-identified individuals.
-    Args:
-        data_dir (str): Path to the data directory.
-        identifier (str): Unique identifier for the experiment/data split.
-        alice_enc_hash (str, optional): Hash for Alice's encoding. If not provided, must be passed by caller.
-    Returns:
-        pd.DataFrame: Lowercased DataFrame of not re-identified individuals.
-    """
-    if alice_enc_hash is None:
-        raise ValueError("alice_enc_hash must be provided.")
-    df = load_not_reidentified_data(data_dir, alice_enc_hash, identifier)
+def get_not_reidentified_df(dataset_name: str) -> pd.DataFrame:
+    df = load_not_reidentified_data(dataset_name)
     return lowercase_df(df)
 
 
@@ -842,7 +844,7 @@ def run_selected_reidentification(
             info = techniques[name]
             if name == "fuzzy":
                 # Fuzzy needs extra arguments
-                reconstructed_identities = info["fn"](results, GLOBAL_CONFIG["Workers"], not (GLOBAL_CONFIG["Data"] == "./data/datasets/titanic_full.tsv"))
+                reconstructed_identities = info["fn"](results, GLOBAL_CONFIG["Workers"], not (os.path.basename(GLOBAL_CONFIG["Data"]) == "titanic_full.tsv"))
             else:
                 reconstructed_identities = info["fn"](results)
             reidentified[name] = run_reidentification_once(
@@ -883,7 +885,7 @@ def run_selected_reidentification(
             raise ValueError(f"Unsupported matching technique: {selected}")
         info = techniques[selected]
         if selected == "fuzzy":
-            reconstructed_identities = info["fn"](results, GLOBAL_CONFIG["Workers"], not (GLOBAL_CONFIG["Data"] == "./data/datasets/titanic_full.tsv"))
+            reconstructed_identities = info["fn"](results, GLOBAL_CONFIG["Workers"], not (os.path.basename(GLOBAL_CONFIG["Data"]) == "titanic_full.tsv"))
         elif selected == "ai":
             reconstructed_identities = info["fn"](results, info["merge_cols"][:-1])
         else:

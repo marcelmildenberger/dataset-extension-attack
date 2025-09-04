@@ -99,10 +99,25 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     all_two_grams = letter_letter_grams + letter_digit_grams + digit_digit_grams
     two_gram_dict = {i: two_gram for i, two_gram in enumerate(all_two_grams)}
 
+    # Start timing the total run and the GMA run.
+    if GLOBAL_CONFIG["BenchMode"]:
+        start_total = time.time()
+        start_gma = time.time()
+
     # Get the hashes for the encoding and embedding.
     eve_enc_hash, alice_enc_hash, eve_emb_hash, alice_emb_hash = get_hashes(
         GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG
     )
+
+    identifier = f"{eve_enc_hash}_{alice_enc_hash}_{eve_emb_hash}_{alice_emb_hash}"
+    data_dir = os.path.abspath("./data")
+    dataset_name = GLOBAL_CONFIG["Data"].split("/")[-1].replace(".tsv", "")
+
+    # If the data is available, log the time taken for the GMA run.
+    if GLOBAL_CONFIG["BenchMode"]:
+        elapsed_gma = time.time() - start_gma
+
+    datasets = load_experiment_datasets(dataset_name, DEA_CONFIG["Overlap"], all_two_grams, ENC_CONFIG, GLOBAL_CONFIG, DEA_CONFIG, splits=("train", "val", "test"))
 
     # Start timing the hyperparameter optimization run.
     if GLOBAL_CONFIG["BenchMode"]:
@@ -110,7 +125,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
     # Define a function to train a model with a given configuration.
     # This function is used by Ray Tune to train models with different hyperparameters.
-    def hyperparameter_training(config, data_dir, output_dim, alice_enc_hash, identifier, patience, min_delta, workers):
+    def hyperparameter_training(config, dataset_name, output_dim, alice_enc_hash, identifier, patience, min_delta, workers):
         # Sample all hyperparameters up front
         batch_size = int(config["batch_size"])
         num_layers = config["num_layers"]
@@ -121,9 +136,9 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         threshold = config["threshold"]
         optimizer_cfg = config["optimizer"]
         lr_scheduler_cfg = config["lr_scheduler"]
-
+        
         # Load data
-        datasets = load_experiment_datasets(data_dir, alice_enc_hash, identifier, ENC_CONFIG, DEA_CONFIG, GLOBAL_CONFIG, all_two_grams, splits=("train", "val"))
+        datasets = load_experiment_datasets(dataset_name, DEA_CONFIG["Overlap"], all_two_grams, ENC_CONFIG, GLOBAL_CONFIG, DEA_CONFIG, splits=("train", "val"))
         data_train, data_val = datasets["train"], datasets["val"]
         input_dim = data_train[0][0].shape[0]
 
@@ -321,19 +336,19 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # Define the trainable function.
     trainable = partial(
         hyperparameter_training,
-        data_dir=data_dir,
+        dataset_name=dataset_name,
         output_dim=len(all_two_grams),
         alice_enc_hash=alice_enc_hash,
         identifier=identifier,
         patience=DEA_CONFIG["Patience"],
         min_delta=DEA_CONFIG["MinDelta"],
-        workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
+        workers=GLOBAL_CONFIG["Workers"] // 4 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
 
     # Wrap the trainable function with resources for 10 trials
     trainable_with_resources = tune.with_resources(
         trainable,
-        resources={"cpu": GLOBAL_CONFIG["Workers"] // 10, "gpu": 0.1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"] // 10, "gpu": 0}
+        resources={"cpu": GLOBAL_CONFIG["Workers"] // 4, "gpu": 0.1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"] // 4, "gpu": 0}
     )
 
     # Initialize the tuner.
@@ -372,7 +387,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         start_model_training = time.time()
 
     best_config = resolve_config(best_result.config)
-    datasets = load_experiment_datasets(data_dir, alice_enc_hash, identifier, ENC_CONFIG, DEA_CONFIG, GLOBAL_CONFIG, all_two_grams, splits=("train", "val", "test"))
+    datasets = load_experiment_datasets(dataset_name, DEA_CONFIG["Overlap"], all_two_grams, ENC_CONFIG, GLOBAL_CONFIG, DEA_CONFIG, splits=("train", "val", "test"))
     data_train, data_val, data_test = datasets["train"], datasets["val"], datasets["test"]
 
     input_dim=data_train[0][0].shape[0]
@@ -381,21 +396,21 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=True,
         pin_memory=True,
-        num_workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
+        num_workers=GLOBAL_CONFIG["Workers"] // 4 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
     dataloader_val = DataLoader(
         data_val,
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=False,
         pin_memory=True,
-        num_workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
+        num_workers=GLOBAL_CONFIG["Workers"] // 4 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
     dataloader_test = DataLoader(
         data_test,
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=False,
         pin_memory=True,
-        num_workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
+        num_workers=GLOBAL_CONFIG["Workers"] // 4 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -638,10 +653,10 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
 
     header = read_header(GLOBAL_CONFIG["Data"])
-    include_birthday = not (GLOBAL_CONFIG["Data"] == "./data/datasets/titanic_full.tsv")
+    include_birthday = not (os.path.basename(GLOBAL_CONFIG["Data"]) == "titanic_full.tsv")
     TECHNIQUES = get_reidentification_techniques(header, include_birthday)
     selected = DEA_CONFIG["MatchingTechnique"]
-    df_not_reid_cached = get_not_reidentified_df(data_dir, identifier, alice_enc_hash=alice_enc_hash)
+    df_not_reid_cached = get_not_reidentified_df(dataset_name)
     re_identification_results_directory = f"{current_experiment_directory}/re_identification_results"
 
     run_selected_reidentification(
