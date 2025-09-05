@@ -70,7 +70,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # All configuration dictionaries are saved to a config.txt file in this directory for reproducibility.
     # Save configs as CSV for better analysis
     selected_dataset = GLOBAL_CONFIG["Data"].split("/")[-1].replace(".tsv", "")
-    experiment_tag = "experiment_" + ENC_CONFIG["AliceAlgo"] + "_" + selected_dataset + "_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    experiment_tag = "experiment_" + ENC_CONFIG["AliceAlgo"] + "_" + selected_dataset + "_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + DEA_CONFIG["Overlap"]
     current_experiment_directory = f"experiment_results/{experiment_tag}"
     os.makedirs(current_experiment_directory, exist_ok=True)
 
