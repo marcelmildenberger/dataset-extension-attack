@@ -124,7 +124,7 @@ ALIGN_CONFIG = {
 failed_experiments = []
 
 # Load missing experiments from CSV
-missing_experiments_df = pd.read_csv("analysis/tables/missing_experiments.csv")
+missing_experiments_df = pd.read_csv("missing_experiments.csv")
 
 # Convert to list of dictionaries for easier iteration
 missing_experiments = missing_experiments_df.to_dict('records')
