@@ -366,7 +366,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         "threshold": tune.uniform(0.3, 0.8),
         # MLP
         "num_layers": tune.choice([1, 2, 3]),
-        "hidden_layer_size": tune.choice([256, 512, 1024]),
+        "hidden_layer_size": tune.choice([256, 512, 1024, 2048, 4096]),
         "dropout_rate": tune.uniform(0.1, 0.5),
         "activation_fn": tune.choice(["relu", "leaky_relu", "gelu", "elu", "tanh"]),
 
@@ -403,7 +403,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             "mode": tune.choice(["triangular", "triangular2", "exp_range"])},
         ]),
         # Batch size & regularization
-        "batch_size": tune.choice([16, 32, 64]),
+        "batch_size": tune.choice([8, 16, 32, 64, 128]),
         "clip_grad_norm": tune.choice([0.0, 1.0, 5.0]),
     }
 
