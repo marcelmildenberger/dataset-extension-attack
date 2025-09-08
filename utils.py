@@ -130,8 +130,8 @@ def precision_recall_f1(y_true, y_pred):
     return precision, recall, f1
 
 
-def run_epoch(model, dataloader, criterion, optimizer, device, is_training, verbose, scheduler=None):
-    model.train() if is_training else model.eval()
+def run_epoch(model, dataloader, criterion, optimizer, device, is_training, verbose, scheduler=None, scheduler_step=None, clip_grad_norm=0.0):
+    model.train(mode=is_training)
     running_loss = 0.0
 
     data_iter = tqdm(dataloader, desc="Training" if is_training else "Validation") if verbose else dataloader
@@ -148,8 +148,10 @@ def run_epoch(model, dataloader, criterion, optimizer, device, is_training, verb
 
             if is_training:
                 loss.backward()
+                if clip_grad_norm and clip_grad_norm > 0.0:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), clip_grad_norm)
                 optimizer.step()
-                if scheduler and not isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                if scheduler is not None and scheduler_step == "batch":
                     scheduler.step()
 
             running_loss += loss.item() * labels.size(0)
@@ -966,4 +968,21 @@ def plot_metric_distributions(results_df, trained_model_directory, save=False):
         out_path = os.path.join(trained_model_directory, "metric_distributions.png")
         plt.savefig(out_path)
     plt.close()
+
+
+@torch.no_grad()
+def estimate_pos_weight(dataloader, output_dim):
+    """Compute per-class pos_weight = (N - pos) / pos, clamped to avoid div-by-zero."""
+    device = torch.device("cpu")
+    total = torch.zeros(output_dim, dtype=torch.float32, device=device)
+    n_samples = 0
+    for _, labels, _ in dataloader:
+        # labels expected shape (B, C) with 0/1
+        total += labels.sum(dim=0).to(device)
+        n_samples += labels.size(0)
+    pos = total
+    neg = n_samples - pos
+    pos = torch.clamp(pos, min=1.0)          # avoid inf
+    pos_weight = neg / pos
+    return pos_weight
 

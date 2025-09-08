@@ -50,6 +50,7 @@ from utils import (
     get_not_reidentified_df,
     get_reidentification_techniques,
     run_selected_reidentification,
+    estimate_pos_weight
 )
 
 def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
@@ -152,16 +153,17 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # Define a function to train a model with a given configuration.
     # This function is used by Ray Tune to train models with different hyperparameters.
     def hyperparameter_training(config, data_dir, output_dim, alice_enc_hash, identifier, patience, min_delta, workers):
-        # Sample all hyperparameters up front
-        batch_size = int(config["batch_size"])
-        num_layers = config["num_layers"]
-        hidden_layer_size = config["hidden_layer_size"]
-        dropout_rate = config["dropout_rate"]
-        activation_fn = config["activation_fn"]
-        loss_fn_name = config["loss_fn"]
-        threshold = config["threshold"]
-        optimizer_cfg = config["optimizer"]
-        lr_scheduler_cfg = config["lr_scheduler"]
+        # Resolve config
+        batch_size       = int(config["batch_size"])
+        num_layers       = config["num_layers"]
+        hidden_layer_sz  = config["hidden_layer_size"]
+        dropout_rate     = config["dropout_rate"]
+        activation_fn    = config["activation_fn"]
+        loss_cfg         = config["loss_fn"]
+        opt_cfg          = config["optimizer"]
+        sched_cfg        = config["lr_scheduler"]
+        clip_grad_norm   = float(config.get("clip_grad_norm", 0.0))
+        threshold        = config["threshold"]
 
         # Load data
         datasets = load_experiment_datasets(data_dir, alice_enc_hash, identifier, ENC_CONFIG, DEA_CONFIG, GLOBAL_CONFIG, all_two_grams, splits=("train", "val"))
@@ -188,77 +190,108 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             input_dim=input_dim,
             output_dim=output_dim,
             num_layers=num_layers,
-            hidden_layer_size=hidden_layer_size,
+            hidden_layer_size=hidden_layer_sz,
             dropout_rate=dropout_rate,
             activation_fn=activation_fn
         )
         model.to(device)
 
-        # Loss function
-        loss_functions = {
-            "BCEWithLogitsLoss": nn.BCEWithLogitsLoss(),
-            "MultiLabelSoftMarginLoss": nn.MultiLabelSoftMarginLoss(),
-            "SoftMarginLoss": nn.SoftMarginLoss(),
-        }
-        criterion = loss_functions[loss_fn_name]
+        # ----- Loss ----------------------------------------------------------------------------------
+        if isinstance(loss_cfg, dict) and loss_cfg.get("name") == "BCEWithLogitsLoss":
+            use_pw = bool(loss_cfg.get("use_pos_weight", False))
+            if use_pw:
+                # small single-pass estimate on the fly
+                pos_weight = estimate_pos_weight(dataloader_train, output_dim).to(device)
+                criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+            else:
+                criterion = nn.BCEWithLogitsLoss()
+        elif isinstance(loss_cfg, dict) and loss_cfg.get("name") == "MultiLabelSoftMarginLoss":
+            criterion = nn.MultiLabelSoftMarginLoss()
+        elif isinstance(loss_cfg, dict) and loss_cfg.get("name") == "SoftMarginLoss":
+            criterion = nn.SoftMarginLoss()
 
-        # Optimizer
-        lr = optimizer_cfg["lr"].sample() if hasattr(optimizer_cfg["lr"], "sample") else optimizer_cfg["lr"]
-        optimizer_name = optimizer_cfg["name"]
-        if optimizer_name == "Adam":
-            optimizer = optim.Adam(model.parameters(), lr=lr)
-        elif optimizer_name == "AdamW":
-            optimizer = optim.AdamW(model.parameters(), lr=lr)
-        elif optimizer_name == "SGD":
-            momentum = optimizer_cfg.get("momentum", 0.0)
-            if hasattr(momentum, "sample"):
-                momentum = momentum.sample()
-            optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum)
-        elif optimizer_name == "RMSprop":
-            optimizer = optim.RMSprop(model.parameters(), lr=lr)
+        # ----- Optimizer -----------------------------------------------------------------------------
+        opt_name = opt_cfg["name"]
+        lr = opt_cfg["lr"].sample()
+        wd = opt_cfg["weight_decay"].sample()
+
+        if opt_name == "AdamW":
+            optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
+        elif opt_name == "Adam":
+            optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=wd)
+        elif opt_name == "RMSprop":
+            optimizer = optim.RMSprop(model.parameters(), lr=lr,
+                                    alpha=opt_cfg["alpha"].sample(),
+                                    weight_decay=wd)
+        elif opt_name == "SGD":
+            optimizer = optim.SGD(model.parameters(), lr=lr,
+                                momentum=opt_cfg["momentum"].sample(),
+                                nesterov=bool(opt_cfg.get("nesterov", False)),
+                                weight_decay=wd)
         else:
-            raise ValueError(f"Unknown optimizer: {optimizer_name}")
+            raise ValueError(f"Unknown optimizer: {opt_name}")
 
-        # Scheduler
-        scheduler = None
-        scheduler_name = lr_scheduler_cfg["name"]
-        if scheduler_name == "StepLR":
-            step_size = lr_scheduler_cfg["step_size"].sample() if hasattr(lr_scheduler_cfg["step_size"], "sample") else lr_scheduler_cfg["step_size"]
-            gamma = lr_scheduler_cfg["gamma"].sample() if hasattr(lr_scheduler_cfg["gamma"], "sample") else lr_scheduler_cfg["gamma"]
-            scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
-        elif scheduler_name == "ExponentialLR":
-            gamma = lr_scheduler_cfg["gamma"].sample() if hasattr(lr_scheduler_cfg["gamma"], "sample") else lr_scheduler_cfg["gamma"]
-            scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=gamma)
-        elif scheduler_name == "ReduceLROnPlateau":
-            factor = lr_scheduler_cfg["factor"].sample() if hasattr(lr_scheduler_cfg["factor"], "sample") else lr_scheduler_cfg["factor"]
-            patience_sched = lr_scheduler_cfg["patience"].sample() if hasattr(lr_scheduler_cfg["patience"], "sample") else lr_scheduler_cfg["patience"]
+        # ----- Scheduler -----------------------------------------------------------------------------
+        scheduler, scheduler_step = None, None  # scheduler_step in {"batch","epoch",None}
+
+        name = sched_cfg["name"]
+        if name == "StepLR":
+            scheduler = torch.optim.lr_scheduler.StepLR(
+                optimizer, step_size=sched_cfg["step_size"].sample(),
+                gamma=sched_cfg["gamma"].sample()
+            )
+            scheduler_step = "epoch"
+        elif name == "CosineAnnealingLR":
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer, T_max=sched_cfg["T_max"].sample(),
+                eta_min=sched_cfg["eta_min"].sample()
+            )
+            scheduler_step = "epoch"
+        elif name == "ReduceLROnPlateau":
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer,
-                mode=lr_scheduler_cfg["mode"],
-                factor=factor,
-                patience=patience_sched
+                optimizer, mode=sched_cfg.get("mode", "min"),
+                factor=sched_cfg["factor"].sample(),
+                patience=sched_cfg["patience"].sample(),
+                min_lr=sched_cfg.get("min_lr", 0.0).sample()
             )
-        elif scheduler_name == "CosineAnnealingLR":
-            T_max = lr_scheduler_cfg["T_max"].sample() if hasattr(lr_scheduler_cfg["T_max"], "sample") else lr_scheduler_cfg["T_max"]
-            eta_min = lr_scheduler_cfg["eta_min"].sample() if hasattr(lr_scheduler_cfg["eta_min"], "sample") else lr_scheduler_cfg["eta_min"]
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max, eta_min=eta_min)
-        elif scheduler_name == "CyclicLR":
-            base_lr = lr_scheduler_cfg["base_lr"].sample() if hasattr(lr_scheduler_cfg["base_lr"], "sample") else lr_scheduler_cfg["base_lr"]
-            max_lr = lr_scheduler_cfg["max_lr"].sample() if hasattr(lr_scheduler_cfg["max_lr"], "sample") else lr_scheduler_cfg["max_lr"]
-            step_size_up = lr_scheduler_cfg["step_size_up"].sample() if hasattr(lr_scheduler_cfg["step_size_up"], "sample") else lr_scheduler_cfg["step_size_up"]
-            mode_cyclic = lr_scheduler_cfg["mode_cyclic"].sample() if hasattr(lr_scheduler_cfg["mode_cyclic"], "sample") else lr_scheduler_cfg["mode_cyclic"]
-            scheduler = torch.optim.lr_scheduler.CyclicLR(
-                optimizer,
-                base_lr=base_lr,
-                max_lr=max_lr,
-                step_size_up=step_size_up,
-                mode=mode_cyclic,
-                cycle_momentum=False
-            )
-        elif scheduler_name == "None":
+            scheduler_step = None  # special-case: step(metric) after val
+        elif name == "CyclicLR":
+            base_lr = sched_cfg["base_lr"].sample()
+            ratio = sched_cfg["ratio"].sample()
+            max_lr = base_lr * ratio
+            # Keep optimizer LR aligned with base_lr for clarity:
+            for pg in optimizer.param_groups:
+                pg["lr"] = base_lr
+            cycle_momentum = isinstance(optimizer, optim.SGD) and optimizer.defaults.get("momentum", 0.0) > 0
+            mode = sched_cfg.get("mode", "triangular")
+            # If mode is a tune object, sample it
+            if hasattr(mode, 'sample'):
+                mode = mode.sample()
+            
+            # Handle exp_range mode which requires scale_fn
+            if mode == "exp_range":
+                scheduler = torch.optim.lr_scheduler.CyclicLR(
+                    optimizer, base_lr=base_lr, max_lr=max_lr,
+                    step_size_up=sched_cfg["step_size_up"].sample(),
+                    mode=mode,
+                    cycle_momentum=cycle_momentum,
+                    scale_fn=lambda x: 0.8**(x)  # Exponential decay function
+                )
+            else:
+                scheduler = torch.optim.lr_scheduler.CyclicLR(
+                    optimizer, base_lr=base_lr, max_lr=max_lr,
+                    step_size_up=sched_cfg["step_size_up"].sample(),
+                    mode=mode,
+                    cycle_momentum=cycle_momentum
+                )
+            scheduler_step = "batch"
+        elif name == "None":
             scheduler = None
+            scheduler_step = None
         else:
-            raise ValueError(f"Unknown scheduler: {scheduler_name}")
+            raise ValueError(f"Unknown scheduler: {name}")
+
+        # Training Loop
 
         # Initialize variables for tracking best validation loss, model state, performance metrics, and early stopping
         best_val_loss = float('inf')
@@ -277,19 +310,22 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             epochs += 1
             train_loss = run_epoch(
                 model, dataloader_train, criterion, optimizer, device,
-                is_training=True, verbose=GLOBAL_CONFIG["Verbose"], scheduler=scheduler
+                is_training=True, verbose=GLOBAL_CONFIG["Verbose"], scheduler=scheduler, scheduler_step=scheduler_step, clip_grad_norm=clip_grad_norm
             )
             val_loss = run_epoch(
                 model, dataloader_val, criterion, optimizer, device,
-                is_training=False, verbose=GLOBAL_CONFIG["Verbose"], scheduler=scheduler
+                is_training=False, verbose=GLOBAL_CONFIG["Verbose"], scheduler=None, scheduler_step=None  # never step during eval
             )
+
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 best_model_state = copy.deepcopy(model.state_dict())
+
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                 scheduler.step(val_loss)
-            elif scheduler is not None:
+            elif scheduler is not None and scheduler_step == "epoch":
                 scheduler.step()
+
             total_val_loss += val_loss
             if early_stopper(val_loss):
                 break
@@ -302,6 +338,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             data = data.to(device)
             logits = model(data)
             probabilities = torch.sigmoid(logits)
+
             batch_two_gram_scores = map_probabilities_to_two_grams(two_gram_dict, probabilities)
             batch_filtered_two_gram_scores = filter_high_scoring_two_grams(batch_two_gram_scores, threshold)
             dice, precision, recall, f1 = calculate_performance_metrics(
@@ -325,26 +362,48 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # Define the search space for the hyperparameters.
     search_space = {
         "output_dim": len(all_two_grams),
-        "num_layers": tune.randint(1, 3),
-        "hidden_layer_size": tune.choice([128, 256, 512, 1024, 2048, 4096]),
-        "dropout_rate": tune.uniform(0.1, 0.4),
-        "activation_fn": tune.choice(["relu", "leaky_relu", "gelu", "elu", "selu", "tanh"]),
-        "optimizer": tune.choice([
-            {"name": "Adam", "lr": tune.loguniform(1e-5, 1e-3)},
-            {"name": "AdamW", "lr": tune.loguniform(1e-5, 1e-3)},
-            {"name": "RMSprop", "lr": tune.loguniform(1e-5, 1e-3)},
-        ]),
-        "loss_fn": tune.choice(["BCEWithLogitsLoss", "MultiLabelSoftMarginLoss", "SoftMarginLoss"]),
         "threshold": tune.uniform(0.3, 0.8),
-        "lr_scheduler": tune.choice([
-            {"name": "StepLR", "step_size": tune.choice([5, 10, 20]), "gamma": tune.uniform(0.1, 0.9)},
-            {"name": "ExponentialLR", "gamma": tune.uniform(0.85, 0.99)},
-            {"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform(0.1, 0.5), "patience": tune.choice([5, 10, 15])},
-            {"name": "CosineAnnealingLR", "T_max": tune.loguniform(10, 50), "eta_min": tune.choice([1e-5, 1e-6, 0])},
-            {"name": "CyclicLR", "base_lr": tune.loguniform(1e-5, 1e-3), "max_lr": tune.loguniform(1e-3, 1e-1), "step_size_up": tune.choice([2000, 4000]), "mode_cyclic": tune.choice(["triangular", "triangular2", "exp_range"]) },
-            {"name": "None"}
+        # MLP
+        "num_layers": tune.choice([1, 2, 3]),
+        "hidden_layer_size": tune.choice([256, 512, 1024]),
+        "dropout_rate": tune.uniform(0.1, 0.5),
+        "activation_fn": tune.choice(["relu", "leaky_relu", "gelu", "elu", "tanh"]),
+
+        # Optimizer
+        "optimizer": tune.choice([
+            {"name": "AdamW", "lr": tune.loguniform(1e-5, 3e-3),
+            "weight_decay": tune.loguniform(1e-6, 1e-2)},
+            {"name": "Adam",  "lr": tune.loguniform(1e-5, 3e-3),
+            "weight_decay": tune.loguniform(1e-7, 1e-3)},
+            {"name": "RMSprop","lr": tune.loguniform(1e-5, 1e-3),
+            "alpha": tune.uniform(0.8, 0.99), "weight_decay": tune.loguniform(1e-7, 1e-3)},
+            {"name": "SGD",   "lr": tune.loguniform(1e-4, 1e-1),
+            "momentum": tune.uniform(0.0, 0.95),
+            "nesterov": tune.choice([False, True]),
+            "weight_decay": tune.loguniform(1e-7, 1e-3)},
         ]),
-        "batch_size": tune.choice([8, 16, 32, 64]),
+        # Loss
+        "loss_fn": tune.choice([
+            {"name": "BCEWithLogitsLoss", "use_pos_weight": tune.choice([False, True])},
+            {"name": "MultiLabelSoftMarginLoss"},
+            {"name": "SoftMarginLoss"}
+        ]),
+        
+        # LR scheduler
+        "lr_scheduler": tune.choice([
+            {"name": "None"},
+            {"name": "StepLR", "step_size": tune.choice([5, 10, 20]), "gamma": tune.uniform(0.3, 0.8)},
+            {"name": "CosineAnnealingLR", "T_max": tune.randint(10, 51), "eta_min": tune.choice([0.0, 1e-6, 1e-5])},
+            {"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform(0.1, 0.5),
+            "patience": tune.choice([3, 5, 10]), "min_lr": tune.choice([0.0, 1e-6, 1e-5])},
+            {"name": "CyclicLR", "base_lr": tune.loguniform(1e-5, 1e-3),
+            "ratio": tune.uniform(2.0, 10.0),
+            "step_size_up": tune.choice([500, 1000, 2000]),
+            "mode": tune.choice(["triangular", "triangular2", "exp_range"])},
+        ]),
+        # Batch size & regularization
+        "batch_size": tune.choice([16, 32, 64]),
+        "clip_grad_norm": tune.choice([0.0, 1.0, 5.0]),
     }
 
     # Initialize Ray for hyperparameter optimization.
@@ -450,124 +509,210 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             )
     model.to(device)
 
+    loss_cfg = best_config.get("loss_fn")
     # Initialize the TensorBoard writer.
     if GLOBAL_CONFIG["SaveResults"]:
         run_name = "".join([
-            best_config.get("loss_fn", "MultiLabelSoftMarginLoss"),
+            loss_cfg.get("name", "MultiLabelSoftMarginLoss"),
             best_config.get("optimizer").get("name", "Adam"),
             ENC_CONFIG["AliceAlgo"],
             best_config.get("activation_fn", "relu"),
         ])
         tb_writer = SummaryWriter(f"{current_experiment_directory}/{run_name}")
 
-    # Initialize the loss function.
-    match best_config.get("loss_fn", "MultiLabelSoftMarginLoss"):
-        case "BCEWithLogitsLoss":
-            criterion = nn.BCEWithLogitsLoss(reduction='mean')
-        case "MultiLabelSoftMarginLoss":
-            criterion = nn.MultiLabelSoftMarginLoss(reduction='mean')
-        case "SoftMarginLoss":
-            criterion = nn.SoftMarginLoss()
-        case _:
-            raise ValueError(f"Unsupported loss function: {best_config.get('loss_fn', 'MultiLabelSoftMarginLoss')}")
+        # ------------------- LOSS -------------------
+    
+    if isinstance(loss_cfg, dict):
+        loss_name = loss_cfg.get("name", "MultiLabelSoftMarginLoss")
+    else:
+        loss_name = loss_cfg
 
-    # Initialize the optimizer.
-    match best_config.get("optimizer").get("name", "Adam"):
-        case "Adam":
-            optimizer = optim.Adam(model.parameters(), lr=best_config.get("optimizer").get("lr"))
-        case "AdamW":
-            optimizer = optim.AdamW(model.parameters(), lr=best_config.get("optimizer").get("lr"))
-        case "SGD":
-            optimizer = optim.SGD(model.parameters(),
-                                lr=best_config.get("optimizer").get("lr"),
-                                momentum=best_config.get("optimizer").get("momentum"))
-        case "RMSprop":
-            optimizer = optim.RMSprop(model.parameters(), lr=best_config.get("optimizer").get("lr"))
-        case _:
-            raise ValueError(f"Unsupported optimizer: {best_config.get('optimizer').get('name', 'Adam')}")
+    if loss_name == "BCEWithLogitsLoss":
+        use_pw = isinstance(loss_cfg, dict) and loss_cfg.get("use_pos_weight", False)
+        if use_pw:
+            pos_weight = estimate_pos_weight(dataloader_train, output_dim).to(device)
+            criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight, reduction="mean")
+        else:
+            criterion = nn.BCEWithLogitsLoss(reduction="mean")
+    elif loss_name == "MultiLabelSoftMarginLoss":
+        criterion = nn.MultiLabelSoftMarginLoss(reduction="mean")
+    elif loss_name == "SoftMarginLoss":
+        criterion = nn.SoftMarginLoss()
+    else:
+        raise ValueError(f"Unsupported loss function: {loss_name}")
 
-    # Initialize the learning rate scheduler.
-    match best_config.get("lr_scheduler").get("name", "None"):
-        case "StepLR":
-            scheduler = torch.optim.lr_scheduler.StepLR(
-                optimizer,
-                step_size=best_config.get("lr_scheduler").get("step_size"),
-                gamma=best_config.get("lr_scheduler").get("gamma")
-            )
-        case "ExponentialLR":
-            scheduler = torch.optim.lr_scheduler.ExponentialLR(
-                optimizer,
-                gamma=best_config.get("lr_scheduler").get("gamma")
-            )
-        case "ReduceLROnPlateau":
-            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer,
-                mode=best_config.get("lr_scheduler").get("mode"),
-                factor=best_config.get("lr_scheduler").get("factor"),
-                patience=best_config.get("lr_scheduler").get("patience")
-            )
-        case "CosineAnnealingLR":
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimizer,
-                T_max=best_config.get("lr_scheduler").get("T_max")
-            )
-        case "CyclicLR":
+    # ------------------- OPTIMIZER -------------------
+    opt_cfg   = best_config.get("optimizer", {})
+    opt_name  = opt_cfg.get("name", "Adam")
+    lr        = opt_cfg.get("lr", 1e-3)
+    weightdec = opt_cfg.get("weight_decay", 0.0)
+    momentum  = opt_cfg.get("momentum", 0.0)
+    nesterov  = opt_cfg.get("nesterov", False)
+    alpha     = opt_cfg.get("alpha", 0.99)  # RMSprop smoothing
+
+    if opt_name == "AdamW":
+        optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=weightdec)
+    elif opt_name == "Adam":
+        optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weightdec)
+    elif opt_name == "RMSprop":
+        optimizer = optim.RMSprop(model.parameters(), lr=lr, alpha=alpha, weight_decay=weightdec)
+    elif opt_name == "SGD":
+        optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum,
+                            nesterov=nesterov, weight_decay=weightdec)
+    else:
+        raise ValueError(f"Unsupported optimizer: {opt_name}")
+
+    # ------------------- SCHEDULER -------------------
+    sched_cfg = best_config.get("lr_scheduler", {"name": "None"})
+    name = sched_cfg.get("name", "None")
+    scheduler, scheduler_step = None, None  # {"batch","epoch",None}
+
+    if name == "StepLR":
+        scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer,
+            step_size=int(sched_cfg.get("step_size", 10)),
+            gamma=float(sched_cfg.get("gamma", 0.5))
+        )
+        scheduler_step = "epoch"
+
+    elif name == "CosineAnnealingLR":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=int(sched_cfg.get("T_max", 50)),
+            eta_min=float(sched_cfg.get("eta_min", 0.0))
+        )
+        scheduler_step = "epoch"
+
+    elif name == "ReduceLROnPlateau":
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode=sched_cfg.get("mode", "min"),
+            factor=float(sched_cfg.get("factor", 0.5)),
+            patience=int(sched_cfg.get("patience", 5)),
+            min_lr=float(sched_cfg.get("min_lr", 0.0))
+        )
+        scheduler_step = None  # call scheduler.step(val_loss) after validation
+
+    elif name == "CyclicLR":
+        # Prefer base_lr + ratio (max_lr = base_lr * ratio); fall back to explicit max_lr if provided
+        base_lr = float(sched_cfg.get("base_lr", lr))
+        ratio   = sched_cfg.get("ratio", None)
+        max_lr  = float(base_lr * ratio) if ratio is not None else float(sched_cfg.get("max_lr", base_lr * 10.0))
+        step_size_up = int(sched_cfg.get("step_size_up", 1000))
+        mode = sched_cfg.get("mode", sched_cfg.get("mode_cyclic", "triangular"))
+
+        # Align optimizer LR to base_lr for clarity
+        for pg in optimizer.param_groups:
+            pg["lr"] = base_lr
+
+        cycle_momentum = isinstance(optimizer, optim.SGD) and momentum > 0.0
+
+        if mode == "exp_range":
             scheduler = torch.optim.lr_scheduler.CyclicLR(
-                optimizer,
-                base_lr=best_config.get("lr_scheduler").get("base_lr"),
-                max_lr=best_config.get("lr_scheduler").get("max_lr"),
-                step_size_up=best_config.get("lr_scheduler").get("step_size_up"),
-                mode=best_config.get("lr_scheduler").get("mode_cyclic"),
-                cycle_momentum=False
+                optimizer, base_lr=base_lr, max_lr=max_lr,
+                step_size_up=step_size_up, mode=mode,
+                cycle_momentum=cycle_momentum,
+                scale_fn=lambda x: 0.8 ** x,
             )
-        case None | "None":
-            scheduler = None
-        case _:
-            raise ValueError(f"Unsupported LR scheduler: {best_config.get('lr_scheduler').get('name', 'None')}")
+        else:
+            scheduler = torch.optim.lr_scheduler.CyclicLR(
+                optimizer, base_lr=base_lr, max_lr=max_lr,
+                step_size_up=step_size_up, mode=mode,
+                cycle_momentum=cycle_momentum,
+            )
+        scheduler_step = "batch"
 
-    def train_final_model(model, dataloader_train, dataloader_val, criterion, optimizer, device, scheduler=None):
+    elif name in (None, "None"):
+        scheduler = None
+        scheduler_step = None
+
+    else:
+        raise ValueError(f"Unsupported LR scheduler: {name}")
+
+
+
+    clip_grad_norm = best_config.get("clip_grad_norm", 0.0)
+
+    def train_final_model(
+    model,
+    dataloader_train,
+    dataloader_val,
+    criterion,
+    optimizer,
+    device,
+    scheduler=None,
+    clip_grad_norm=0.0,
+    scheduler_step=None,
+    ):
+        # epochs from best_config if present, otherwise default
         num_epochs = best_config.get("epochs", DEA_CONFIG["Epochs"])
-        verbose = GLOBAL_CONFIG["Verbose"]
-        patience = DEA_CONFIG["Patience"]
-        min_delta = DEA_CONFIG["MinDelta"]
-        best_val_loss = float('inf')
+        verbose    = GLOBAL_CONFIG["Verbose"]
+        patience   = DEA_CONFIG["Patience"]
+        min_delta  = DEA_CONFIG["MinDelta"]
+
+
+        best_val_loss   = float("inf")
         best_model_state = None
-        early_stopper = EarlyStopping(patience=patience, min_delta=min_delta, verbose=verbose)
+        early_stopper   = EarlyStopping(patience=patience, min_delta=min_delta, verbose=verbose)
         train_losses, val_losses = [], []
 
         for epoch in range(num_epochs):
+            # Train: if scheduler is per-batch, pass it in; otherwise don't
             train_loss = run_epoch(
-                model, dataloader_train, criterion, optimizer,
-                device, is_training=True, verbose=verbose, scheduler=scheduler
+                model, dataloader_train, criterion, optimizer, device,
+                is_training=True, verbose=verbose,
+                scheduler=scheduler if scheduler_step == "batch" else None,
+                scheduler_step=scheduler_step,
+                clip_grad_norm=clip_grad_norm,
             )
             train_losses.append(train_loss)
+
+            # Validate: never step the scheduler inside validation
             val_loss = run_epoch(
-                model, dataloader_val, criterion, optimizer,
-                device, is_training=False, verbose=verbose, scheduler=scheduler
+                model, dataloader_val, criterion, optimizer, device,
+                is_training=False, verbose=verbose,
+                scheduler=None, scheduler_step=None,
+                clip_grad_norm=0.0,
             )
+            val_losses.append(val_loss)
+
+            # Track best checkpoint
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 best_model_state = copy.deepcopy(model.state_dict())
-            val_losses.append(val_loss)
-            if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                scheduler.step(val_loss)
-            elif scheduler is not None:
-                scheduler.step()
 
-            log_epoch_metrics(epoch, num_epochs, train_loss, val_loss, tb_writer=tb_writer if 'tb_writer' in locals() else None, save_results=GLOBAL_CONFIG["SaveResults"])
+            # Epoch-level scheduler stepping
+            if scheduler is not None:
+                if scheduler_step == "plateau":
+                    scheduler.step(val_loss)  # ReduceLROnPlateau
+                elif scheduler_step == "epoch":
+                    scheduler.step()          # StepLR / CosineAnnealingLR
+                # if "batch", it has already been stepped inside run_epoch
+
+            log_epoch_metrics(
+                epoch, num_epochs, train_loss, val_loss,
+                tb_writer=tb_writer if 'tb_writer' in locals() else None,
+                save_results=GLOBAL_CONFIG["SaveResults"]
+            )
+
             if early_stopper(val_loss):
                 if verbose:
                     print(f"Early stopping triggered at epoch {epoch + 1}")
                 break
+
         if best_model_state is not None:
             model.load_state_dict(best_model_state)
+
         return model, train_losses, val_losses
+
 
     # Train the final model.
     model, train_losses, val_losses = train_final_model(
         model, dataloader_train, dataloader_val,
         criterion, optimizer, device,
-        scheduler=scheduler
+        scheduler=scheduler,
+        clip_grad_norm=clip_grad_norm,
+        scheduler_step=scheduler_step
     )
 
     # Stop timing the model training.

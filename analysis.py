@@ -233,7 +233,7 @@ summary_df.to_csv("analysis/tables/reidentification_summary.csv", index=False)
 
 # Ensure time columns are numeric
 time_cols = [
-    "GraphMatchingAttackTime", "HyperparameterOptimizationTime",
+    "HyperparameterOptimizationTime",
     "ModelTrainingTime", "ApplicationtoEncodedDataTime",
     "RefinementandReconstructionTime", "TotalRuntime"
 ]

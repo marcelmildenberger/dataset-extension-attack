@@ -123,46 +123,52 @@ ALIGN_CONFIG = {
 # List to store failed experiments
 failed_experiments = []
 
-encs = ["TwoStepHash", "BloomFilter", "TabMinHash"]
+# Load missing experiments from CSV
+missing_experiments_df = pd.read_csv("missing_experiments.csv")
 
-datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv",
-            "fakename_20k.tsv", "fakename_50k.tsv", "euro_full.tsv"]
+# Convert to list of dictionaries for easier iteration
+missing_experiments = missing_experiments_df.to_dict('records')
 
-drop = ["Eve","Both"]
+print(f"Running {len(missing_experiments)} missing experiments...")
 
-overlap = [0.2, 0.4, 0.6, 0.8]
-
-for encoding in encs:
+for experiment in missing_experiments:
+    encoding = experiment["Encoding"]
+    dataset = experiment["Dataset"]
+    drop_from = experiment["DropFrom"]
+    ov = experiment["Overlap"]
+    
     ENC_CONFIG["AliceAlgo"] = encoding
     ENC_CONFIG["EveAlgo"] = "None"
     if encoding == "BloomFilter":
         ENC_CONFIG["EveAlgo"] = encoding
-    for dataset in datasets:
-        for drop_from in drop:
-            for ov in overlap:
-                GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
-                GLOBAL_CONFIG["DropFrom"] = drop_from
-                GLOBAL_CONFIG["Overlap"] = ov
-                try:
-                    run_dea(
-                        GLOBAL_CONFIG.copy(),
-                        ENC_CONFIG.copy(),
-                        EMB_CONFIG.copy(),
-                        ALIGN_CONFIG.copy(),
-                        DEA_CONFIG.copy()
-                    )
-                except Exception as e:
-                    # Record failed experiment
-                    failed_experiments.append({
-                        "encoding": encoding,
-                        "dataset": dataset,
-                        "drop_from": drop_from,
-                        "overlap": ov,
-                        "error_message": str(e),
-                        "error_type": type(e).__name__,
-                    })
-                    print(f"Failed: {encoding} - {dataset} - {drop_from} - {ov}: {e}")
-                    continue
+    
+    GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
+    GLOBAL_CONFIG["DropFrom"] = drop_from
+    GLOBAL_CONFIG["Overlap"] = ov
+    
+    print(f"Running: {encoding} - {dataset} - {drop_from} - {ov}")
+
+    try:
+        run_dea(
+            GLOBAL_CONFIG.copy(),
+            ENC_CONFIG.copy(),
+            EMB_CONFIG.copy(),
+            ALIGN_CONFIG.copy(),
+            DEA_CONFIG.copy()
+        )
+        print(f"✓ Completed: {encoding} - {dataset} - {drop_from} - {ov}")
+    except Exception as e:
+        # Record failed experiment
+        failed_experiments.append({
+            "encoding": encoding,
+            "dataset": dataset,
+            "drop_from": drop_from,
+            "overlap": ov,
+            "error_message": str(e),
+            "error_type": type(e).__name__,
+        })
+        print(f"✗ Failed: {encoding} - {dataset} - {drop_from} - {ov}: {e}")
+        continue
 
 # Save failed experiments to CSV
 if failed_experiments:
