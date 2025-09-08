@@ -655,7 +655,7 @@ print("="*80)
 
 # Define expected combinations based on experiment_setup.py
 expected_encodings = ["TabMinHash", "TwoStepHash", "BloomFilter"]
-expected_datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv", "fakename_20k.tsv", "euro_person.tsv"]
+expected_datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv", "fakename_20k.tsv", "fakename_50k.tsv", "euro_person.tsv"]
 expected_drop_from = ["Eve", "Both"]
 expected_overlaps = [0.2, 0.4, 0.6, 0.8]
 
