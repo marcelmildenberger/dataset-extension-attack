@@ -120,7 +120,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
     # Define a function to train a model with a given configuration.
     # This function is used by Ray Tune to train models with different hyperparameters.
-    def hyperparameter_training(config, data_dir, output_dim, alice_enc_hash, identifier, patience, min_delta, workers):
+    def hyperparameter_training(config):
         # Resolve config
         batch_size       = int(config["batch_size"])
         num_layers       = config["num_layers"]
@@ -134,7 +134,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         threshold        = config["threshold"]
 
         # Load data
-        datasets = load_experiment_datasets(data_dir, alice_enc_hash, identifier, ENC_CONFIG, DEA_CONFIG, GLOBAL_CONFIG, all_two_grams, splits=("train", "val"))
+        datasets = load_experiment_datasets(dataset_name, DEA_CONFIG["Overlap"], all_two_grams, ENC_CONFIG, GLOBAL_CONFIG, DEA_CONFIG, splits=("train", "val"))
         data_train, data_val = datasets["train"], datasets["val"]
         input_dim = data_train[0][0].shape[0]
 
@@ -143,20 +143,20 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             batch_size=batch_size,
             shuffle=True,
             pin_memory=True,
-            num_workers=workers,
+            num_workers=GLOBAL_CONFIG["Workers"] // 4 if GLOBAL_CONFIG["UseGPU"] else 0,
         )
         dataloader_val = DataLoader(
             data_val,
             batch_size=batch_size,
             shuffle=False,
             pin_memory=True,
-            num_workers=workers,
+            num_workers=GLOBAL_CONFIG["Workers"] // 4 if GLOBAL_CONFIG["UseGPU"] else 0,
         )
 
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         model = BaseModelHyperparameterOptimization(
             input_dim=input_dim,
-            output_dim=output_dim,
+            output_dim=len(all_two_grams),
             num_layers=num_layers,
             hidden_layer_size=hidden_layer_sz,
             dropout_rate=dropout_rate,
@@ -169,7 +169,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             use_pw = bool(loss_cfg.get("use_pos_weight", False))
             if use_pw:
                 # small single-pass estimate on the fly
-                pos_weight = estimate_pos_weight(dataloader_train, output_dim).to(device)
+                pos_weight = estimate_pos_weight(dataloader_train, len(all_two_grams)).to(device)
                 criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
             else:
                 criterion = nn.BCEWithLogitsLoss()
@@ -271,7 +271,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         total_val_loss = 0.0
         num_samples = 0
         epochs = 0
-        early_stopper = EarlyStopping(patience=patience, min_delta=min_delta)
+        early_stopper = EarlyStopping(patience=DEA_CONFIG["Patience"], min_delta=DEA_CONFIG["MinDelta"])
 
         # Train the model for a specified number of epochs.
         for _ in range(DEA_CONFIG["Epochs"]):
@@ -387,21 +387,12 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     scheduler = ASHAScheduler(metric="total_val_loss", mode="min")
 
     # Define the trainable function.
-    trainable = partial(
-        hyperparameter_training,
-        dataset_name=dataset_name,
-        output_dim=len(all_two_grams),
-        alice_enc_hash=alice_enc_hash,
-        identifier=identifier,
-        patience=DEA_CONFIG["Patience"],
-        min_delta=DEA_CONFIG["MinDelta"],
-        workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
-    )
+    trainable = hyperparameter_training
 
     # Wrap the trainable function with resources for 10 trials
     trainable_with_resources = tune.with_resources(
         trainable,
-        resources={"cpu": GLOBAL_CONFIG["Workers"] // 10, "gpu": 0.1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"] // 10, "gpu": 0}
+        resources={"cpu": GLOBAL_CONFIG["Workers"] // 4, "gpu": 0.1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"] // 4, "gpu": 0}
     )
 
     # Initialize the tuner.
@@ -449,21 +440,21 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=True,
         pin_memory=True,
-        num_workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
+        num_workers=GLOBAL_CONFIG["Workers"] // 4 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
     dataloader_val = DataLoader(
         data_val,
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=False,
         pin_memory=True,
-        num_workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
+        num_workers=GLOBAL_CONFIG["Workers"] // 4 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
     dataloader_test = DataLoader(
         data_test,
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=False,
         pin_memory=True,
-        num_workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
+        num_workers=GLOBAL_CONFIG["Workers"] // 4 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
