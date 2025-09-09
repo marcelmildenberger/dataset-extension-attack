@@ -5,7 +5,7 @@ import pandas as pd
 GLOBAL_CONFIG = {
     "Data": None,
     "Overlap": None,
-    "DropFrom": None,
+    "DropFrom": "None",
     "Verbose": False,
     "MatchingMetric": "cosine",
     "Matching": "MinWeight",
@@ -146,6 +146,7 @@ for encoding in encs:
         for ov in overlap:
             GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
             DEA_CONFIG["Overlap"] = ov
+            GLOBAL_CONFIG["Overlap"] = ov
             try:
                 run_dea(
                     GLOBAL_CONFIG.copy(),
