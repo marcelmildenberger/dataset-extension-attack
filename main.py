@@ -255,7 +255,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
                 patience=sched_cfg["patience"].sample(),
                 min_lr=sched_cfg.get("min_lr", 0.0).sample()
             )
-            scheduler_step = None  # special-case: step(metric) after val
+            scheduler_step = "plateau"  # special-case: step(metric) after val
         elif name == "CyclicLR":
             base_lr = sched_cfg["base_lr"].sample()
             ratio = sched_cfg["ratio"].sample()
@@ -532,11 +532,11 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         use_pw = isinstance(loss_cfg, dict) and loss_cfg.get("use_pos_weight", False)
         if use_pw:
             pos_weight = estimate_pos_weight(dataloader_train, len(all_two_grams)).to(device)
-            criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight, reduction="mean")
+            criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
         else:
-            criterion = nn.BCEWithLogitsLoss(reduction="mean")
+            criterion = nn.BCEWithLogitsLoss()
     elif loss_name == "MultiLabelSoftMarginLoss":
-        criterion = nn.MultiLabelSoftMarginLoss(reduction="mean")
+        criterion = nn.MultiLabelSoftMarginLoss()
     elif loss_name == "SoftMarginLoss":
         criterion = nn.SoftMarginLoss()
     else:
@@ -592,7 +592,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             patience=int(sched_cfg.get("patience", 5)),
             min_lr=float(sched_cfg.get("min_lr", 0.0))
         )
-        scheduler_step = None  # call scheduler.step(val_loss) after validation
+        scheduler_step = "plateau"  # call scheduler.step(val_loss) after validation
 
     elif name == "CyclicLR":
         # Prefer base_lr + ratio (max_lr = base_lr * ratio); fall back to explicit max_lr if provided
@@ -662,7 +662,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             train_loss = run_epoch(
                 model, dataloader_train, criterion, optimizer, device,
                 is_training=True, verbose=verbose,
-                scheduler=scheduler if scheduler_step == "batch" else None,
+                scheduler=scheduler,
                 scheduler_step=scheduler_step,
                 clip_grad_norm=clip_grad_norm,
             )
@@ -682,13 +682,10 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
                 best_val_loss = val_loss
                 best_model_state = copy.deepcopy(model.state_dict())
 
-            # Epoch-level scheduler stepping
-            if scheduler is not None:
-                if scheduler_step == "plateau":
-                    scheduler.step(val_loss)  # ReduceLROnPlateau
-                elif scheduler_step == "epoch":
-                    scheduler.step()          # StepLR / CosineAnnealingLR
-                # if "batch", it has already been stepped inside run_epoch
+            if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                scheduler.step(val_loss)
+            elif scheduler is not None and scheduler_step == "epoch":
+                scheduler.step()
 
             log_epoch_metrics(
                 epoch, num_epochs, train_loss, val_loss,

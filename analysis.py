@@ -50,9 +50,9 @@ encoding_map = {
     "TwoStepHash": "Two-Step Hash"
 }
 
-# Create plots for fixed encoding and dataset combinations
-# Loop through each (Encoding, Dataset) pair
-for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
+# Create plots for fixed dataset and encoding combinations
+# Loop through each (Dataset, Encoding) pair
+for (dataset, encoding), group in df.groupby(["Dataset", "Encoding"]):
     # Create subfolder for this encoding if it doesn't exist
     plot_dir = f"analysis/plots/{encoding}"
     os.makedirs(plot_dir, exist_ok=True)
@@ -75,7 +75,10 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
             y_label = "Re-identification Rate (%)"
             # Dynamic scaling based on actual values
             max_rate = plot_data[metric_key].max()
-            y_lim = (0, min(100, max_rate * 1.1))  # Add 10% margin, cap at 100%
+            if max_rate > 0:
+                y_lim = (0, min(100, max_rate * 1.1))  # Add 10% margin, cap at 100%
+            else:
+                y_lim = (0, 1)  # Default range when max_rate is 0
         else:
             plot_data = group
             y_label = metric_label
@@ -138,7 +141,10 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
     ax.set_ylabel("Re-identification Rate (%)")
     # Dynamic scaling based on actual values
     max_rate = subset_eve["Rate"].max()
-    ax.set_ylim(0, min(100, max_rate * 1.1))  # Add 10% margin, cap at 100%
+    if max_rate > 0:
+        ax.set_ylim(0, min(100, max_rate * 1.1))  # Add 10% margin, cap at 100%
+    else:
+        ax.set_ylim(0, 1)  # Default range when max_rate is 0
     ax.grid(True)
 
     # Plot for DropFrom = Both
@@ -156,7 +162,10 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
     ax.set_ylabel("Re-identification Rate (%)")
     # Dynamic scaling based on actual values
     max_rate = subset_both["Rate"].max()
-    ax.set_ylim(0, min(100, max_rate * 1.1))  # Add 10% margin, cap at 100%
+    if max_rate > 0:
+        ax.set_ylim(0, min(100, max_rate * 1.1))  # Add 10% margin, cap at 100%
+    else:
+        ax.set_ylim(0, 1)  # Default range when max_rate is 0
     ax.grid(True)
 
     # Scatter plot for TrainedF1 vs. HypOpF1
@@ -233,7 +242,7 @@ summary_df.to_csv("analysis/tables/reidentification_summary.csv", index=False)
 
 # Ensure time columns are numeric
 time_cols = [
-    "HyperparameterOptimizationTime",
+    "GraphMatchingAttackTime", "HyperparameterOptimizationTime",
     "ModelTrainingTime", "ApplicationtoEncodedDataTime",
     "RefinementandReconstructionTime", "TotalRuntime"
 ]
@@ -631,7 +640,9 @@ for encoding, enc_label in encoding_map.items():
     plt.xlabel("Overlap")
     plt.ylabel("Re-identification Rate (%)")
     plt.title(f"{enc_label}: Overlap vs. Re-identification Rate (mean over DropFrom)")
-    plt.legend(title="Dataset", fontsize="small")
+    # Only add legend if there are datasets to show
+    if len(agg["Dataset"].unique()) > 0:
+        plt.legend(title="Dataset", fontsize="small")
     plt.grid(True)
     # F1 Score plot
     plt.subplot(1, 2, 2)
@@ -641,7 +652,9 @@ for encoding, enc_label in encoding_map.items():
     plt.xlabel("Overlap")
     plt.ylabel("F1 Score")
     plt.title(f"{enc_label}: Overlap vs. F1 Score (mean over DropFrom)")
-    plt.legend(title="Dataset", fontsize="small")
+    # Only add legend if there are datasets to show
+    if len(agg["Dataset"].unique()) > 0:
+        plt.legend(title="Dataset", fontsize="small")
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(f"{plot_dir}/{encoding}_overlap_summary.png", dpi=300)
@@ -661,20 +674,20 @@ expected_overlaps = [0.2, 0.4, 0.6, 0.8]
 
 # Create all expected combinations
 expected_combinations = []
-for encoding in expected_encodings:
-    for dataset in expected_datasets:
+for dataset in expected_datasets:
+    for encoding in expected_encodings:
         for drop_from in expected_drop_from:
             for overlap in expected_overlaps:
                 # Special case: BloomFilter has EveAlgo = encoding, others have EveAlgo = "None"
                 if encoding == "BloomFilter":
-                    expected_combinations.append((encoding, dataset, drop_from, overlap))
+                    expected_combinations.append((dataset, encoding, drop_from, overlap))
                 else:
-                    expected_combinations.append((encoding, dataset, drop_from, overlap))
+                    expected_combinations.append((dataset, encoding, drop_from, overlap))
 
 # Get actual combinations from results
 actual_combinations = []
 for _, row in df.iterrows():
-    actual_combinations.append((row["Encoding"], row["Dataset"], row["DropFrom"], row["Overlap"]))
+    actual_combinations.append((row["Dataset"], row["Encoding"], row["DropFrom"], row["Overlap"]))
 
 # Convert to sets for comparison
 expected_set = set(expected_combinations)
@@ -698,8 +711,8 @@ summary_lines.append("")
 if missing_combinations:
     summary_lines.append("MISSING COMBINATIONS:")
     summary_lines.append("-" * 25)
-    for encoding, dataset, drop_from, overlap in sorted(missing_combinations):
-        summary_lines.append(f"  {encoding} | {dataset} | {drop_from} | {overlap}")
+    for dataset, encoding, drop_from, overlap in sorted(missing_combinations):
+        summary_lines.append(f"  {dataset} | {encoding} | {drop_from} | {overlap}")
     summary_lines.append("")
 else:
     summary_lines.append("✅ ALL EXPECTED COMBINATIONS COMPLETED!")
@@ -708,8 +721,8 @@ else:
 if extra_combinations:
     summary_lines.append("EXTRA COMBINATIONS (not in original plan):")
     summary_lines.append("-" * 40)
-    for encoding, dataset, drop_from, overlap in sorted(extra_combinations):
-        summary_lines.append(f"  {encoding} | {dataset} | {drop_from} | {overlap}")
+    for dataset, encoding, drop_from, overlap in sorted(extra_combinations):
+        summary_lines.append(f"  {dataset} | {encoding} | {drop_from} | {overlap}")
     summary_lines.append("")
 
 # Detailed breakdown by encoding
@@ -777,6 +790,5 @@ print(f"Complete coverage matrix saved to: analysis/tables/experiment_coverage_m
 print("\n" + "="*80)
 print("EXPERIMENT COVERAGE ANALYSIS COMPLETE")
 print("="*80)
-
 
 

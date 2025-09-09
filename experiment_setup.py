@@ -25,7 +25,7 @@ DEA_CONFIG = {
     "TrainSize": 0.8,
     "Patience": 5,
     "MinDelta": 1e-4,
-    "NumSamples": 100,
+    "NumSamples": 125,
     "Epochs": 20,
     "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
     "MatchingTechnique": "fuzzy_and_greedy",  # Options: "ai", "greedy", "fuzzy", ...
@@ -123,7 +123,7 @@ ALIGN_CONFIG = {
 # List to store failed experiments
 failed_experiments = []
 
-encs = ["TwoStepHash", "BloomFilter", "TabMinHash"]
+encs = ["BloomFilter", "TabMinHash", "TwoStepHash"]
 
 datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv",
             "fakename_20k.tsv", "fakename_50k.tsv", "euro_full.tsv"]
@@ -132,12 +132,12 @@ drop = ["Eve","Both"]
 
 overlap = [0.2, 0.4, 0.6, 0.8]
 
-for encoding in encs:
-    ENC_CONFIG["AliceAlgo"] = encoding
-    ENC_CONFIG["EveAlgo"] = "None"
-    if encoding == "BloomFilter":
-        ENC_CONFIG["EveAlgo"] = encoding
-    for dataset in datasets:
+for dataset in datasets:
+    for encoding in encs:
+        ENC_CONFIG["AliceAlgo"] = encoding
+        ENC_CONFIG["EveAlgo"] = "None"
+        if encoding == "BloomFilter":
+            ENC_CONFIG["EveAlgo"] = encoding
         for drop_from in drop:
             for ov in overlap:
                 GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
