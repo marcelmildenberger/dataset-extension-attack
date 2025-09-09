@@ -258,8 +258,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             scheduler_step = "plateau"  # special-case: step(metric) after val
         elif name == "CyclicLR":
             base_lr = sched_cfg["base_lr"].sample()
-            ratio = sched_cfg["ratio"].sample()
-            max_lr = base_lr * ratio
+            max_lr = sched_cfg["max_lr"].sample()
             # Keep optimizer LR aligned with base_lr for clarity:
             for pg in optimizer.param_groups:
                 pg["lr"] = base_lr
@@ -363,12 +362,12 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # Define the search space for the hyperparameters.
     search_space = {
         "output_dim": len(all_two_grams),
-        "threshold": tune.uniform(0.3, 0.8),
+        "threshold": tune.uniform(0.2, 0.7),
         # MLP
-        "num_layers": tune.choice([1, 2, 3]),
-        "hidden_layer_size": tune.choice([256, 512, 1024, 2048, 4096]),
+        "num_layers": tune.choice([1, 2]),
+        "hidden_layer_size": tune.choice([512, 1024, 2048, 4096]),
         "dropout_rate": tune.uniform(0.1, 0.5),
-        "activation_fn": tune.choice(["relu", "leaky_relu", "gelu", "elu", "tanh"]),
+        "activation_fn": tune.choice(["elu", "selu", "tanh"]),
 
         # Optimizer
         "optimizer": tune.choice([
@@ -378,10 +377,6 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             "weight_decay": tune.loguniform(1e-7, 1e-3)},
             {"name": "RMSprop","lr": tune.loguniform(1e-5, 1e-3),
             "alpha": tune.uniform(0.8, 0.99), "weight_decay": tune.loguniform(1e-7, 1e-3)},
-            {"name": "SGD",   "lr": tune.loguniform(1e-4, 1e-1),
-            "momentum": tune.uniform(0.0, 0.95),
-            "nesterov": tune.choice([False, True]),
-            "weight_decay": tune.loguniform(1e-7, 1e-3)},
         ]),
         # Loss
         "loss_fn": tune.choice([
@@ -396,14 +391,15 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             {"name": "StepLR", "step_size": tune.choice([5, 10, 20]), "gamma": tune.uniform(0.3, 0.8)},
             {"name": "CosineAnnealingLR", "T_max": tune.randint(10, 51), "eta_min": tune.choice([0.0, 1e-6, 1e-5])},
             {"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform(0.1, 0.5),
-            "patience": tune.choice([3, 5, 10]), "min_lr": tune.choice([0.0, 1e-6, 1e-5])},
-            {"name": "CyclicLR", "base_lr": tune.loguniform(1e-5, 1e-3),
-            "ratio": tune.uniform(2.0, 10.0),
-            "step_size_up": tune.choice([500, 1000, 2000]),
-            "mode": tune.choice(["triangular", "triangular2", "exp_range"])},
+            "patience": tune.choice([5, 10, 15])},
+            {"name": "CyclicLR", 
+            "base_lr": tune.loguniform(1e-5, 1e-3), 
+            "max_lr": tune.loguniform(1e-3, 1e-1), 
+            "step_size_up": tune.choice([2000, 4000]), 
+            "mode_cyclic": tune.choice(["triangular", "triangular2", "exp_range"])},
         ]),
         # Batch size & regularization
-        "batch_size": tune.choice([8, 16, 32, 64, 128]),
+        "batch_size": tune.choice([8, 16, 32, 64]),
         "clip_grad_norm": tune.choice([0.0, 1.0, 5.0]),
     }
 
@@ -597,8 +593,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     elif name == "CyclicLR":
         # Prefer base_lr + ratio (max_lr = base_lr * ratio); fall back to explicit max_lr if provided
         base_lr = float(sched_cfg.get("base_lr", lr))
-        ratio   = sched_cfg.get("ratio", None)
-        max_lr  = float(base_lr * ratio) if ratio is not None else float(sched_cfg.get("max_lr", base_lr * 10.0))
+        max_lr  = sched_cfg.get("max_lr", None)
         step_size_up = int(sched_cfg.get("step_size_up", 1000))
         mode = sched_cfg.get("mode", sched_cfg.get("mode_cyclic", "triangular"))
 
