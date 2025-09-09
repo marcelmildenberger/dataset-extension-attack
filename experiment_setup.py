@@ -26,7 +26,7 @@ DEA_CONFIG = {
     "Patience": 5,
     "MinDelta": 1e-4,
     "NumSamples": 125,
-    "Epochs": 20,
+    "Epochs": 25,
     "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
     "MatchingTechnique": "fuzzy_and_greedy",  # Options: "ai", "greedy", "fuzzy", ...
 }
