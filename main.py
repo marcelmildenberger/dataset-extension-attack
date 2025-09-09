@@ -531,7 +531,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     if loss_name == "BCEWithLogitsLoss":
         use_pw = isinstance(loss_cfg, dict) and loss_cfg.get("use_pos_weight", False)
         if use_pw:
-            pos_weight = estimate_pos_weight(dataloader_train, output_dim).to(device)
+            pos_weight = estimate_pos_weight(dataloader_train, len(all_two_grams)).to(device)
             criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight, reduction="mean")
         else:
             criterion = nn.BCEWithLogitsLoss(reduction="mean")
