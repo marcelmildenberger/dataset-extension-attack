@@ -253,7 +253,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
                 optimizer, mode=sched_cfg.get("mode", "min"),
                 factor=sched_cfg["factor"].sample(),
                 patience=sched_cfg["patience"].sample(),
-                min_lr=sched_cfg.get("min_lr", 0.0).sample()
+                min_lr=float(sched_cfg.get("min_lr", 0.0))
             )
             scheduler_step = "plateau"  # special-case: step(metric) after val
         elif name == "CyclicLR":
@@ -593,7 +593,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     elif name == "CyclicLR":
         # Prefer base_lr + ratio (max_lr = base_lr * ratio); fall back to explicit max_lr if provided
         base_lr = float(sched_cfg.get("base_lr", lr))
-        max_lr  = sched_cfg.get("max_lr", None)
+        max_lr  = float(sched_cfg.get("max_lr", None))
         step_size_up = int(sched_cfg.get("step_size_up", 1000))
         mode = sched_cfg.get("mode", sched_cfg.get("mode_cyclic", "triangular"))
 
