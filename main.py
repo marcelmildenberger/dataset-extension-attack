@@ -668,7 +668,6 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
                 model, dataloader_val, criterion, optimizer, device,
                 is_training=False, verbose=verbose,
                 scheduler=None, scheduler_step=None,
-                clip_grad_norm=0.0,
             )
             val_losses.append(val_loss)
 
