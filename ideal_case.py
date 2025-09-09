@@ -143,14 +143,14 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             batch_size=batch_size,
             shuffle=True,
             pin_memory=True,
-            num_workers=GLOBAL_CONFIG["Workers"] // 4 if GLOBAL_CONFIG["UseGPU"] else 0,
+            num_workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
         )
         dataloader_val = DataLoader(
             data_val,
             batch_size=batch_size,
             shuffle=False,
             pin_memory=True,
-            num_workers=GLOBAL_CONFIG["Workers"] // 4 if GLOBAL_CONFIG["UseGPU"] else 0,
+            num_workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
         )
 
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -392,7 +392,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # Wrap the trainable function with resources for 10 trials
     trainable_with_resources = tune.with_resources(
         trainable,
-        resources={"cpu": GLOBAL_CONFIG["Workers"] // 4, "gpu": 0.1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"] // 4, "gpu": 0}
+        resources={"cpu": GLOBAL_CONFIG["Workers"] // 10, "gpu": 0.1} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"] // 10, "gpu": 0}
     )
 
     # Initialize the tuner.
@@ -440,21 +440,21 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=True,
         pin_memory=True,
-        num_workers=GLOBAL_CONFIG["Workers"] // 4 if GLOBAL_CONFIG["UseGPU"] else 0,
+        num_workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
     dataloader_val = DataLoader(
         data_val,
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=False,
         pin_memory=True,
-        num_workers=GLOBAL_CONFIG["Workers"] // 4 if GLOBAL_CONFIG["UseGPU"] else 0,
+        num_workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
     dataloader_test = DataLoader(
         data_test,
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=False,
         pin_memory=True,
-        num_workers=GLOBAL_CONFIG["Workers"] // 4 if GLOBAL_CONFIG["UseGPU"] else 0,
+        num_workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
