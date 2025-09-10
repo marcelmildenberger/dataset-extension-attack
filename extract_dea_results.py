@@ -147,7 +147,6 @@ def collect_experiment_results(base_path: str, output_csv_path: str = None) -> p
             "ExperimentFolder": exp_dir.name,
             "Encoding": config["ENC_CONFIG"]["AliceAlgo"],
             "Dataset": os.path.basename(config["GLOBAL_CONFIG"]["Data"]),
-            "DropFrom": config["GLOBAL_CONFIG"]["DropFrom"],
             "Overlap": config["GLOBAL_CONFIG"]["Overlap"],
             "TrainedPrecision": metrics.get("avg_precision"),
             "TrainedRecall": metrics.get("avg_recall"),

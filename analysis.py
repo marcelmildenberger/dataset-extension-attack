@@ -75,7 +75,10 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
             y_label = "Re-identification Rate (%)"
             # Dynamic scaling based on actual values
             max_rate = plot_data[metric_key].max()
-            y_lim = (0, min(100, max_rate * 1.1))  # Add 10% margin, cap at 100%
+            if max_rate > 0:
+                y_lim = (0, min(100, max_rate * 1.1))  # Add 10% margin, cap at 100%
+            else:
+                y_lim = (0, 1)  # Default range when max_rate is 0
         else:
             plot_data = group
             y_label = metric_label
@@ -85,7 +88,6 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
             data=plot_data,
             x="Overlap",
             y=metric_key,
-            hue="DropFrom",
             marker="o",
             ax=ax
         )
@@ -108,9 +110,9 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
                 ax.axhline(y=baseline_metrics[dataset_key]["Precision"], linestyle="--", color="gray", label="Baseline Precision")
                 ax.legend()
 
-    # Two subplots for Re-ID Comparison by DropFrom
+    # Single subplot for Re-ID Comparison
     melted = group.melt(
-        id_vars=["Overlap", "DropFrom"],
+        id_vars=["Overlap"],
         value_vars=["ReidentificationRateFuzzy", "ReidentificationRateGreedy", "ReidentificationRate"],
         var_name="Method",
         value_name="Rate"
@@ -123,41 +125,48 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
     melted["Method"] = melted["Method"].map(method_map)
     melted["Rate"] *= 100
 
-    # Plot for DropFrom = Eve
+    # Plot for Re-ID Comparison
     ax = axes.flat[4]
-    subset_eve = melted[melted["DropFrom"] == "Eve"]
     sns.lineplot(
-        data=subset_eve,
+        data=melted,
         x="Overlap",
         y="Rate",
         hue="Method",
         marker="o",
         ax=ax
     )
-    ax.set_title("Re-identification Rate (DropFrom = Eve)")
+    ax.set_title("Re-identification Rate Comparison")
     ax.set_ylabel("Re-identification Rate (%)")
     # Dynamic scaling based on actual values
-    max_rate = subset_eve["Rate"].max()
-    ax.set_ylim(0, min(100, max_rate * 1.1))  # Add 10% margin, cap at 100%
+    max_rate = melted["Rate"].max()
+    if max_rate > 0:
+        ax.set_ylim(0, min(100, max_rate * 1.1))  # Add 10% margin, cap at 100%
+    else:
+        ax.set_ylim(0, 1)  # Default range when max_rate is 0
     ax.grid(True)
 
-    # Plot for DropFrom = Both
+    # Privacy-Utility Trade-off plot with dynamic axis limits
     ax = axes.flat[5]
-    subset_both = melted[melted["DropFrom"] == "Both"]
-    sns.lineplot(
-        data=subset_both,
-        x="Overlap",
-        y="Rate",
-        hue="Method",
-        marker="o",
-        ax=ax
-    )
-    ax.set_title("Re-identification Rate (DropFrom = Both)")
+    x_min, x_max = group["TrainedF1"].min(), group["TrainedF1"].max()
+    y_min, y_max = (group["ReidentificationRate"] * 100).min(), (group["ReidentificationRate"] * 100).max()
+    margin_x = 0.05
+    margin_y = 2
+    x = group["TrainedF1"]
+    y = group["ReidentificationRate"] * 100
+    ax.scatter(x, y, color="purple", s=60, alpha=0.7)
+    # Linear regression fit
+    if len(x) > 1:
+        coeffs = np.polyfit(x, y, 1)
+        x_fit = np.linspace(x.min(), x.max(), 100)
+        y_fit = np.polyval(coeffs, x_fit)
+        ax.plot(x_fit, y_fit, color="orange", linestyle="--", label="Best Fit")
+    ax.set_xlabel("F1 Score")
     ax.set_ylabel("Re-identification Rate (%)")
-    # Dynamic scaling based on actual values
-    max_rate = subset_both["Rate"].max()
-    ax.set_ylim(0, min(100, max_rate * 1.1))  # Add 10% margin, cap at 100%
+    ax.set_title("Re-identification Rate vs. F1 Score")
+    ax.set_xlim(max(0, x_min - margin_x), min(1, x_max + margin_x))
+    ax.set_ylim(max(0, y_min - margin_y), min(100, y_max + margin_y))
     ax.grid(True)
+    ax.legend()
 
     # Scatter plot for TrainedF1 vs. HypOpF1
     ax = axes.flat[6]
@@ -182,28 +191,8 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
     ax.grid(True)
     ax.legend(loc="lower right", fontsize="small")
 
-    # Privacy-Utility Trade-off plot with dynamic axis limits
-    ax = axes.flat[7]
-    x_min, x_max = group["TrainedF1"].min(), group["TrainedF1"].max()
-    y_min, y_max = (group["ReidentificationRate"] * 100).min(), (group["ReidentificationRate"] * 100).max()
-    margin_x = 0.05
-    margin_y = 2
-    x = group["TrainedF1"]
-    y = group["ReidentificationRate"] * 100
-    ax.scatter(x, y, color="purple", s=60, alpha=0.7)
-    # Linear regression fit
-    if len(x) > 1:
-        coeffs = np.polyfit(x, y, 1)
-        x_fit = np.linspace(x.min(), x.max(), 100)
-        y_fit = np.polyval(coeffs, x_fit)
-        ax.plot(x_fit, y_fit, color="orange", linestyle="--", label="Best Fit")
-    ax.set_xlabel("F1 Score")
-    ax.set_ylabel("Re-identification Rate (%)")
-    ax.set_title("Re-identification Rate vs. F1 Score")
-    ax.set_xlim(max(0, x_min - margin_x), min(1, x_max + margin_x))
-    ax.set_ylim(max(0, y_min - margin_y), min(100, y_max + margin_y))
-    ax.grid(True)
-    ax.legend()
+    # Remove the 8th subplot since we no longer need it
+    fig.delaxes(axes.flat[7])
 
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     filename = f"{plot_dir}/{encoding}_{dataset_label.replace(' ', '_')}_metrics.png"
@@ -214,7 +203,7 @@ for (encoding, dataset), group in df.groupby(["Encoding", "Dataset"]):
 # %%
 # Select relevant columns for the summary
 summary_df = df[[
-    "Dataset", "Encoding", "Overlap", "DropFrom",
+    "Dataset", "Encoding", "Overlap",
     "ReidentificationRateFuzzy", "ReidentificationRateGreedy", "ReidentificationRate"
 ]]
 
@@ -226,7 +215,7 @@ summary_df = summary_df.rename(columns={
 })
 
 # Sort for readability
-summary_df = summary_df.sort_values(by=["Dataset", "Encoding", "Overlap", "DropFrom"])
+summary_df = summary_df.sort_values(by=["Dataset", "Encoding", "Overlap"])
 
 # Export to CSV
 summary_df.to_csv("analysis/tables/reidentification_summary.csv", index=False)
@@ -288,9 +277,9 @@ for i, dataset in enumerate(datasets):
     ax = axes[i]
     subset = df[df["Dataset"] == dataset]
 
-    # Group by encoding and DropFrom, averaging across overlap
+    # Group by encoding, averaging across overlap
     grouped = (
-        subset.groupby(["Encoding", "DropFrom"])["TrainedF1"]
+        subset.groupby(["Encoding"])["TrainedF1"]
         .mean()
         .reset_index()
     )
@@ -302,7 +291,6 @@ for i, dataset in enumerate(datasets):
         data=grouped,
         x="EncodingLabel",
         y="TrainedF1",
-        hue="DropFrom",
         ax=ax,
         errorbar="sd"
     )
@@ -310,7 +298,6 @@ for i, dataset in enumerate(datasets):
     ax.set_ylabel("F1 / Dice Score")
     ax.set_xlabel("Encoding")
     ax.set_ylim(0, 1)
-    ax.legend(title="DropFromtegy", loc="upper right", fontsize="small")
 
 # Remove empty axes if any
 for j in range(i + 1, len(axes)):
@@ -332,9 +319,9 @@ for i, dataset in enumerate(datasets):
     ax = axes[i]
     subset = df[df["Dataset"] == dataset]
 
-    # Group by encoding and DropFrom, averaging across overlap
+    # Group by encoding, averaging across overlap
     grouped = (
-        subset.groupby(["Encoding", "DropFrom"])["ReidentificationRate"]
+        subset.groupby(["Encoding"])["ReidentificationRate"]
         .mean()
         .reset_index()
     )
@@ -345,7 +332,6 @@ for i, dataset in enumerate(datasets):
         data=grouped,
         x="EncodingLabel",
         y="ReidentificationRate",
-        hue="DropFrom",
         ax=ax,
         errorbar="sd"
     )
@@ -353,7 +339,6 @@ for i, dataset in enumerate(datasets):
     ax.set_ylabel("Re-identification Rate (%)")
     ax.set_xlabel("Encoding")
     ax.set_ylim(0, 100)
-    ax.legend(title="DropFromtegy", loc="upper right", fontsize="small")
 
 # Remove empty axes if any
 for j in range(i + 1, len(axes)):
@@ -592,14 +577,14 @@ for encoding, group in arch_df.groupby(["Encoding", "EncodingLabel"]):
 
 
 # ================= Find Duplicate Experiment Settings =====================
-# Find (Encoding, Dataset, DropFrom, Overlap) settings that occur more than once and store the experiment folder names for manual inspection.
+# Find (Encoding, Dataset, Overlap) settings that occur more than once and store the experiment folder names for manual inspection.
 duplicate_groups = (
-    df.groupby(["Encoding", "Dataset", "DropFrom", "Overlap"])
+    df.groupby(["Encoding", "Dataset", "Overlap"])
     .filter(lambda g: len(g) > 1)
 )
 if not duplicate_groups.empty:
     dupe_summary = (
-        duplicate_groups.groupby(["Encoding", "Dataset", "DropFrom", "Overlap"])
+        duplicate_groups.groupby(["Encoding", "Dataset", "Overlap"])
         .agg({"ExperimentFolder": lambda x: ";".join(x)})
         .reset_index()
         .rename(columns={"ExperimentFolder": "ExperimentFolders"})
@@ -608,16 +593,16 @@ if not duplicate_groups.empty:
     dupe_summary.to_csv("analysis/tables/duplicate_experiments.csv", index=False)
 else:
     # If no duplicates, write an empty file with header
-    pd.DataFrame(columns=["Encoding", "Dataset", "DropFrom", "Overlap", "ExperimentFolders"]).to_csv("analysis/tables/duplicate_experiments.csv", index=False)
+    pd.DataFrame(columns=["Encoding", "Dataset", "Overlap", "ExperimentFolders"]).to_csv("analysis/tables/duplicate_experiments.csv", index=False)
 
 
-# ================= Overlap vs. Re-identification Rate and F1 Score per Encoding (Aggregated over DropFrom) =====================
+# ================= Overlap vs. Re-identification Rate and F1 Score per Encoding =====================
 desired_overlaps = [0.2, 0.4, 0.6, 0.8]
 for encoding, enc_label in encoding_map.items():
     plot_dir = f"analysis/plots/{encoding}"
     os.makedirs(plot_dir, exist_ok=True)
     subset = df[(df["Encoding"] == encoding) & (df["Overlap"].isin(desired_overlaps))]
-    # Aggregate over DropFrom
+    # No need to aggregate since there's no DropFrom anymore
     agg = subset.groupby(["Dataset", "Overlap"]).agg({
         "ReidentificationRate": "mean",
         "TrainedF1": "mean"
@@ -630,8 +615,9 @@ for encoding, enc_label in encoding_map.items():
         plt.plot(data["Overlap"], data["ReidentificationRate"] * 100, marker="o", label=dataset.replace(".tsv", "").replace("_", " "))
     plt.xlabel("Overlap")
     plt.ylabel("Re-identification Rate (%)")
-    plt.title(f"{enc_label}: Overlap vs. Re-identification Rate (mean over DropFrom)")
-    plt.legend(title="Dataset", fontsize="small")
+    plt.title(f"{enc_label}: Overlap vs. Re-identification Rate")
+    if len(agg["Dataset"].unique()) > 1:
+        plt.legend(title="Dataset", fontsize="small")
     plt.grid(True)
     # F1 Score plot
     plt.subplot(1, 2, 2)
@@ -640,8 +626,9 @@ for encoding, enc_label in encoding_map.items():
         plt.plot(data["Overlap"], data["TrainedF1"], marker="o", label=dataset.replace(".tsv", "").replace("_", " "))
     plt.xlabel("Overlap")
     plt.ylabel("F1 Score")
-    plt.title(f"{enc_label}: Overlap vs. F1 Score (mean over DropFrom)")
-    plt.legend(title="Dataset", fontsize="small")
+    plt.title(f"{enc_label}: Overlap vs. F1 Score")
+    if len(agg["Dataset"].unique()) > 1:
+        plt.legend(title="Dataset", fontsize="small")
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(f"{plot_dir}/{encoding}_overlap_summary.png", dpi=300)
@@ -656,25 +643,19 @@ print("="*80)
 # Define expected combinations based on experiment_setup.py
 expected_encodings = ["TabMinHash", "TwoStepHash", "BloomFilter"]
 expected_datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv", "fakename_20k.tsv", "euro_person.tsv"]
-expected_drop_from = ["Eve", "Both"]
 expected_overlaps = [0.2, 0.4, 0.6, 0.8]
 
 # Create all expected combinations
 expected_combinations = []
 for encoding in expected_encodings:
     for dataset in expected_datasets:
-        for drop_from in expected_drop_from:
-            for overlap in expected_overlaps:
-                # Special case: BloomFilter has EveAlgo = encoding, others have EveAlgo = "None"
-                if encoding == "BloomFilter":
-                    expected_combinations.append((encoding, dataset, drop_from, overlap))
-                else:
-                    expected_combinations.append((encoding, dataset, drop_from, overlap))
+        for overlap in expected_overlaps:
+            expected_combinations.append((encoding, dataset, overlap))
 
 # Get actual combinations from results
 actual_combinations = []
 for _, row in df.iterrows():
-    actual_combinations.append((row["Encoding"], row["Dataset"], row["DropFrom"], row["Overlap"]))
+    actual_combinations.append((row["Encoding"], row["Dataset"], row["Overlap"]))
 
 # Convert to sets for comparison
 expected_set = set(expected_combinations)
@@ -698,8 +679,8 @@ summary_lines.append("")
 if missing_combinations:
     summary_lines.append("MISSING COMBINATIONS:")
     summary_lines.append("-" * 25)
-    for encoding, dataset, drop_from, overlap in sorted(missing_combinations):
-        summary_lines.append(f"  {encoding} | {dataset} | {drop_from} | {overlap}")
+    for encoding, dataset, overlap in sorted(missing_combinations):
+        summary_lines.append(f"  {encoding} | {dataset} | {overlap}")
     summary_lines.append("")
 else:
     summary_lines.append("✅ ALL EXPECTED COMBINATIONS COMPLETED!")
@@ -708,8 +689,8 @@ else:
 if extra_combinations:
     summary_lines.append("EXTRA COMBINATIONS (not in original plan):")
     summary_lines.append("-" * 40)
-    for encoding, dataset, drop_from, overlap in sorted(extra_combinations):
-        summary_lines.append(f"  {encoding} | {dataset} | {drop_from} | {overlap}")
+    for encoding, dataset, overlap in sorted(extra_combinations):
+        summary_lines.append(f"  {encoding} | {dataset} | {overlap}")
     summary_lines.append("")
 
 # Detailed breakdown by encoding
@@ -740,9 +721,9 @@ summary_lines.append("")
 summary_lines.append("BREAKDOWN BY OVERLAP:")
 summary_lines.append("-" * 25)
 for overlap in expected_overlaps:
-    expected_for_overlap = len([c for c in expected_combinations if c[3] == overlap])
-    actual_for_overlap = len([c for c in actual_combinations if c[3] == overlap])
-    missing_for_overlap = len([c for c in missing_combinations if c[3] == overlap])
+    expected_for_overlap = len([c for c in expected_combinations if c[2] == overlap])
+    actual_for_overlap = len([c for c in actual_combinations if c[2] == overlap])
+    missing_for_overlap = len([c for c in missing_combinations if c[2] == overlap])
     coverage = actual_for_overlap / expected_for_overlap * 100
     summary_lines.append(f"  {overlap}: {actual_for_overlap}/{expected_for_overlap} ({coverage:.1f}%) - {missing_for_overlap} missing")
 
@@ -759,7 +740,7 @@ print(f"\nDetailed coverage report saved to: {coverage_report_path}")
 # Create a CSV with missing combinations for easy reference
 if missing_combinations:
     missing_df = pd.DataFrame(list(missing_combinations),
-                             columns=["Encoding", "Dataset", "DropFrom", "Overlap"])
+                             columns=["Encoding", "Dataset", "Overlap"])
     missing_df.to_csv("analysis/tables/missing_experiments.csv", index=False)
     print(f"Missing experiments list saved to: analysis/tables/missing_experiments.csv")
 
@@ -767,8 +748,7 @@ if missing_combinations:
 coverage_df = pd.DataFrame({
     "Encoding": [c[0] for c in expected_combinations],
     "Dataset": [c[1] for c in expected_combinations],
-    "DropFrom": [c[2] for c in expected_combinations],
-    "Overlap": [c[3] for c in expected_combinations],
+    "Overlap": [c[2] for c in expected_combinations],
     "Status": ["Completed" if c in actual_set else "Missing" for c in expected_combinations]
 })
 coverage_df.to_csv("analysis/tables/experiment_coverage_matrix.csv", index=False)
