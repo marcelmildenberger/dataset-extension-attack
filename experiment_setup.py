@@ -131,20 +131,24 @@ datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_
 
 overlap = [0.2, 0.4, 0.6, 0.8]
 
-for encoding in encs:
-    ENC_CONFIG["AliceAlgo"] = encoding
-    ENC_CONFIG["EveAlgo"] = "None"
-    if encoding == "BloomFilter":
-        ENC_CONFIG["EveAlgo"] = encoding
-    for dataset in datasets:
+for dataset in datasets:
+    for encoding in encs:
+        ENC_CONFIG["AliceAlgo"] = encoding
+        ENC_CONFIG["EveAlgo"] = "None"
         if encoding == "BloomFilter":
-            dataset = dataset.replace(".tsv", "_bf_encoded.tsv")
+            ENC_CONFIG["EveAlgo"] = encoding
+        
+        # Apply encoding-specific dataset name transformation
+        dataset_name = dataset
+        if encoding == "BloomFilter":
+            dataset_name = dataset.replace(".tsv", "_bf_encoded.tsv")
         elif encoding == "TwoStepHash":
-            dataset = dataset.replace(".tsv", "_tsh_encoded.tsv")
+            dataset_name = dataset.replace(".tsv", "_tsh_encoded.tsv")
         elif encoding == "TabMinHash":
-            dataset = dataset.replace(".tsv", "_tmh_encoded.tsv")
+            dataset_name = dataset.replace(".tsv", "_tmh_encoded.tsv")
+        
         for ov in overlap:
-            GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
+            GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset_name}"
             DEA_CONFIG["Overlap"] = ov
             GLOBAL_CONFIG["Overlap"] = ov
             try:
@@ -159,12 +163,12 @@ for encoding in encs:
                 # Record failed experiment
                 failed_experiments.append({
                     "encoding": encoding,
-                    "dataset": dataset,
+                    "dataset": dataset_name,
                     "overlap": ov,
                     "error_message": str(e),
                     "error_type": type(e).__name__,
                 })
-                print(f"Failed: {encoding} - {dataset} - {ov}: {e}")
+                print(f"Failed: {encoding} - {dataset_name} - {ov}: {e}")
                 continue
 
 # Save failed experiments to CSV
