@@ -348,7 +348,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # Initialize Ray for hyperparameter optimization.
     ray.init(
         num_cpus=GLOBAL_CONFIG["Workers"],
-        num_gpus=1 if GLOBAL_CONFIG["UseGPU"] else 0,
+        num_gpus=2 if GLOBAL_CONFIG["UseGPU"] else 0,
         ignore_reinit_error=True,
         logging_level="ERROR"
     )
