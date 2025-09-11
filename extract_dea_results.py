@@ -183,7 +183,6 @@ def collect_experiment_results(base_path: str, output_csv_path: str = None) -> p
         # Merge runtime fields into the record
         if runtime:
             record.update({
-                "GraphMatchingAttackTime": runtime.get("GraphMatchingAttack"),
                 "HyperparameterOptimizationTime": runtime.get("HyperparameterOptimization"),
                 "ModelTrainingTime": runtime.get("ModelTraining"),
                 "ApplicationtoEncodedDataTime": runtime.get("ApplicationtoEncodedData"),
