@@ -220,13 +220,13 @@ summary_df = summary_df.sort_values(by=["Dataset", "Encoding", "Overlap"])
 # Export to CSV
 summary_df.to_csv("analysis/tables/reidentification_summary.csv", index=False)
 
-# Ensure time columns are numeric
-time_cols = [
-    "HyperparameterOptimizationTime",
-    "ModelTrainingTime", "ApplicationtoEncodedDataTime",
-    "RefinementandReconstructionTime", "TotalRuntime"
-]
-df[time_cols] = df[time_cols].apply(pd.to_numeric, errors="coerce")
+# Time columns are not available in the current dataset
+# time_cols = [
+#     "HyperparameterOptimizationTime",
+#     "ModelTrainingTime", "ApplicationtoEncodedDataTime",
+#     "RefinementandReconstructionTime", "TotalRuntime"
+# ]
+# df[time_cols] = df[time_cols].apply(pd.to_numeric, errors="coerce")
 
 # # 1. Overall Runtime Breakdown
 # avg_runtime = df[time_cols].mean().sort_values(ascending=False)
@@ -413,7 +413,7 @@ avg_reid = df["ReidentificationRate"].mean() * 100
 max_reid = df["ReidentificationRate"].max() * 100
 avg_f1 = df["TrainedF1"].mean()
 max_f1 = df["TrainedF1"].max()
-avg_runtime = df["TotalRuntime"].mean()
+# avg_runtime = df["TotalRuntime"].mean()  # TotalRuntime column not available
 
 summary_lines.append(f"Total Experiments: {total_experiments}")
 summary_lines.append(f"Encoding Schemes Tested: {encoding_schemes_tested}")
