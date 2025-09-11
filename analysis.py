@@ -729,9 +729,9 @@ if extra_combinations:
 summary_lines.append("BREAKDOWN BY ENCODING:")
 summary_lines.append("-" * 25)
 for encoding in expected_encodings:
-    expected_for_encoding = len([c for c in expected_combinations if c[0] == encoding])
-    actual_for_encoding = len([c for c in actual_combinations if c[0] == encoding])
-    missing_for_encoding = len([c for c in missing_combinations if c[0] == encoding])
+    expected_for_encoding = len([c for c in expected_combinations if c[1] == encoding])
+    actual_for_encoding = len([c for c in actual_combinations if c[1] == encoding])
+    missing_for_encoding = len([c for c in missing_combinations if c[1] == encoding])
     coverage = actual_for_encoding / expected_for_encoding * 100
     summary_lines.append(f"  {encoding}: {actual_for_encoding}/{expected_for_encoding} ({coverage:.1f}%) - {missing_for_encoding} missing")
 
@@ -741,9 +741,9 @@ summary_lines.append("")
 summary_lines.append("BREAKDOWN BY DATASET:")
 summary_lines.append("-" * 25)
 for dataset in expected_datasets:
-    expected_for_dataset = len([c for c in expected_combinations if c[1] == dataset])
-    actual_for_dataset = len([c for c in actual_combinations if c[1] == dataset])
-    missing_for_dataset = len([c for c in missing_combinations if c[1] == dataset])
+    expected_for_dataset = len([c for c in expected_combinations if c[0] == dataset])
+    actual_for_dataset = len([c for c in actual_combinations if c[0] == dataset])
+    missing_for_dataset = len([c for c in missing_combinations if c[0] == dataset])
     coverage = actual_for_dataset / expected_for_dataset * 100
     summary_lines.append(f"  {dataset}: {actual_for_dataset}/{expected_for_dataset} ({coverage:.1f}%) - {missing_for_dataset} missing")
 
@@ -772,14 +772,14 @@ print(f"\nDetailed coverage report saved to: {coverage_report_path}")
 # Create a CSV with missing combinations for easy reference
 if missing_combinations:
     missing_df = pd.DataFrame(list(missing_combinations),
-                             columns=["Encoding", "Dataset", "DropFrom", "Overlap"])
+                             columns=["Dataset", "Encoding", "DropFrom", "Overlap"])
     missing_df.to_csv("analysis/tables/missing_experiments.csv", index=False)
     print(f"Missing experiments list saved to: analysis/tables/missing_experiments.csv")
 
 # Create a CSV with all expected vs actual combinations
 coverage_df = pd.DataFrame({
-    "Encoding": [c[0] for c in expected_combinations],
-    "Dataset": [c[1] for c in expected_combinations],
+    "Dataset": [c[0] for c in expected_combinations],
+    "Encoding": [c[1] for c in expected_combinations],
     "DropFrom": [c[2] for c in expected_combinations],
     "Overlap": [c[3] for c in expected_combinations],
     "Status": ["Completed" if c in actual_set else "Missing" for c in expected_combinations]
