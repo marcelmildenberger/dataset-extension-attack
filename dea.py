@@ -117,6 +117,10 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     with open(os.path.join(current_experiment_directory, "config.json"), "w") as f:
         json.dump(all_configs, f, indent=4)
 
+    # Initialize timing variables early to avoid UnboundLocalError
+    start_total = None
+    start_gma = None
+    
     # Generate all possible two-character combinations (2-grams) from lowercase letters and digits.
     # This includes letter-letter, letter-digit, and digit-digit pairs.
     # The resulting list `all_two_grams` is used for encoding/decoding tasks,
@@ -838,7 +842,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     )
 
     # Stop timing the refinement and reconstruction.
-    if GLOBAL_CONFIG["BenchMode"]:
+    if GLOBAL_CONFIG["BenchMode"] and start_total is not None:
         elapsed_refinement_and_reconstruction = time.time() - start_refinement_and_reconstruction
         elapsed_total = time.time() - start_total
         save_dea_runtime_log(
