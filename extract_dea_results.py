@@ -100,7 +100,7 @@ def extract_experiment_data(exp_dir):
     if not metrics:
         return None
     
-    # Read reidentification results
+    # Read reidentification results (may not exist for all experiments)
     reid_summary_df = read_csv_file(exp_path / "re_identification_results" / "summary_fuzzy_and_greedy.csv")
     reid_rate = extract_reidentification_rate(reid_summary_df)
     
@@ -110,20 +110,24 @@ def extract_experiment_data(exp_dir):
     reid_greedy_df = read_csv_file(exp_path / "re_identification_results" / "summary_greedy.csv")
     reid_rate_greedy = extract_reidentification_rate(reid_greedy_df)
     
-    # Read runtime data
+    # Read runtime data (may not exist if BenchMode was disabled)
     runtime_df = read_csv_file(exp_path / "dea_runtime_log.csv")
     runtime = extract_runtime(runtime_df)
     
-    # Read hyperparameter optimization results
-    best_result = read_json_file(exp_path / "hyperparameteroptimization" / "best_result.json")
+    # Read hyperparameter optimization results (only exists if HPO was enabled)
+    best_result = None
+    if (exp_path / "hyperparameteroptimization" / "best_result.json").exists():
+        best_result = read_json_file(exp_path / "hyperparameteroptimization" / "best_result.json")
     
-    # Create record
+    # Create record with basic information
     record = {
         "ExperimentFolder": exp_path.name,
         "Encoding": config["ENC_CONFIG"]["AliceAlgo"],
         "Dataset": os.path.basename(config["GLOBAL_CONFIG"]["Data"]),
         "DropFrom": config["GLOBAL_CONFIG"]["DropFrom"],
         "Overlap": config["GLOBAL_CONFIG"]["Overlap"],
+        "GraphMatchingAttack": config["GLOBAL_CONFIG"].get("GraphMatchingAttack", True),
+        "HPO": config["DEA_CONFIG"].get("HPO", True),
         "TrainedPrecision": metrics.get("avg_precision"),
         "TrainedRecall": metrics.get("avg_recall"),
         "TrainedF1": metrics.get("avg_f1"),
@@ -133,7 +137,7 @@ def extract_experiment_data(exp_dir):
         "ReidentificationRateGreedy": reid_rate_greedy,
     }
     
-    # Add hyperparameter optimization results
+    # Add hyperparameter optimization results (only if HPO was enabled)
     if best_result:
         record.update({
             "HypOpOutputDim": best_result.get("output_dim"),
@@ -155,8 +159,18 @@ def extract_experiment_data(exp_dir):
             "LenTrain": best_result.get("len_train"),
             "LenVal": best_result.get("len_val"),
         })
+    else:
+        # Add empty HPO fields when HPO was disabled
+        hpo_fields = [
+            "HypOpOutputDim", "HypOpNumLayers", "HypOpHiddenSize", "HypOpDropout",
+            "HypOpActivation", "HypOpOptimizer", "HypOpLossFn", "HypOpThreshold",
+            "HypOpLRScheduler", "HypOpBatchSize", "HypOpValLoss", "HypOpEpochs",
+            "HypOpF1", "HypOpPrecision", "HypOpRecall", "HypOpDice", "LenTrain", "LenVal"
+        ]
+        for field in hpo_fields:
+            record[field] = None
     
-    # Add runtime information
+    # Add runtime information (only if BenchMode was enabled)
     if runtime:
         record.update({
             "GraphMatchingAttackTime": runtime.get("GraphMatchingAttack"),
@@ -166,6 +180,14 @@ def extract_experiment_data(exp_dir):
             "RefinementandReconstructionTime": runtime.get("RefinementandReconstruction"),
             "TotalRuntime": runtime.get("TotalRuntime"),
         })
+    else:
+        # Add empty runtime fields when BenchMode was disabled
+        runtime_fields = [
+            "GraphMatchingAttackTime", "HyperparameterOptimizationTime", "ModelTrainingTime",
+            "ApplicationtoEncodedDataTime", "RefinementandReconstructionTime", "TotalRuntime"
+        ]
+        for field in runtime_fields:
+            record[field] = None
     
     return record
 
@@ -183,6 +205,12 @@ def main():
     skipped_count = 0
     missing_config_count = 0
     missing_metrics_count = 0
+    
+    # Track experiment configurations
+    gma_enabled_count = 0
+    gma_disabled_count = 0
+    hpo_enabled_count = 0
+    hpo_disabled_count = 0
     
     for exp_dir in experiment_dirs:
         print(f"Processing {exp_dir.name}...")
@@ -208,6 +236,17 @@ def main():
                 print(f"  Failed to extract: {exp_dir.name}")
             continue
         
+        # Track configuration statistics
+        if record.get("GraphMatchingAttack", True):
+            gma_enabled_count += 1
+        else:
+            gma_disabled_count += 1
+            
+        if record.get("HPO", True):
+            hpo_enabled_count += 1
+        else:
+            hpo_disabled_count += 1
+        
         data_records.append(record)
         print(f"  Successfully extracted: {exp_dir.name}")
     
@@ -222,8 +261,28 @@ def main():
     print(f"Successfully extracted: {len(data_records)}")
     
     if len(data_records) > 0:
+        print(f"\nExperiment Configuration Summary:")
+        print(f"GraphMatchingAttack enabled: {gma_enabled_count}")
+        print(f"GraphMatchingAttack disabled: {gma_disabled_count}")
+        print(f"HPO enabled: {hpo_enabled_count}")
+        print(f"HPO disabled: {hpo_disabled_count}")
+        
+        # Show encoding algorithm distribution
+        if "Encoding" in df.columns:
+            encoding_counts = df["Encoding"].value_counts()
+            print(f"\nEncoding Algorithm Distribution:")
+            for encoding, count in encoding_counts.items():
+                print(f"  {encoding}: {count}")
+        
+        # Show dataset distribution
+        if "Dataset" in df.columns:
+            dataset_counts = df["Dataset"].value_counts()
+            print(f"\nDataset Distribution:")
+            for dataset, count in dataset_counts.items():
+                print(f"  {dataset}: {count}")
+        
         df.to_csv(output_file, index=False)
-        print(f"Results saved to {output_file}")
+        print(f"\nResults saved to {output_file}")
     else:
         print("No valid experiments found to extract")
 

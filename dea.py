@@ -79,27 +79,19 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         DEA_CONFIG["ParallelTrials"] = parallel_trials
     
     # Validate and set GPU configuration
-    gpu_count = GLOBAL_CONFIG.get("GPUCount", 0)
     use_gpu = GLOBAL_CONFIG.get("UseGPU", False)
     
-    if use_gpu and gpu_count > 0:
-        available_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
-        if gpu_count > available_gpus:
-            print(f"[WARNING] GPUCount ({gpu_count}) exceeds available GPUs ({available_gpus}). Setting to {available_gpus}.")
-            gpu_count = available_gpus
-            GLOBAL_CONFIG["GPUCount"] = gpu_count
-        if gpu_count == 0:
-            print("[WARNING] No GPUs available. Disabling GPU usage.")
-            use_gpu = False
-            GLOBAL_CONFIG["UseGPU"] = False
-    elif use_gpu and gpu_count == 0:
-        # Auto-detect GPU count if UseGPU is True but GPUCount is 0
+    if use_gpu:
+        # Auto-detect and use maximum available GPUs when UseGPU is True
         gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
-        GLOBAL_CONFIG["GPUCount"] = gpu_count
         if gpu_count == 0:
             print("[WARNING] UseGPU is True but no GPUs available. Disabling GPU usage.")
             use_gpu = False
             GLOBAL_CONFIG["UseGPU"] = False
+        else:
+            print(f"[INFO] Using {gpu_count} available GPU(s)")
+    else:
+        gpu_count = 0
 
     # Ignore optuna warnings.
     warnings.filterwarnings("ignore", category=UserWarning, module="optuna")
@@ -138,7 +130,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     two_gram_dict = {i: two_gram for i, two_gram in enumerate(all_two_grams)}
 
     # Start timing the total run and the GMA run.
-    if GLOBAL_CONFIG["BenchMode"]:
+    if GLOBAL_CONFIG["BenchMode"] and GLOBAL_CONFIG["GraphMatchingAttack"]:
         start_total = time.time()
         start_gma = time.time()
 
@@ -174,7 +166,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         )
 
     # If the data is available, log the time taken for the GMA run.
-    if GLOBAL_CONFIG["BenchMode"]:
+    if GLOBAL_CONFIG["BenchMode"] and GLOBAL_CONFIG["GraphMatchingAttack"]:
         elapsed_gma = time.time() - start_gma
 
     # Load the experiment datasets (train, val, test) and check for empty splits.
