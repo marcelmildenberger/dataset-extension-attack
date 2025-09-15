@@ -129,9 +129,10 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     all_two_grams = letter_letter_grams + letter_digit_grams + digit_digit_grams
     two_gram_dict = {i: two_gram for i, two_gram in enumerate(all_two_grams)}
 
+    if GLOBAL_CONFIG["BenchMode"]:
+        start_total = time.time()
     # Start timing the total run and the GMA run.
     if GLOBAL_CONFIG["BenchMode"] and GLOBAL_CONFIG["GraphMatchingAttack"]:
-        start_total = time.time()
         start_gma = time.time()
 
     # Get the hashes for the encoding and embedding.
