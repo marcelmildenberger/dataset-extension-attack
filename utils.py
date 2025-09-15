@@ -24,6 +24,8 @@ from datasets.tab_min_hash_dataset import TabMinHashDataset
 from datasets.two_step_hash_dataset import TwoStepHashDataset
 import seaborn as sns
 from string_utils import extract_two_grams, format_birthday, process_file, lowercase_df
+import random
+import numpy as np
 
 
 
@@ -671,6 +673,77 @@ def read_header(tsv_path):
         header_line = f.readline().strip()
         columns = header_line.split('\t')
         return columns
+
+
+def create_synthetic_data_splits(GLOBAL_CONFIG, ENC_CONFIG, data_dir, alice_enc_hash, identifier, 
+                                path_reidentified, path_not_reidentified, path_all):
+    """
+    Create synthetic data splits when GraphMatchingAttack is disabled.
+    Loads the encoded dataset and samples based on overlap percentage.
+    """
+    
+    # Check if files already exist
+    if (os.path.isfile(path_reidentified) and 
+        os.path.isfile(path_not_reidentified) and 
+        os.path.isfile(path_all)):
+        return
+    
+    # Load the encoded dataset
+    dataset_name = GLOBAL_CONFIG["Data"].split("/")[-1].replace(".tsv", "")
+    algo = ENC_CONFIG["AliceAlgo"]
+    
+    if algo == "BloomFilter":
+        encoded_file = f"data/datasets/{dataset_name}_bf_encoded.tsv"
+    elif algo == "TabMinHash":
+        encoded_file = f"data/datasets/{dataset_name}_tmh_encoded.tsv"
+    elif algo == "TwoStepHash":
+        encoded_file = f"data/datasets/{dataset_name}_tsh_encoded.tsv"
+    else:
+        raise ValueError(f"Unsupported encoding algorithm: {algo}")
+    
+    if not os.path.isfile(encoded_file):
+        raise FileNotFoundError(f"Encoded dataset not found: {encoded_file}")
+    
+    # Load the encoded data
+    data, uids, header = read_tsv(encoded_file, skip_header=True, as_dict=False)
+    
+    # Convert to DataFrame-like format (list of lists with header)
+    all_data = [header] + [[row[0], row[1], row[2], row[3], uid] for row, uid in zip(data, uids)]
+    
+    # Sample based on overlap percentage
+    overlap_ratio = GLOBAL_CONFIG["Overlap"]
+    n_total = len(all_data) - 1  # Subtract header
+    n_reidentified = int(n_total * overlap_ratio)
+    
+    # Random sampling
+    random.seed(42)  # For reproducibility
+    indices = list(range(1, len(all_data)))  # Skip header
+    reidentified_indices = random.sample(indices, n_reidentified)
+    not_reidentified_indices = [i for i in indices if i not in reidentified_indices]
+    
+    # Create reidentified data (training data)
+    reidentified_data = [all_data[0]]  # Header
+    for idx in reidentified_indices:
+        reidentified_data.append(all_data[idx])
+    
+    # Create not reidentified data (test data)
+    not_reidentified_data = [all_data[0]]  # Header
+    for idx in not_reidentified_indices:
+        not_reidentified_data.append(all_data[idx])
+    
+    # Save the synthetic splits
+    os.makedirs(os.path.dirname(path_reidentified), exist_ok=True)
+    os.makedirs(os.path.dirname(path_not_reidentified), exist_ok=True)
+    os.makedirs(os.path.dirname(path_all), exist_ok=True)
+    
+    hkl.dump(reidentified_data, path_reidentified, mode="w")
+    hkl.dump(not_reidentified_data, path_not_reidentified, mode="w")
+    hkl.dump(all_data, path_all, mode="w")
+    
+    print(f"Created synthetic data splits:")
+    print(f"  Total records: {n_total}")
+    print(f"  Reidentified (training): {n_reidentified} ({overlap_ratio:.1%})")
+    print(f"  Not reidentified (test): {n_total - n_reidentified} ({1-overlap_ratio:.1%})")
 
 
 def load_experiment_datasets(

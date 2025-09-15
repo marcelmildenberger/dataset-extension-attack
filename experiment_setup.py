@@ -18,10 +18,12 @@ GLOBAL_CONFIG = {
     "UseGPU": True,
     "SaveModel": False,
     "SavePredictions": False,
+    "GraphMatchingAttack": True,
 }
 
 # === DEA Training Parameters ===
 DEA_CONFIG = {
+    "HPO": True,
     "TrainSize": 0.8,
     "Patience": 5,
     "MinDelta": 1e-4,
