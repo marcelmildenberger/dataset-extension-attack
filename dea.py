@@ -120,6 +120,17 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     # Initialize timing variables early to avoid UnboundLocalError
     start_total = None
     start_gma = None
+    start_hyperparameter_optimization = None
+    start_model_training = None
+    start_application_to_encoded_data = None
+    start_refinement_and_reconstruction = None
+    
+    elapsed_gma = None
+    elapsed_hyperparameter_optimization = None
+    elapsed_model_training = None
+    elapsed_application_to_encoded_data = None
+    elapsed_refinement_and_reconstruction = None
+    elapsed_total = None
     
     # Generate all possible two-character combinations (2-grams) from lowercase letters and digits.
     # This includes letter-letter, letter-digit, and digit-digit pairs.
@@ -171,7 +182,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         )
 
     # If the data is available, log the time taken for the GMA run.
-    if GLOBAL_CONFIG["BenchMode"] and GLOBAL_CONFIG["GraphMatchingAttack"]:
+    if GLOBAL_CONFIG["BenchMode"] and GLOBAL_CONFIG["GraphMatchingAttack"] and start_gma is not None:
         elapsed_gma = time.time() - start_gma
 
     # Load the experiment datasets (train, val, test) and check for empty splits.
@@ -467,7 +478,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         ray.shutdown()
 
         # Stop timing the hyperparameter optimization.
-        if GLOBAL_CONFIG["BenchMode"]:
+        if GLOBAL_CONFIG["BenchMode"] and start_hyperparameter_optimization is not None:
             elapsed_hyperparameter_optimization = time.time() - start_hyperparameter_optimization
 
         # Save the results of hyperparameter optimization to a CSV file and a plot.
@@ -718,7 +729,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     )
 
     # Stop timing the model training.
-    if GLOBAL_CONFIG["BenchMode"]:
+    if GLOBAL_CONFIG["BenchMode"] and start_model_training is not None:
         elapsed_model_training = time.time() - start_model_training
 
     # Define the paths for the model, config, result, and metrics files.
@@ -791,7 +802,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     avg_f1 = total_f1 / num_samples
 
     # Stop timing the application to encoded data.
-    if GLOBAL_CONFIG["BenchMode"]:
+    if GLOBAL_CONFIG["BenchMode"] and start_application_to_encoded_data is not None:
         elapsed_application_to_encoded_data = time.time() - start_application_to_encoded_data
 
     # Save the metrics and results if requested.
@@ -843,7 +854,8 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
     # Stop timing the refinement and reconstruction.
     if GLOBAL_CONFIG["BenchMode"] and start_total is not None:
-        elapsed_refinement_and_reconstruction = time.time() - start_refinement_and_reconstruction
+        if start_refinement_and_reconstruction is not None:
+            elapsed_refinement_and_reconstruction = time.time() - start_refinement_and_reconstruction
         elapsed_total = time.time() - start_total
         save_dea_runtime_log(
             elapsed_gma=elapsed_gma,
