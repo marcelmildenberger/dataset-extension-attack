@@ -55,16 +55,16 @@ def run_dea(GLOBAL_CONFIG: Dict[str, Any],
     # Import the combined DEA module
     from dea import run_dea as run_dea_combined
     
-    # Determine whether to skip HPO based on config setting
-    skip_hpo = not DEA_CONFIG.get("HPO", True)
+    # Determine whether HPO is enabled based on config setting
+    hpo_enabled = DEA_CONFIG.get("HPO", True)
     
-    if skip_hpo:
-        print("[INFO] Running without Hyperparameter Optimization (Skip HPO)")
-    else:
+    if hpo_enabled:
         print("[INFO] Running with Hyperparameter Optimization (HPO)")
+    else:
+        print("[INFO] Running without Hyperparameter Optimization (Skip HPO)")
     
-    # Run the combined DEA function with the skip_hpo parameter
-    return run_dea_combined(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG, skip_hpo=skip_hpo)
+    # Run the combined DEA function
+    return run_dea_combined(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG)
 
 
 def main():
