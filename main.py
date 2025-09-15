@@ -122,8 +122,11 @@ Examples:
         
         if args.verbose:
             hpo_enabled = DEA_CONFIG.get('HPO', True)
+            gma_enabled = GLOBAL_CONFIG.get('GraphMatchingAttack', True)
             print(f"[INFO] HPO enabled: {hpo_enabled}")
             print(f"[INFO] Skip HPO: {not hpo_enabled}")
+            print(f"[INFO] GMA enabled: {gma_enabled}")
+            print(f"[INFO] Skip GMA: {not gma_enabled}")
             print(f"[INFO] Parallel Trials: {DEA_CONFIG.get('ParallelTrials', 4)}")
             print(f"[INFO] GPU Usage: {GLOBAL_CONFIG.get('UseGPU', False)}")
             print(f"[INFO] GPU Count: {GLOBAL_CONFIG.get('GPUCount', 0)}")

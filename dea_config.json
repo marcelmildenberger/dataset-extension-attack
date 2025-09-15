@@ -1,6 +1,6 @@
 {
     "GLOBAL_CONFIG": {
-        "Data": "./data/datasets/fakename_5k.tsv",
+        "Data": "./data/datasets/fakename_10k.tsv",
         "Overlap": 0.9,
         "DropFrom": "Eve",
         "Verbose": false,
@@ -18,11 +18,11 @@
         "GraphMatchingAttack": false
     },
     "ENC_CONFIG": {
-        "AliceAlgo": "TwoStepHash",
+        "AliceAlgo": "BloomFilter",
         "AliceSecret": "SuperSecretSalt1337",
         "AliceN": 2,
         "AliceMetric": "dice",
-        "EveAlgo": "None",
+        "EveAlgo": "BloomFilter",
         "EveSecret": "ATotallyDifferentString42",
         "EveN": 2,
         "EveMetric": "dice",
@@ -94,7 +94,7 @@
         "Wasserstein": true
     },
     "DEA_CONFIG": {
-        "HPO": true,
+        "HPO": false,
         "TrainSize": 0.8,
         "Patience": 5,
         "MinDelta": 0.0001,
