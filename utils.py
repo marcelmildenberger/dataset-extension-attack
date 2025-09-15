@@ -24,6 +24,8 @@ from datasets.tab_min_hash_dataset import TabMinHashDataset
 from datasets.two_step_hash_dataset import TwoStepHashDataset
 import seaborn as sns
 from string_utils import extract_two_grams, format_birthday, process_file, lowercase_df
+import random
+import numpy as np
 
 
 
@@ -130,8 +132,8 @@ def precision_recall_f1(y_true, y_pred):
     return precision, recall, f1
 
 
-def run_epoch(model, dataloader, criterion, optimizer, device, is_training, verbose, scheduler=None):
-    model.train() if is_training else model.eval()
+def run_epoch(model, dataloader, criterion, optimizer, device, is_training, verbose, scheduler=None, scheduler_step=None, clip_grad_norm=0.0):
+    model.train(mode=is_training)
     running_loss = 0.0
 
     data_iter = tqdm(dataloader, desc="Training" if is_training else "Validation") if verbose else dataloader
@@ -148,8 +150,10 @@ def run_epoch(model, dataloader, criterion, optimizer, device, is_training, verb
 
             if is_training:
                 loss.backward()
+                if clip_grad_norm and clip_grad_norm > 0.0:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), clip_grad_norm)
                 optimizer.step()
-                if scheduler and not isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                if scheduler is not None and scheduler_step == "batch":
                     scheduler.step()
 
             running_loss += loss.item() * labels.size(0)
@@ -671,6 +675,77 @@ def read_header(tsv_path):
         return columns
 
 
+def create_synthetic_data_splits(GLOBAL_CONFIG, ENC_CONFIG, data_dir, alice_enc_hash, identifier, 
+                                path_reidentified, path_not_reidentified, path_all):
+    """
+    Create synthetic data splits when GraphMatchingAttack is disabled.
+    Loads the encoded dataset and samples based on overlap percentage.
+    """
+    
+    # Check if files already exist
+    if (os.path.isfile(path_reidentified) and 
+        os.path.isfile(path_not_reidentified) and 
+        os.path.isfile(path_all)):
+        return
+    
+    # Load the encoded dataset
+    dataset_name = GLOBAL_CONFIG["Data"].split("/")[-1].replace(".tsv", "")
+    algo = ENC_CONFIG["AliceAlgo"]
+    
+    if algo == "BloomFilter":
+        encoded_file = f"data/datasets/{dataset_name}_bf_encoded.tsv"
+    elif algo == "TabMinHash":
+        encoded_file = f"data/datasets/{dataset_name}_tmh_encoded.tsv"
+    elif algo == "TwoStepHash":
+        encoded_file = f"data/datasets/{dataset_name}_tsh_encoded.tsv"
+    else:
+        raise ValueError(f"Unsupported encoding algorithm: {algo}")
+    
+    if not os.path.isfile(encoded_file):
+        raise FileNotFoundError(f"Encoded dataset not found: {encoded_file}")
+    
+    # Load the encoded data
+    data, uids, header = read_tsv(encoded_file, skip_header=True, as_dict=False)
+    
+    # Convert to DataFrame-like format (list of lists with header)
+    all_data = [header] + [[row[0], row[1], row[2], row[3], uid] for row, uid in zip(data, uids)]
+    
+    # Sample based on overlap percentage
+    overlap_ratio = GLOBAL_CONFIG["Overlap"]
+    n_total = len(all_data) - 1  # Subtract header
+    n_reidentified = int(n_total * overlap_ratio)
+    
+    # Random sampling
+    random.seed(42)  # For reproducibility
+    indices = list(range(1, len(all_data)))  # Skip header
+    reidentified_indices = random.sample(indices, n_reidentified)
+    not_reidentified_indices = [i for i in indices if i not in reidentified_indices]
+    
+    # Create reidentified data (training data)
+    reidentified_data = [all_data[0]]  # Header
+    for idx in reidentified_indices:
+        reidentified_data.append(all_data[idx])
+    
+    # Create not reidentified data (test data)
+    not_reidentified_data = [all_data[0]]  # Header
+    for idx in not_reidentified_indices:
+        not_reidentified_data.append(all_data[idx])
+    
+    # Save the synthetic splits
+    os.makedirs(os.path.dirname(path_reidentified), exist_ok=True)
+    os.makedirs(os.path.dirname(path_not_reidentified), exist_ok=True)
+    os.makedirs(os.path.dirname(path_all), exist_ok=True)
+    
+    hkl.dump(reidentified_data, path_reidentified, mode="w")
+    hkl.dump(not_reidentified_data, path_not_reidentified, mode="w")
+    hkl.dump(all_data, path_all, mode="w")
+    
+    print(f"Created synthetic data splits:")
+    print(f"  Total records: {n_total}")
+    print(f"  Reidentified (training): {n_reidentified} ({overlap_ratio:.1%})")
+    print(f"  Not reidentified (test): {n_total - n_reidentified} ({1-overlap_ratio:.1%})")
+
+
 def load_experiment_datasets(
     data_directory, alice_enc_hash, identifier, ENC_CONFIG, DEA_CONFIG, GLOBAL_CONFIG, all_two_grams, splits=("train", "val", "test")
 ):
@@ -966,4 +1041,21 @@ def plot_metric_distributions(results_df, trained_model_directory, save=False):
         out_path = os.path.join(trained_model_directory, "metric_distributions.png")
         plt.savefig(out_path)
     plt.close()
+
+
+@torch.no_grad()
+def estimate_pos_weight(dataloader, output_dim):
+    """Compute per-class pos_weight = (N - pos) / pos, clamped to avoid div-by-zero."""
+    device = torch.device("cpu")
+    total = torch.zeros(output_dim, dtype=torch.float32, device=device)
+    n_samples = 0
+    for _, labels, _ in dataloader:
+        # labels expected shape (B, C) with 0/1
+        total += labels.sum(dim=0).to(device)
+        n_samples += labels.size(0)
+    pos = total
+    neg = n_samples - pos
+    pos = torch.clamp(pos, min=1.0)          # avoid inf
+    pos_weight = neg / pos
+    return pos_weight
 
