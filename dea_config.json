@@ -1,6 +1,6 @@
 {
     "GLOBAL_CONFIG": {
-        "Data": "./data/datasets/fakename_1k_tsh_encoded.tsv",
+        "Data": "./data/datasets/fakename_1k_bf_encoded.tsv",
         "Overlap": 0.9,
         "DropFrom": "Eve",
         "Verbose": false,
@@ -17,11 +17,11 @@
         "SavePredictions": false
     },
     "ENC_CONFIG": {
-        "AliceAlgo": "TwoStepHash",
+        "AliceAlgo": "BloomFilter",
         "AliceSecret": "SuperSecretSalt1337",
         "AliceN": 2,
         "AliceMetric": "dice",
-        "EveAlgo": "None",
+        "EveAlgo": "BloomFilter",
         "EveSecret": "ATotallyDifferentString42",
         "EveN": 2,
         "EveMetric": "dice",

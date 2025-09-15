@@ -539,7 +539,6 @@ def to_minutes(seconds):
 
 
 def save_dea_runtime_log(
-    elapsed_hyperparameter_optimization,
     elapsed_model_training,
     elapsed_application_to_encoded_data,
     elapsed_refinement_and_reconstruction,
@@ -550,7 +549,6 @@ def save_dea_runtime_log(
     
     # Save as CSV for better analysis
     runtimes = {
-        "hyperparameter_optimization": elapsed_hyperparameter_optimization,
         "model_training": elapsed_model_training,
         "application_to_encoded_data": elapsed_application_to_encoded_data,
         "refinement_and_reconstruction": elapsed_refinement_and_reconstruction,
