@@ -125,12 +125,13 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
     start_application_to_encoded_data = None
     start_refinement_and_reconstruction = None
     
-    elapsed_gma = None
-    elapsed_hyperparameter_optimization = None
-    elapsed_model_training = None
-    elapsed_application_to_encoded_data = None
-    elapsed_refinement_and_reconstruction = None
-    elapsed_total = None
+    # Initialize elapsed times to 0 (will be updated if timing is enabled)
+    elapsed_gma = 0
+    elapsed_hyperparameter_optimization = 0
+    elapsed_model_training = 0
+    elapsed_application_to_encoded_data = 0
+    elapsed_refinement_and_reconstruction = 0
+    elapsed_total = 0
     
     # Generate all possible two-character combinations (2-grams) from lowercase letters and digits.
     # This includes letter-letter, letter-digit, and digit-digit pairs.
@@ -219,7 +220,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         
         best_config = optimal_configs[alice_algo]
         print(f"[INFO] Using optimal configuration for {alice_algo}")
-        elapsed_hyperparameter_optimization = 0  # No HPO time
+        # elapsed_hyperparameter_optimization remains 0 (already initialized)
     else:
         # Run hyperparameter optimization
         if not HPO_AVAILABLE:
