@@ -706,9 +706,12 @@ def create_synthetic_data_splits(GLOBAL_CONFIG, ENC_CONFIG, data_dir, alice_enc_
     
     # Load the encoded data
     data, uids, header = read_tsv(encoded_file, skip_header=True, as_dict=False)
-    
+
     # Convert to DataFrame-like format (list of lists with header)
-    all_data = [header] + [[row[0], row[1], row[2], row[3], uid] for row, uid in zip(data, uids)]
+    if dataset_name != "titanic_full":
+        all_data = [header] + [[row[0], row[1], row[2], row[3], uid] for row, uid in zip(data, uids)]
+    else:
+        all_data = [header] + [[row[0], row[1], row[2], uid] for row, uid in zip(data, uids)]
     
     # Sample based on overlap percentage
     overlap_ratio = GLOBAL_CONFIG["Overlap"]
@@ -865,6 +868,7 @@ def run_reidentification_once(reconstructed_identities, df_not_reidentified, mer
         dict: Result of reidentification_analysis.
     """
     # Convert reconstructed identities to DataFrame and lowercase
+
     df_reconstructed = lowercase_df(pd.DataFrame(reconstructed_identities, columns=merge_cols))
     # If identifier components are provided, create identifier column in not-reidentified DataFrame
     if identifier_components:

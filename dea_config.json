@@ -1,6 +1,6 @@
 {
     "GLOBAL_CONFIG": {
-        "Data": "./data/datasets/fakename_10k.tsv",
+        "Data": "./data/datasets/titanic_full.tsv",
         "Overlap": 0.9,
         "DropFrom": "Eve",
         "Verbose": false,
@@ -15,14 +15,14 @@
         "UseGPU": false,
         "SaveModel": false,
         "SavePredictions": true,
-        "GraphMatchingAttack": false
+        "GraphMatchingAttack": true
     },
     "ENC_CONFIG": {
-        "AliceAlgo": "TwoStepHash",
+        "AliceAlgo": "TabMinHash",
         "AliceSecret": "SuperSecretSalt1337",
         "AliceN": 2,
         "AliceMetric": "dice",
-        "EveAlgo": "None",
+        "EveAlgo": "BloomFilter",
         "EveSecret": "ATotallyDifferentString42",
         "EveN": 2,
         "EveMetric": "dice",
@@ -102,6 +102,6 @@
         "ParallelTrials": 5,
         "Epochs": 25,
         "MetricToOptimize": "average_dice",
-        "MatchingTechnique": "greedy"
+        "MatchingTechnique": "fuzzy"
     }
 }
