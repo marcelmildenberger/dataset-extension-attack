@@ -721,15 +721,22 @@ def create_synthetic_data_splits(GLOBAL_CONFIG, ENC_CONFIG, data_dir, alice_enc_
     reidentified_indices = random.sample(indices, n_reidentified)
     not_reidentified_indices = [i for i in indices if i not in reidentified_indices]
     
-    # Create reidentified data (training data)
-    reidentified_data = [all_data[0]]  # Header
+    # Create reidentified data (training data) - full format for training
+    reidentified_data = [all_data[0]]  # Full header
     for idx in reidentified_indices:
         reidentified_data.append(all_data[idx])
     
-    # Create not reidentified data (test data)
-    not_reidentified_data = [all_data[0]]  # Header
+    # Create not reidentified data (test data) - match GMA format
+    # GMA creates not_reidentified_individuals with alice_header and alice_entry format
+    # where alice_entry is [encoding_column, uid] (last 2 columns)
+    # But we need to create a header that matches the 2-column data structure
+    not_reidentified_header = [header[-2], header[-1]]  # Last 2 column names: encoding, uid
+    not_reidentified_data = [not_reidentified_header]
     for idx in not_reidentified_indices:
-        not_reidentified_data.append(all_data[idx])
+        # Extract only the last 2 columns (encoding + uid) to match GMA's alice_entry format
+        row = all_data[idx]
+        encoding_and_uid = [row[-2], row[-1]]  # Last 2 columns: encoding, uid
+        not_reidentified_data.append(encoding_and_uid)
     
     # Save the synthetic splits
     os.makedirs(os.path.dirname(path_reidentified), exist_ok=True)
@@ -805,35 +812,11 @@ def load_not_reidentified_data(data_directory, alice_enc_hash, identifier):
         with open(cache_path, 'rb') as f:
             df_filtered = pickle.load(f)
         return df_filtered
-    
     df_not_reidentified = load_dataframe(f"{data_directory}/available_to_eve/not_reidentified_individuals_{identifier}.h5")
-    
-    # Check if this is synthetic data (created when GMA is disabled)
-    # Synthetic data already contains the correct subset, so we don't need to filter it further
-    try:
-        df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5")
-        # Try to filter based on UIDs - if this fails or results in empty data, it's likely synthetic data
-        df_filtered = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
-        
-        if len(df_filtered) == 0:
-            # This is synthetic data - return the not_reidentified data directly
-            df_filtered = df_not_reidentified.copy()
-            # Remove the last column if it's an encoding column (same as GMA behavior)
-            if len(df_filtered.columns) > 4:  # More than the basic columns (GivenName, Surname, Birthday, uid)
-                drop_col = df_filtered.columns[-2]
-                df_filtered = df_filtered.drop(columns=[drop_col])
-        else:
-            # This is GMA data - apply the original filtering logic
-            drop_col = df_filtered.columns[-2]
-            df_filtered = df_filtered.drop(columns=[drop_col])
-    except Exception:
-        # If loading the complete dataset fails, this is likely synthetic data
-        df_filtered = df_not_reidentified.copy()
-        # Remove the last column if it's an encoding column (same as GMA behavior)
-        if len(df_filtered.columns) > 4:  # More than the basic columns (GivenName, Surname, Birthday, uid)
-            drop_col = df_filtered.columns[-2]
-            df_filtered = df_filtered.drop(columns=[drop_col])
-    
+    df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5")
+    df_filtered = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
+    drop_col = df_filtered.columns[-2]
+    df_filtered = df_filtered.drop(columns=[drop_col])
     with open(cache_path, 'wb') as f:
         pickle.dump(df_filtered, f)
     return df_filtered
