@@ -131,6 +131,33 @@ class HyperparameterAnalyzer:
             hp = exp['hyperparameters'].copy()
             hp['performance'] = exp['performance']
             hp['dataset'] = exp['dataset']
+            
+            # Flatten optimizer and scheduler parameters for easier analysis
+            if 'optimizer' in hp and isinstance(hp['optimizer'], dict):
+                optimizer = hp['optimizer']
+                hp['optimizer_name'] = optimizer.get('name')
+                hp['optimizer_lr'] = optimizer.get('lr')
+                hp['optimizer_momentum'] = optimizer.get('momentum', 0.0)
+                hp['optimizer_weight_decay'] = optimizer.get('weight_decay', 0.0)
+                hp['optimizer_betas'] = optimizer.get('betas', (0.9, 0.999))
+                hp['optimizer_eps'] = optimizer.get('eps', 1e-8)
+                hp['optimizer_alpha'] = optimizer.get('alpha', 0.99)
+                
+            if 'lr_scheduler' in hp and isinstance(hp['lr_scheduler'], dict):
+                scheduler = hp['lr_scheduler']
+                hp['lr_scheduler_name'] = scheduler.get('name')
+                hp['lr_scheduler_mode'] = scheduler.get('mode', 'min')
+                hp['lr_scheduler_factor'] = scheduler.get('factor', 0.1)
+                hp['lr_scheduler_patience'] = scheduler.get('patience', 10)
+                hp['lr_scheduler_T_max'] = scheduler.get('T_max', 10)
+                hp['lr_scheduler_eta_min'] = scheduler.get('eta_min', 0)
+                hp['lr_scheduler_base_lr'] = scheduler.get('base_lr', 1e-5)
+                hp['lr_scheduler_max_lr'] = scheduler.get('max_lr', 1e-1)
+                hp['lr_scheduler_step_size_up'] = scheduler.get('step_size_up', 2000)
+                hp['lr_scheduler_mode_cyclic'] = scheduler.get('mode_cyclic', 'triangular')
+                hp['lr_scheduler_gamma'] = scheduler.get('gamma', 0.1)
+                hp['lr_scheduler_step_size'] = scheduler.get('step_size', 30)
+                
             hyperparams.append(hp)
             
         return hyperparams
@@ -144,13 +171,13 @@ class HyperparameterAnalyzer:
             # Focus on the most important hyperparameters for clustering
             key_params = {
                 'activation_fn': hp.get('activation_fn'),
-                'optimizer_name': hp.get('optimizer', {}).get('name'),
+                'optimizer_name': hp.get('optimizer_name'),
                 'loss_fn': hp.get('loss_fn'),
                 'batch_size': hp.get('batch_size'),
-                'lr_scheduler_name': hp.get('lr_scheduler', {}).get('name'),
+                'lr_scheduler_name': hp.get('lr_scheduler_name'),
                 'hidden_layer_size': self._bucket_hidden_layer_size(hp.get('hidden_layer_size')),
                 'dropout_rate': self._bucket_dropout_rate(hp.get('dropout_rate')),
-                'optimizer_lr': self._bucket_learning_rate(hp.get('optimizer', {}).get('lr')),
+                'optimizer_lr': self._bucket_learning_rate(hp.get('optimizer_lr')),
                 'threshold': self._bucket_threshold(hp.get('threshold'))
             }
             
@@ -186,19 +213,25 @@ class HyperparameterAnalyzer:
         # Get top 10 performing combinations
         top_performing = []
         for i, hp in enumerate(sorted_hp[:10]):
-            # Create combination string
+            # Create combination string with detailed parameters
             key_params = {
                 'num_layers': hp.get('num_layers'),
                 'hidden_layer_size': hp.get('hidden_layer_size'),
                 'dropout_rate': hp.get('dropout_rate'),
                 'activation_fn': hp.get('activation_fn'),
-                'optimizer_name': hp.get('optimizer', {}).get('name'),
-                'optimizer_lr': hp.get('optimizer', {}).get('lr'),
+                'optimizer_name': hp.get('optimizer_name'),
+                'optimizer_lr': hp.get('optimizer_lr'),
+                'optimizer_momentum': hp.get('optimizer_momentum'),
+                'optimizer_weight_decay': hp.get('optimizer_weight_decay'),
                 'loss_fn': hp.get('loss_fn'),
                 'threshold': hp.get('threshold'),
                 'batch_size': hp.get('batch_size'),
-                'lr_scheduler_name': hp.get('lr_scheduler', {}).get('name'),
-                'lr_scheduler_mode': hp.get('lr_scheduler', {}).get('mode_cyclic')
+                'lr_scheduler_name': hp.get('lr_scheduler_name'),
+                'lr_scheduler_mode': hp.get('lr_scheduler_mode'),
+                'lr_scheduler_factor': hp.get('lr_scheduler_factor'),
+                'lr_scheduler_patience': hp.get('lr_scheduler_patience'),
+                'lr_scheduler_T_max': hp.get('lr_scheduler_T_max'),
+                'lr_scheduler_eta_min': hp.get('lr_scheduler_eta_min')
             }
             
             combo_str = " | ".join([f"{k}={v}" for k, v in key_params.items() if v is not None])
@@ -207,7 +240,8 @@ class HyperparameterAnalyzer:
                 'rank': i + 1,
                 'combination': combo_str,
                 'performance': hp['performance'],
-                'dataset': hp['dataset']
+                'dataset': hp['dataset'],
+                'full_config': hp  # Include full config for detailed analysis
             })
         
         return top_performing
@@ -235,22 +269,17 @@ class HyperparameterAnalyzer:
         
         param_analysis = {}
         
-        # Key parameters to analyze
-        key_params = [
+        # Key parameters to analyze (categorical)
+        categorical_params = [
             'activation_fn', 'optimizer_name', 'loss_fn', 'batch_size', 
-            'lr_scheduler_name', 'num_layers'
+            'lr_scheduler_name', 'num_layers', 'lr_scheduler_mode', 'lr_scheduler_mode_cyclic'
         ]
         
-        for param in key_params:
+        for param in categorical_params:
             value_weights = defaultdict(float)
             
             for hp, weight in zip(top_performers, weights):
-                if param.startswith('optimizer_'):
-                    value = hp.get('optimizer', {}).get(param.split('_', 1)[1])
-                elif param.startswith('lr_scheduler_'):
-                    value = hp.get('lr_scheduler', {}).get(param.split('_', 2)[2])
-                else:
-                    value = hp.get(param)
+                value = hp.get(param)
                 
                 if value is not None:
                     value_weights[value] += weight
@@ -266,7 +295,15 @@ class HyperparameterAnalyzer:
                 }
         
         # For continuous parameters, calculate weighted median/mean
-        continuous_params = ['dropout_rate', 'threshold']
+        continuous_params = [
+            'dropout_rate', 'threshold', 'optimizer_lr', 'optimizer_momentum', 
+            'optimizer_weight_decay', 'optimizer_eps', 'optimizer_alpha',
+            'lr_scheduler_factor', 'lr_scheduler_patience', 'lr_scheduler_T_max',
+            'lr_scheduler_eta_min', 'lr_scheduler_base_lr', 'lr_scheduler_max_lr',
+            'lr_scheduler_step_size_up', 'lr_scheduler_gamma', 'lr_scheduler_step_size',
+            'hidden_layer_size'
+        ]
+        
         for param in continuous_params:
             weighted_values = []
             for hp, weight in zip(top_performers, weights):
@@ -276,50 +313,91 @@ class HyperparameterAnalyzer:
                     weighted_values.extend([value] * int(weight * 1000))  # Scale up for better precision
             
             if weighted_values:
-                param_analysis[param] = {
-                    'recommended': np.median(weighted_values),
-                    'weighted_mean': np.mean(weighted_values),
-                    'std': np.std(weighted_values),
-                    'min': np.min(weighted_values),
-                    'max': np.max(weighted_values),
-                    'count': len(weighted_values)
-                }
-        
-        # Learning rate analysis with weights
-        weighted_lr_values = []
-        for hp, weight in zip(top_performers, weights):
-            lr = hp.get('optimizer', {}).get('lr')
-            if lr is not None:
-                weighted_lr_values.extend([lr] * int(weight * 1000))
-        
-        if weighted_lr_values:
-            param_analysis['optimizer_lr'] = {
-                'recommended': np.median(weighted_lr_values),
-                'weighted_mean': np.mean(weighted_lr_values),
-                'std': np.std(weighted_lr_values),
-                'min': np.min(weighted_lr_values),
-                'max': np.max(weighted_lr_values),
-                'count': len(weighted_lr_values)
-            }
-        
-        # Hidden layer size analysis with weights
-        weighted_hidden_sizes = []
-        for hp, weight in zip(top_performers, weights):
-            size = hp.get('hidden_layer_size')
-            if size is not None:
-                weighted_hidden_sizes.extend([size] * int(weight * 1000))
-        
-        if weighted_hidden_sizes:
-            param_analysis['hidden_layer_size'] = {
-                'recommended': int(np.median(weighted_hidden_sizes)),
-                'weighted_mean': np.mean(weighted_hidden_sizes),
-                'std': np.std(weighted_hidden_sizes),
-                'min': np.min(weighted_hidden_sizes),
-                'max': np.max(weighted_hidden_sizes),
-                'count': len(weighted_hidden_sizes)
-            }
+                if param == 'hidden_layer_size':
+                    # Hidden layer size should be integer
+                    param_analysis[param] = {
+                        'recommended': int(np.median(weighted_values)),
+                        'weighted_mean': np.mean(weighted_values),
+                        'std': np.std(weighted_values),
+                        'min': np.min(weighted_values),
+                        'max': np.max(weighted_values),
+                        'count': len(weighted_values)
+                    }
+                else:
+                    param_analysis[param] = {
+                        'recommended': np.median(weighted_values),
+                        'weighted_mean': np.mean(weighted_values),
+                        'std': np.std(weighted_values),
+                        'min': np.min(weighted_values),
+                        'max': np.max(weighted_values),
+                        'count': len(weighted_values)
+                    }
         
         return param_analysis
+    
+    def _generate_optimal_configs(self, results):
+        """Generate optimal_configs.json with complete parameter sets for each encoding scheme."""
+        optimal_configs = {}
+        
+        for encoding_scheme, data in results.items():
+            if 'recommended_config' not in data or not data['recommended_config']:
+                continue
+                
+            config = data['recommended_config']
+            
+            # Build the optimal configuration
+            optimal_config = {
+                "model_params": {
+                    "num_layers": config.get('num_layers', {}).get('recommended', 1),
+                    "hidden_layer_size": config.get('hidden_layer_size', {}).get('recommended', 1024),
+                    "dropout_rate": config.get('dropout_rate', {}).get('recommended', 0.2),
+                    "activation_fn": config.get('activation_fn', {}).get('recommended', 'selu')
+                },
+                "optimizer": {
+                    "name": config.get('optimizer_name', {}).get('recommended', 'RMSprop'),
+                    "lr": config.get('optimizer_lr', {}).get('recommended', 0.001)
+                },
+                "loss_fn": config.get('loss_fn', {}).get('recommended', 'BCEWithLogitsLoss'),
+                "threshold": config.get('threshold', {}).get('recommended', 0.3),
+                "batch_size": config.get('batch_size', {}).get('recommended', 8),
+                "lr_scheduler": {
+                    "name": config.get('lr_scheduler_name', {}).get('recommended', 'None')
+                }
+            }
+            
+            # Add optimizer-specific parameters
+            optimizer_name = optimal_config["optimizer"]["name"]
+            if optimizer_name == "SGD":
+                optimal_config["optimizer"]["momentum"] = config.get('optimizer_momentum', {}).get('recommended', 0.9)
+            elif optimizer_name in ["Adam", "AdamW"]:
+                optimal_config["optimizer"]["weight_decay"] = config.get('optimizer_weight_decay', {}).get('recommended', 0.0)
+                optimal_config["optimizer"]["eps"] = config.get('optimizer_eps', {}).get('recommended', 1e-8)
+                if optimizer_name == "Adam":
+                    optimal_config["optimizer"]["betas"] = (0.9, 0.999)  # Default values
+            elif optimizer_name == "RMSprop":
+                optimal_config["optimizer"]["alpha"] = config.get('optimizer_alpha', {}).get('recommended', 0.99)
+            
+            # Add scheduler-specific parameters
+            scheduler_name = optimal_config["lr_scheduler"]["name"]
+            if scheduler_name == "ReduceLROnPlateau":
+                optimal_config["lr_scheduler"]["mode"] = config.get('lr_scheduler_mode', {}).get('recommended', 'min')
+                optimal_config["lr_scheduler"]["factor"] = config.get('lr_scheduler_factor', {}).get('recommended', 0.1)
+                optimal_config["lr_scheduler"]["patience"] = config.get('lr_scheduler_patience', {}).get('recommended', 10)
+            elif scheduler_name == "CosineAnnealingLR":
+                optimal_config["lr_scheduler"]["T_max"] = config.get('lr_scheduler_T_max', {}).get('recommended', 10)
+                optimal_config["lr_scheduler"]["eta_min"] = config.get('lr_scheduler_eta_min', {}).get('recommended', 0)
+            elif scheduler_name == "CyclicLR":
+                optimal_config["lr_scheduler"]["base_lr"] = config.get('lr_scheduler_base_lr', {}).get('recommended', 1e-5)
+                optimal_config["lr_scheduler"]["max_lr"] = config.get('lr_scheduler_max_lr', {}).get('recommended', 1e-1)
+                optimal_config["lr_scheduler"]["step_size_up"] = config.get('lr_scheduler_step_size_up', {}).get('recommended', 2000)
+                optimal_config["lr_scheduler"]["mode"] = config.get('lr_scheduler_mode_cyclic', {}).get('recommended', 'triangular')
+            elif scheduler_name == "StepLR":
+                optimal_config["lr_scheduler"]["step_size"] = config.get('lr_scheduler_step_size', {}).get('recommended', 30)
+                optimal_config["lr_scheduler"]["gamma"] = config.get('lr_scheduler_gamma', {}).get('recommended', 0.1)
+            
+            optimal_configs[encoding_scheme] = optimal_config
+            
+        return optimal_configs
     
     def _analyze_parameter_distributions(self, hyperparams):
         """Analyze distributions of individual parameters."""
@@ -333,11 +411,25 @@ class HyperparameterAnalyzer:
             'activation_fn': {'type': 'categorical'},
             'optimizer_name': {'type': 'categorical'},
             'optimizer_lr': {'type': 'continuous', 'buckets': [1e-5, 1e-4, 1e-3, 1e-2]},
+            'optimizer_momentum': {'type': 'continuous', 'buckets': [0.0, 0.5, 0.9, 0.95, 0.99]},
+            'optimizer_weight_decay': {'type': 'continuous', 'buckets': [0.0, 1e-4, 1e-3, 1e-2]},
+            'optimizer_eps': {'type': 'continuous', 'buckets': [1e-8, 1e-7, 1e-6, 1e-5]},
+            'optimizer_alpha': {'type': 'continuous', 'buckets': [0.9, 0.95, 0.99, 0.999]},
             'loss_fn': {'type': 'categorical'},
             'threshold': {'type': 'continuous', 'buckets': [0.1, 0.2, 0.3, 0.4, 0.5]},
             'batch_size': {'type': 'categorical'},
             'lr_scheduler_name': {'type': 'categorical'},
-            'lr_scheduler_mode': {'type': 'categorical'}
+            'lr_scheduler_mode': {'type': 'categorical'},
+            'lr_scheduler_factor': {'type': 'continuous', 'buckets': [0.1, 0.2, 0.3, 0.4, 0.5]},
+            'lr_scheduler_patience': {'type': 'categorical'},
+            'lr_scheduler_T_max': {'type': 'continuous', 'buckets': [10, 20, 50, 100]},
+            'lr_scheduler_eta_min': {'type': 'continuous', 'buckets': [0, 1e-6, 1e-5, 1e-4]},
+            'lr_scheduler_base_lr': {'type': 'continuous', 'buckets': [1e-5, 1e-4, 1e-3]},
+            'lr_scheduler_max_lr': {'type': 'continuous', 'buckets': [1e-3, 1e-2, 1e-1]},
+            'lr_scheduler_step_size_up': {'type': 'categorical'},
+            'lr_scheduler_mode_cyclic': {'type': 'categorical'},
+            'lr_scheduler_gamma': {'type': 'continuous', 'buckets': [0.1, 0.2, 0.5, 0.9]},
+            'lr_scheduler_step_size': {'type': 'categorical'}
         }
         
         for param, config in param_configs.items():
@@ -345,12 +437,7 @@ class HyperparameterAnalyzer:
             performances = []
             
             for hp in hyperparams:
-                if param.startswith('optimizer_'):
-                    value = hp.get('optimizer', {}).get(param.split('_', 1)[1])
-                elif param.startswith('lr_scheduler_'):
-                    value = hp.get('lr_scheduler', {}).get(param.split('_', 2)[2])
-                else:
-                    value = hp.get(param)
+                value = hp.get(param)
                 
                 if value is not None:
                     # Convert to string to make it hashable
@@ -461,36 +548,93 @@ class HyperparameterAnalyzer:
         return avg_perf
     
     def generate_report(self, results):
-        """Generate a focused report with only weighted recommended configurations."""
+        """Generate a comprehensive report with detailed parameter analysis."""
         report = []
-        report.append("# Hyperparameter Analysis Report - Weighted Recommendations")
-        report.append("=" * 70)
+        report.append("# Hyperparameter Analysis Report - Detailed Parameter Analysis")
+        report.append("=" * 80)
         report.append("Based on top 30% performers with performance-weighted analysis")
-        report.append("=" * 70)
+        report.append("=" * 80)
         
         for encoding_scheme, data in results.items():
             report.append(f"\n## {encoding_scheme} - Recommended Configuration")
             report.append(f"Total Experiments Analyzed: {data['total_experiments']}")
-            report.append("-" * 50)
+            report.append("-" * 60)
             
             # Recommended configuration with weighted analysis
             if 'recommended_config' in data and data['recommended_config']:
-                report.append("\n### Weighted Recommended Hyperparameters:")
-                report.append("(Higher performing configurations have greater influence)")
+                report.append("\n### Model Architecture Parameters:")
                 report.append("")
+                model_params = ['num_layers', 'hidden_layer_size', 'dropout_rate', 'activation_fn']
+                for param in model_params:
+                    if param in data['recommended_config']:
+                        config = data['recommended_config'][param]
+                        if 'recommended' in config:
+                            if isinstance(config['recommended'], (int, float)):
+                                if 'weighted_score' in config:
+                                    report.append(f"  • **{param}**: {config['recommended']:.4f} (weighted score: {config['weighted_score']:.3f})")
+                                else:
+                                    report.append(f"  • **{param}**: {config['recommended']:.4f} (weighted median, range: {config['min']:.4f}-{config['max']:.4f})")
+                            else:
+                                if 'weighted_score' in config:
+                                    report.append(f"  • **{param}**: {config['recommended']} (weighted score: {config['weighted_score']:.3f})")
+                                else:
+                                    report.append(f"  • **{param}**: {config['recommended']}")
                 
-                for param, config in data['recommended_config'].items():
-                    if 'recommended' in config:
-                        if isinstance(config['recommended'], (int, float)):
-                            if 'weighted_score' in config:
-                                report.append(f"  • **{param}**: {config['recommended']:.4f} (weighted score: {config['weighted_score']:.3f})")
+                report.append("\n### Optimizer Configuration:")
+                report.append("")
+                optimizer_params = ['optimizer_name', 'optimizer_lr', 'optimizer_momentum', 'optimizer_weight_decay', 'optimizer_eps', 'optimizer_alpha']
+                for param in optimizer_params:
+                    if param in data['recommended_config']:
+                        config = data['recommended_config'][param]
+                        if 'recommended' in config:
+                            if isinstance(config['recommended'], (int, float)):
+                                if 'weighted_score' in config:
+                                    report.append(f"  • **{param}**: {config['recommended']:.6f} (weighted score: {config['weighted_score']:.3f})")
+                                else:
+                                    report.append(f"  • **{param}**: {config['recommended']:.6f} (weighted median, range: {config['min']:.6f}-{config['max']:.6f})")
                             else:
-                                report.append(f"  • **{param}**: {config['recommended']:.4f} (weighted median, range: {config['min']:.4f}-{config['max']:.4f})")
-                        else:
-                            if 'weighted_score' in config:
-                                report.append(f"  • **{param}**: {config['recommended']} (weighted score: {config['weighted_score']:.3f})")
+                                if 'weighted_score' in config:
+                                    report.append(f"  • **{param}**: {config['recommended']} (weighted score: {config['weighted_score']:.3f})")
+                                else:
+                                    report.append(f"  • **{param}**: {config['recommended']}")
+                
+                report.append("\n### Learning Rate Scheduler Configuration:")
+                report.append("")
+                scheduler_params = ['lr_scheduler_name', 'lr_scheduler_mode', 'lr_scheduler_factor', 'lr_scheduler_patience', 
+                                  'lr_scheduler_T_max', 'lr_scheduler_eta_min', 'lr_scheduler_base_lr', 'lr_scheduler_max_lr',
+                                  'lr_scheduler_step_size_up', 'lr_scheduler_mode_cyclic', 'lr_scheduler_gamma', 'lr_scheduler_step_size']
+                for param in scheduler_params:
+                    if param in data['recommended_config']:
+                        config = data['recommended_config'][param]
+                        if 'recommended' in config:
+                            if isinstance(config['recommended'], (int, float)):
+                                if 'weighted_score' in config:
+                                    report.append(f"  • **{param}**: {config['recommended']:.6f} (weighted score: {config['weighted_score']:.3f})")
+                                else:
+                                    report.append(f"  • **{param}**: {config['recommended']:.6f} (weighted median, range: {config['min']:.6f}-{config['max']:.6f})")
                             else:
-                                report.append(f"  • **{param}**: {config['recommended']}")
+                                if 'weighted_score' in config:
+                                    report.append(f"  • **{param}**: {config['recommended']} (weighted score: {config['weighted_score']:.3f})")
+                                else:
+                                    report.append(f"  • **{param}**: {config['recommended']}")
+                
+                report.append("\n### Training Configuration:")
+                report.append("")
+                training_params = ['loss_fn', 'threshold', 'batch_size']
+                for param in training_params:
+                    if param in data['recommended_config']:
+                        config = data['recommended_config'][param]
+                        if 'recommended' in config:
+                            if isinstance(config['recommended'], (int, float)):
+                                if 'weighted_score' in config:
+                                    report.append(f"  • **{param}**: {config['recommended']:.4f} (weighted score: {config['weighted_score']:.3f})")
+                                else:
+                                    report.append(f"  • **{param}**: {config['recommended']:.4f} (weighted median, range: {config['min']:.4f}-{config['max']:.4f})")
+                            else:
+                                if 'weighted_score' in config:
+                                    report.append(f"  • **{param}**: {config['recommended']} (weighted score: {config['weighted_score']:.3f})")
+                                else:
+                                    report.append(f"  • **{param}**: {config['recommended']}")
                 
                 report.append("")
                 report.append("### Weighting Methodology:")
@@ -499,22 +643,29 @@ class HyperparameterAnalyzer:
                 report.append("- Higher performing configurations have proportionally greater influence")
                 report.append("- Categorical parameters: most frequent weighted choice")
                 report.append("- Continuous parameters: weighted median/mean")
+                report.append("- Optimizer and scheduler parameters are analyzed individually for complete configuration")
             else:
                 report.append("\nNo recommended configuration available (insufficient data)")
         
         return "\n".join(report)
     
     def save_results(self, results, output_dir="analysis"):
-        """Save only the text report."""
+        """Save both the analysis report and optimal configs JSON."""
         output_dir = Path(output_dir)
         output_dir.mkdir(exist_ok=True)
         
-        # Save report as text
+        # Save detailed analysis report
         report = self.generate_report(results)
-        with open(output_dir / "hyperparameter_analysis_report.txt", 'w', encoding='utf-8') as f:
+        with open(output_dir / "analysis.txt", 'w', encoding='utf-8') as f:
             f.write(report)
         
-        print(f"\nReport saved to {output_dir}/hyperparameter_analysis_report.txt")
+        # Generate and save optimal configs JSON
+        optimal_configs = self._generate_optimal_configs(results)
+        with open(output_dir / "optimal_configs.json", 'w', encoding='utf-8') as f:
+            json.dump(optimal_configs, f, indent=4)
+        
+        print(f"\nAnalysis report saved to {output_dir}/analysis.txt")
+        print(f"Optimal configs saved to {output_dir}/optimal_configs.json")
     
 
 def main():

@@ -18,11 +18,11 @@
         "GraphMatchingAttack": false
     },
     "ENC_CONFIG": {
-        "AliceAlgo": "BloomFilter",
+        "AliceAlgo": "TwoStepHash",
         "AliceSecret": "SuperSecretSalt1337",
         "AliceN": 2,
         "AliceMetric": "dice",
-        "EveAlgo": "BloomFilter",
+        "EveAlgo": "None",
         "EveSecret": "ATotallyDifferentString42",
         "EveN": 2,
         "EveMetric": "dice",
