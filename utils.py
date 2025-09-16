@@ -805,11 +805,35 @@ def load_not_reidentified_data(data_directory, alice_enc_hash, identifier):
         with open(cache_path, 'rb') as f:
             df_filtered = pickle.load(f)
         return df_filtered
+    
     df_not_reidentified = load_dataframe(f"{data_directory}/available_to_eve/not_reidentified_individuals_{identifier}.h5")
-    df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5")
-    df_filtered = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
-    drop_col = df_filtered.columns[-2]
-    df_filtered = df_filtered.drop(columns=[drop_col])
+    
+    # Check if this is synthetic data (created when GMA is disabled)
+    # Synthetic data already contains the correct subset, so we don't need to filter it further
+    try:
+        df_all = load_dataframe(f"{data_directory}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5")
+        # Try to filter based on UIDs - if this fails or results in empty data, it's likely synthetic data
+        df_filtered = df_all[df_all["uid"].isin(df_not_reidentified["uid"])].reset_index(drop=True)
+        
+        if len(df_filtered) == 0:
+            # This is synthetic data - return the not_reidentified data directly
+            df_filtered = df_not_reidentified.copy()
+            # Remove the last column if it's an encoding column (same as GMA behavior)
+            if len(df_filtered.columns) > 4:  # More than the basic columns (GivenName, Surname, Birthday, uid)
+                drop_col = df_filtered.columns[-2]
+                df_filtered = df_filtered.drop(columns=[drop_col])
+        else:
+            # This is GMA data - apply the original filtering logic
+            drop_col = df_filtered.columns[-2]
+            df_filtered = df_filtered.drop(columns=[drop_col])
+    except Exception:
+        # If loading the complete dataset fails, this is likely synthetic data
+        df_filtered = df_not_reidentified.copy()
+        # Remove the last column if it's an encoding column (same as GMA behavior)
+        if len(df_filtered.columns) > 4:  # More than the basic columns (GivenName, Surname, Birthday, uid)
+            drop_col = df_filtered.columns[-2]
+            df_filtered = df_filtered.drop(columns=[drop_col])
+    
     with open(cache_path, 'wb') as f:
         pickle.dump(df_filtered, f)
     return df_filtered
