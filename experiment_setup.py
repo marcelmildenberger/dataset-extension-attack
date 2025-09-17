@@ -31,7 +31,8 @@ DEA_CONFIG = {
     "NumSamples": 125,
     "Epochs": 25,
     "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
-    "MatchingTechnique": "fuzzy_and_greedy",  # Options: "ai", "greedy", "fuzzy", ...
+    "MatchingTechnique": "fuzzy_and_greedy",  # Options: "ai", "greedy", "fuzzy", ...,
+    "HPO_Narrow_Searchspace": True,
 }
 
 # === Encoding Parameters for Alice & Eve ===
@@ -126,9 +127,10 @@ ALIGN_CONFIG = {
 # List to store failed experiments
 failed_experiments = []
 
-encs = ["BloomFilter", "TabMinHash"]
+encs = ["TwoStepHash", "TabMinHash", "BloomFilter"]
 
-datasets = ["euro_person.tsv"]
+datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv",
+            "fakename_20k.tsv", "fakename_50k.tsv", "euro_person.tsv"]
 
 overlap = [0.2, 0.4, 0.6, 0.8]
 
