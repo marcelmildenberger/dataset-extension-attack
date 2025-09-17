@@ -1,7 +1,7 @@
 {
     "GLOBAL_CONFIG": {
         "Data": "./data/datasets/titanic_full.tsv",
-        "Overlap": 0.9,
+        "Overlap": 0.83,
         "DropFrom": "Eve",
         "Verbose": false,
         "MatchingMetric": "cosine",
@@ -15,14 +15,14 @@
         "UseGPU": false,
         "SaveModel": false,
         "SavePredictions": true,
-        "GraphMatchingAttack": true
+        "GraphMatchingAttack": false
     },
     "ENC_CONFIG": {
-        "AliceAlgo": "TabMinHash",
+        "AliceAlgo": "TwoStepHash",
         "AliceSecret": "SuperSecretSalt1337",
         "AliceN": 2,
         "AliceMetric": "dice",
-        "EveAlgo": "BloomFilter",
+        "EveAlgo": "None",
         "EveSecret": "ATotallyDifferentString42",
         "EveN": 2,
         "EveMetric": "dice",
@@ -94,7 +94,7 @@
         "Wasserstein": true
     },
     "DEA_CONFIG": {
-        "HPO": false,
+        "HPO": true,
         "HPO_Narrow_Searchspace": true,
         "TrainSize": 0.8,
         "Patience": 5,
@@ -103,6 +103,6 @@
         "ParallelTrials": 5,
         "Epochs": 25,
         "MetricToOptimize": "average_dice",
-        "MatchingTechnique": "fuzzy"
+        "MatchingTechnique": "greedy"
     }
 }
