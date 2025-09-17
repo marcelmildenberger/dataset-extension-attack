@@ -9,6 +9,15 @@ This script analyzes hyperparameter combinations for each encoding scheme:
 
 It identifies the most chosen and best performing hyperparameter combinations,
 with bucketing/averaging for continuous values.
+
+Additionally, it generates narrow Ray Tune search spaces based on the top 30%
+performing experiments, providing optimized parameter ranges for future
+hyperparameter optimization runs.
+
+Outputs:
+- Detailed analysis report with recommended configurations
+- Optimal configurations JSON for direct use
+- Narrow search spaces JSON with Ray Tune code for each encoding scheme
 """
 
 import os
@@ -120,6 +129,14 @@ class HyperparameterAnalyzer:
                 'recommended_config': recommended_config,
                 'total_experiments': len(experiments)
             }
+            
+        # Generate narrow search spaces after all analysis is complete
+        search_spaces = self._generate_narrow_search_spaces(results)
+        
+        # Add search spaces to results
+        for encoding_scheme, search_data in search_spaces.items():
+            if encoding_scheme in results:
+                results[encoding_scheme]['search_spaces'] = search_data
             
         return results
     
@@ -399,6 +416,197 @@ class HyperparameterAnalyzer:
             
         return optimal_configs
     
+    def _generate_narrow_search_spaces(self, results):
+        """Generate narrow Ray Tune search spaces based on top 30% performers."""
+        search_spaces = {}
+        
+        for encoding_scheme, data in results.items():
+            if 'recommended_config' not in data or not data['recommended_config']:
+                continue
+                
+            config = data['recommended_config']
+            
+            # Get top 30% performers for range calculations
+            experiments = self.data[encoding_scheme]
+            hyperparams = self._extract_hyperparameters(experiments)
+            sorted_hp = sorted(hyperparams, key=lambda x: x['performance']['average_dice'], reverse=True)
+            top_performers = sorted_hp[:max(1, int(len(sorted_hp) * 0.3))]
+            
+            # Extract ranges from top performers
+            ranges = self._calculate_parameter_ranges(top_performers)
+            
+            # Build narrow search space
+            search_space = {
+                "output_dim": "len(all_two_grams)",  # This will be set dynamically
+                "num_layers": self._create_tune_choice("num_layers", ranges),
+                "hidden_layer_size": self._create_tune_choice("hidden_layer_size", ranges),
+                "dropout_rate": self._create_tune_uniform("dropout_rate", ranges),
+                "activation_fn": self._create_tune_choice("activation_fn", ranges),
+                "optimizer": self._create_optimizer_choice(ranges),
+                "loss_fn": self._create_tune_choice("loss_fn", ranges),
+                "threshold": self._create_tune_uniform("threshold", ranges),
+                "lr_scheduler": self._create_scheduler_choice(ranges),
+                "batch_size": self._create_tune_choice("batch_size", ranges),
+            }
+            
+            search_spaces[encoding_scheme] = {
+                "search_space": search_space,
+                "parameter_ranges": ranges,
+                "top_performers_count": len(top_performers),
+                "total_experiments": len(experiments)
+            }
+            
+        return search_spaces
+    
+    def _calculate_parameter_ranges(self, top_performers):
+        """Calculate parameter ranges from top performers."""
+        ranges = {}
+        
+        # Collect all values for each parameter
+        param_values = defaultdict(list)
+        for hp in top_performers:
+            for param, value in hp.items():
+                if value is not None and param not in ['performance', 'dataset']:
+                    # Skip nested dictionaries (like optimizer, lr_scheduler)
+                    if not isinstance(value, dict):
+                        param_values[param].append(value)
+        
+        # Calculate ranges
+        for param, values in param_values.items():
+            if not values:
+                continue
+                
+            if param in ['num_layers', 'hidden_layer_size', 'batch_size', 'lr_scheduler_patience', 
+                        'lr_scheduler_step_size_up', 'lr_scheduler_step_size']:
+                # Integer parameters
+                ranges[param] = {
+                    'type': 'integer',
+                    'values': sorted(list(set(values))),
+                    'min': min(values),
+                    'max': max(values)
+                }
+            elif param in ['activation_fn', 'optimizer_name', 'loss_fn', 'lr_scheduler_name', 
+                          'lr_scheduler_mode', 'lr_scheduler_mode_cyclic']:
+                # Categorical parameters
+                ranges[param] = {
+                    'type': 'categorical',
+                    'values': sorted(list(set(values))),
+                    'count': len(set(values))
+                }
+            else:
+                # Continuous parameters
+                ranges[param] = {
+                    'type': 'continuous',
+                    'values': values,
+                    'min': min(values),
+                    'max': max(values),
+                    'mean': np.mean(values),
+                    'std': np.std(values),
+                    'median': np.median(values)
+                }
+        
+        return ranges
+    
+    def _create_tune_choice(self, param, ranges):
+        """Create tune.choice for categorical parameters."""
+        if param not in ranges or ranges[param]['type'] not in ['categorical', 'integer']:
+            return f"# Missing data for {param}"
+        
+        values = ranges[param]['values']
+        if len(values) == 1:
+            return f"tune.choice([{values[0]}])  # Only one value found"
+        else:
+            return f"tune.choice({values})"
+    
+    def _create_tune_uniform(self, param, ranges):
+        """Create tune.uniform for continuous parameters."""
+        if param not in ranges or ranges[param]['type'] != 'continuous':
+            return f"# Missing data for {param}"
+        
+        min_val = ranges[param]['min']
+        max_val = ranges[param]['max']
+        
+        # Add some padding to the range (10% on each side)
+        padding = (max_val - min_val) * 0.1
+        min_val = max(0, min_val - padding)  # Ensure non-negative for most parameters
+        max_val = max_val + padding
+        
+        return f"tune.uniform({min_val:.6f}, {max_val:.6f})"
+    
+    def _create_optimizer_choice(self, ranges):
+        """Create optimizer choice with learning rate ranges."""
+        if 'optimizer_name' not in ranges:
+            return "# Missing optimizer data"
+        
+        optimizer_names = ranges['optimizer_name']['values']
+        optimizer_choices = []
+        
+        for opt_name in optimizer_names:
+            if 'optimizer_lr' in ranges:
+                lr_min = ranges['optimizer_lr']['min']
+                lr_max = ranges['optimizer_lr']['max']
+                # Add padding for learning rate
+                lr_padding = (lr_max - lr_min) * 0.2
+                lr_min = max(1e-6, lr_min - lr_padding)
+                lr_max = lr_max + lr_padding
+                
+                optimizer_config = f'{{"name": "{opt_name}", "lr": tune.loguniform({lr_min:.2e}, {lr_max:.2e})}}'
+            else:
+                optimizer_config = f'{{"name": "{opt_name}", "lr": tune.loguniform(1e-5, 1e-3)}}'
+            
+            optimizer_choices.append(optimizer_config)
+        
+        return "tune.choice([\n    " + ",\n    ".join(optimizer_choices) + "\n])"
+    
+    def _create_scheduler_choice(self, ranges):
+        """Create scheduler choice with parameter ranges."""
+        if 'lr_scheduler_name' not in ranges:
+            return "# Missing scheduler data"
+        
+        scheduler_names = ranges['lr_scheduler_name']['values']
+        scheduler_choices = []
+        
+        for sched_name in scheduler_names:
+            if sched_name == "None":
+                scheduler_choices.append('{"name": "None"}')
+            elif sched_name == "ReduceLROnPlateau":
+                # Get ranges for ReduceLROnPlateau parameters
+                factor_min = ranges.get('lr_scheduler_factor', {}).get('min', 0.1)
+                factor_max = ranges.get('lr_scheduler_factor', {}).get('max', 0.5)
+                patience_vals = ranges.get('lr_scheduler_patience', {}).get('values', [5, 10, 15])
+                
+                scheduler_config = f'{{"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform({factor_min:.3f}, {factor_max:.3f}), "patience": tune.choice({patience_vals})}}'
+                scheduler_choices.append(scheduler_config)
+                
+            elif sched_name == "CosineAnnealingLR":
+                t_max_min = ranges.get('lr_scheduler_T_max', {}).get('min', 10)
+                t_max_max = ranges.get('lr_scheduler_T_max', {}).get('max', 50)
+                eta_min_vals = ranges.get('lr_scheduler_eta_min', {}).get('values', [1e-5, 1e-6, 0])
+                
+                scheduler_config = f'{{"name": "CosineAnnealingLR", "T_max": tune.loguniform({t_max_min:.1f}, {t_max_max:.1f}), "eta_min": tune.choice({eta_min_vals})}}'
+                scheduler_choices.append(scheduler_config)
+                
+            elif sched_name == "CyclicLR":
+                base_lr_min = ranges.get('lr_scheduler_base_lr', {}).get('min', 1e-5)
+                base_lr_max = ranges.get('lr_scheduler_base_lr', {}).get('max', 1e-3)
+                max_lr_min = ranges.get('lr_scheduler_max_lr', {}).get('min', 1e-3)
+                max_lr_max = ranges.get('lr_scheduler_max_lr', {}).get('max', 1e-1)
+                step_size_vals = ranges.get('lr_scheduler_step_size_up', {}).get('values', [2000, 4000])
+                mode_vals = ranges.get('lr_scheduler_mode_cyclic', {}).get('values', ["triangular", "triangular2", "exp_range"])
+                
+                scheduler_config = f'{{"name": "CyclicLR", "base_lr": tune.loguniform({base_lr_min:.2e}, {base_lr_max:.2e}), "max_lr": tune.loguniform({max_lr_min:.2e}, {max_lr_max:.2e}), "step_size_up": tune.choice({step_size_vals}), "mode_cyclic": tune.choice({mode_vals})}}'
+                scheduler_choices.append(scheduler_config)
+                
+            elif sched_name == "StepLR":
+                step_size_vals = ranges.get('lr_scheduler_step_size', {}).get('values', [30])
+                gamma_min = ranges.get('lr_scheduler_gamma', {}).get('min', 0.1)
+                gamma_max = ranges.get('lr_scheduler_gamma', {}).get('max', 0.9)
+                
+                scheduler_config = f'{{"name": "StepLR", "step_size": tune.choice({step_size_vals}), "gamma": tune.uniform({gamma_min:.3f}, {gamma_max:.3f})}}'
+                scheduler_choices.append(scheduler_config)
+        
+        return "tune.choice([\n    " + ",\n    ".join(scheduler_choices) + "\n])"
+    
     def _analyze_parameter_distributions(self, hyperparams):
         """Analyze distributions of individual parameters."""
         distributions = {}
@@ -646,17 +854,69 @@ class HyperparameterAnalyzer:
                 report.append("- Optimizer and scheduler parameters are analyzed individually for complete configuration")
             else:
                 report.append("\nNo recommended configuration available (insufficient data)")
+            
+            # Add narrow search space section
+            if 'search_spaces' in data and data['search_spaces']:
+                report.append("\n" + "="*80)
+                report.append(f"## {encoding_scheme} - Narrow Ray Tune Search Space")
+                report.append("="*80)
+                report.append(f"Based on top {data['search_spaces']['top_performers_count']} performers (top 30%)")
+                report.append(f"Total experiments analyzed: {data['search_spaces']['total_experiments']}")
+                report.append("")
+                
+                search_space = data['search_spaces']['search_space']
+                report.append("### Ray Tune Search Space Code:")
+                report.append("```python")
+                report.append("search_space = {")
+                for param, value in search_space.items():
+                    if param == "output_dim":
+                        report.append(f'    "{param}": {value},')
+                    else:
+                        # Format the value for better readability
+                        if isinstance(value, str) and value.startswith("tune."):
+                            # Multi-line formatting for complex tune choices
+                            if "tune.choice([\n" in value:
+                                lines = value.split('\n')
+                                report.append(f'    "{param}": {lines[0]}')
+                                for line in lines[1:-1]:
+                                    report.append(f'        {line}')
+                                report.append(f'    {lines[-1]},')
+                            else:
+                                report.append(f'    "{param}": {value},')
+                        else:
+                            report.append(f'    "{param}": {value},')
+                report.append("}")
+                report.append("```")
+                
+                report.append("\n### Parameter Range Analysis:")
+                ranges = data['search_spaces']['parameter_ranges']
+                for param, range_info in ranges.items():
+                    if range_info['type'] == 'categorical':
+                        report.append(f"  • **{param}**: {range_info['values']} ({range_info['count']} unique values)")
+                    elif range_info['type'] == 'integer':
+                        report.append(f"  • **{param}**: {range_info['values']} (range: {range_info['min']}-{range_info['max']})")
+                    else:  # continuous
+                        # Handle potential tuple values
+                        min_val = range_info['min']
+                        max_val = range_info['max']
+                        mean_val = range_info['mean']
+                        std_val = range_info['std']
+                        
+                        if isinstance(min_val, (int, float)):
+                            report.append(f"  • **{param}**: range {min_val:.6f}-{max_val:.6f} (mean: {mean_val:.6f}, std: {std_val:.6f})")
+                        else:
+                            report.append(f"  • **{param}**: range {min_val}-{max_val} (mean: {mean_val}, std: {std_val})")
         
         return "\n".join(report)
     
     def save_results(self, results, output_dir="analysis"):
-        """Save both the analysis report and optimal configs JSON."""
+        """Save the analysis report, optimal configs JSON, and search spaces JSON."""
         output_dir = Path(output_dir)
         output_dir.mkdir(exist_ok=True)
         
         # Save detailed analysis report
         report = self.generate_report(results)
-        with open(output_dir / "analysis.txt", 'w', encoding='utf-8') as f:
+        with open(output_dir / "hyperparameter_analysis_report.txt", 'w', encoding='utf-8') as f:
             f.write(report)
         
         # Generate and save optimal configs JSON
@@ -664,13 +924,25 @@ class HyperparameterAnalyzer:
         with open(output_dir / "optimal_configs.json", 'w', encoding='utf-8') as f:
             json.dump(optimal_configs, f, indent=4)
         
-        print(f"\nAnalysis report saved to {output_dir}/analysis.txt")
+        # Extract and save search spaces JSON
+        search_spaces = {}
+        for encoding_scheme, data in results.items():
+            if 'search_spaces' in data:
+                search_spaces[encoding_scheme] = data['search_spaces']
+        
+        if search_spaces:
+            with open(output_dir / "narrow_search_spaces.json", 'w', encoding='utf-8') as f:
+                json.dump(search_spaces, f, indent=4)
+        
+        print(f"\nAnalysis report saved to {output_dir}/hyperparameter_analysis_report.txt")
         print(f"Optimal configs saved to {output_dir}/optimal_configs.json")
+        if search_spaces:
+            print(f"Narrow search spaces saved to {output_dir}/narrow_search_spaces.json")
     
 
 def main():
-    """Main function to run the hyperparameter analysis."""
-    print("Starting Weighted Hyperparameter Analysis...")
+    """Main function to run the hyperparameter analysis with narrow search space generation."""
+    print("Starting Weighted Hyperparameter Analysis with Narrow Search Space Generation...")
     
     # Initialize analyzer
     analyzer = HyperparameterAnalyzer()
@@ -678,13 +950,16 @@ def main():
     # Load data
     analyzer.load_experiment_data()
     
-    # Analyze hyperparameters
+    # Analyze hyperparameters and generate search spaces
     results = analyzer.analyze_hyperparameters()
     
-    # Save results
+    # Save results (report, optimal configs, and search spaces)
     analyzer.save_results(results)
     
-    print("Analysis complete!")
+    print("Analysis complete! Check the analysis directory for:")
+    print("  - hyperparameter_analysis_report.txt (detailed analysis with search spaces)")
+    print("  - optimal_configs.json (recommended configurations)")
+    print("  - narrow_search_spaces.json (Ray Tune search spaces for each encoding)")
 
 if __name__ == "__main__":
     main()
