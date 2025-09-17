@@ -24,11 +24,11 @@ GLOBAL_CONFIG = {
 # === DEA Training Parameters ===
 DEA_CONFIG = {
     "ParallelTrials": 10,
-    "HPO": False,
+    "HPO": True,
     "TrainSize": 0.8,
     "Patience": 5,
     "MinDelta": 1e-4,
-    "NumSamples": 125,
+    "NumSamples": 30,
     "Epochs": 25,
     "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
     "MatchingTechnique": "fuzzy_and_greedy",  # Options: "ai", "greedy", "fuzzy", ...,
@@ -127,7 +127,7 @@ ALIGN_CONFIG = {
 # List to store failed experiments
 failed_experiments = []
 
-encs = ["TwoStepHash", "TabMinHash", "BloomFilter"]
+encs = ["TwoStepHash"]
 
 datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv",
             "fakename_20k.tsv", "fakename_50k.tsv", "euro_person.tsv"]
