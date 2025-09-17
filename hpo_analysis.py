@@ -10,7 +10,7 @@ This script analyzes hyperparameter combinations for each encoding scheme:
 It identifies the most chosen and best performing hyperparameter combinations,
 with bucketing/averaging for continuous values.
 
-Additionally, it generates narrow Ray Tune search spaces based on the top 30%
+Additionally, it generates narrow Ray Tune search spaces based on the top 15%
 performing experiments, providing optimized parameter ranges for future
 hyperparameter optimization runs.
 
@@ -265,9 +265,9 @@ class HyperparameterAnalyzer:
     
     def _find_recommended_configuration(self, hyperparams):
         """Find the recommended configuration based on weighted top performers."""
-        # Sort by performance and get top 30% for weighted analysis
+        # Sort by performance and get top 15% for weighted analysis
         sorted_hp = sorted(hyperparams, key=lambda x: x['performance']['average_dice'], reverse=True)
-        top_performers = sorted_hp[:max(1, int(len(sorted_hp) * 0.3))]  # Top 30%
+        top_performers = sorted_hp[:max(1, int(len(sorted_hp) * 0.15))]  # Top 15%
         
         # Calculate weights based on performance (higher performance = higher weight)
         max_dice = max(hp['performance']['average_dice'] for hp in top_performers)
@@ -417,7 +417,7 @@ class HyperparameterAnalyzer:
         return optimal_configs
     
     def _generate_narrow_search_spaces(self, results):
-        """Generate narrow Ray Tune search spaces based on top 30% performers."""
+        """Generate narrow Ray Tune search spaces based on top 15% performers."""
         search_spaces = {}
         
         for encoding_scheme, data in results.items():
@@ -426,11 +426,11 @@ class HyperparameterAnalyzer:
                 
             config = data['recommended_config']
             
-            # Get top 30% performers for range calculations
+            # Get top 15% performers for range calculations
             experiments = self.data[encoding_scheme]
             hyperparams = self._extract_hyperparameters(experiments)
             sorted_hp = sorted(hyperparams, key=lambda x: x['performance']['average_dice'], reverse=True)
-            top_performers = sorted_hp[:max(1, int(len(sorted_hp) * 0.3))]
+            top_performers = sorted_hp[:max(1, int(len(sorted_hp) * 0.15))]
             
             # Extract ranges from top performers
             ranges = self._calculate_parameter_ranges(top_performers)
@@ -760,7 +760,7 @@ class HyperparameterAnalyzer:
         report = []
         report.append("# Hyperparameter Analysis Report - Detailed Parameter Analysis")
         report.append("=" * 80)
-        report.append("Based on top 30% performers with performance-weighted analysis")
+        report.append("Based on top 15% performers with performance-weighted analysis")
         report.append("=" * 80)
         
         for encoding_scheme, data in results.items():
@@ -846,7 +846,7 @@ class HyperparameterAnalyzer:
                 
                 report.append("")
                 report.append("### Weighting Methodology:")
-                report.append("- Top 30% of experiments by average_dice score are analyzed")
+                report.append("- Top 15% of experiments by average_dice score are analyzed")
                 report.append("- Each configuration is weighted by its performance relative to others")
                 report.append("- Higher performing configurations have proportionally greater influence")
                 report.append("- Categorical parameters: most frequent weighted choice")
@@ -860,7 +860,7 @@ class HyperparameterAnalyzer:
                 report.append("\n" + "="*80)
                 report.append(f"## {encoding_scheme} - Narrow Ray Tune Search Space")
                 report.append("="*80)
-                report.append(f"Based on top {data['search_spaces']['top_performers_count']} performers (top 30%)")
+                report.append(f"Based on top {data['search_spaces']['top_performers_count']} performers (top 15%)")
                 report.append(f"Total experiments analyzed: {data['search_spaces']['total_experiments']}")
                 report.append("")
                 
