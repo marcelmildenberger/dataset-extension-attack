@@ -322,28 +322,98 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
                 "epochs": epochs
             })
 
-    # Define the search space for the hyperparameters.
-    search_space = {
-        "output_dim": len(all_two_grams),
-        "num_layers": tune.randint(1, 3),
-        "hidden_layer_size": tune.choice([512, 1024, 2048, 4096]),
-        "dropout_rate": tune.uniform(0.1, 0.4),
-        "activation_fn": tune.choice(["elu", "selu", "tanh"]),
-        "optimizer": tune.choice([
-            {"name": "Adam", "lr": tune.loguniform(1e-5, 1e-3)},
-            {"name": "AdamW", "lr": tune.loguniform(1e-5, 1e-3)},
-            {"name": "RMSprop", "lr": tune.loguniform(1e-5, 1e-3)},
-        ]),
-        "loss_fn": tune.choice(["BCEWithLogitsLoss", "MultiLabelSoftMarginLoss", "SoftMarginLoss"]),
-        "threshold": tune.uniform(0.2, 0.7),
-        "lr_scheduler": tune.choice([
-            {"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform(0.1, 0.5), "patience": tune.choice([5, 10, 15])},
-            {"name": "CosineAnnealingLR", "T_max": tune.loguniform(10, 50), "eta_min": tune.choice([1e-5, 1e-6, 0])},
-            {"name": "CyclicLR", "base_lr": tune.loguniform(1e-5, 1e-3), "max_lr": tune.loguniform(1e-3, 1e-1), "step_size_up": tune.choice([2000, 4000]), "mode_cyclic": tune.choice(["triangular", "triangular2", "exp_range"]) },
-            {"name": "None"}
-        ]),
-        "batch_size": tune.choice([8, 16, 32, 64]),
-    }
+    # Define the search space for the hyperparameters based on encoding type
+    encoding_type = ENC_CONFIG["AliceAlgo"]
+    
+    if encoding_type == "BloomFilter":
+        search_space = {
+            "output_dim": len(all_two_grams),
+            "num_layers": tune.choice([1]),
+            "hidden_layer_size": tune.choice([2048, 4096]),
+            "dropout_rate": tune.uniform(0.071774, 0.413868),
+            "activation_fn": tune.choice(["elu", "selu", "tanh"]),
+            "optimizer": tune.choice([
+                {"name": "Adam", "lr": tune.loguniform(1.00e-06, 7.41e-04)},
+                {"name": "AdamW", "lr": tune.loguniform(1.00e-06, 7.41e-04)},
+                {"name": "RMSprop", "lr": tune.loguniform(1.00e-06, 7.41e-04)},
+            ]),
+            "loss_fn": tune.choice(["BCEWithLogitsLoss", "MultiLabelSoftMarginLoss"]),
+            "threshold": tune.uniform(0.170347, 0.532871),
+            "lr_scheduler": tune.choice([
+                {"name": "CosineAnnealingLR", "T_max": tune.loguniform(10.0, 44.7), "eta_min": tune.choice([1e-05, 0, 1e-06, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])},
+                {"name": "CyclicLR", "base_lr": tune.loguniform(1.00e-05, 8.49e-04), "max_lr": tune.loguniform(1.05e-03, 1.00e-01), "step_size_up": tune.choice([2000, 4000]), "mode_cyclic": tune.choice(["exp_range", "triangular", "triangular2"])},
+                {"name": "None"},
+                {"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform(0.100, 0.490), "patience": tune.choice([5, 10, 15])}
+            ]),
+            "batch_size": tune.choice([8, 16, 32]),
+        }
+    elif encoding_type == "TabMinHash":
+        search_space = {
+            "output_dim": len(all_two_grams),
+            "num_layers": tune.choice([1]),
+            "hidden_layer_size": tune.choice([2048, 4096]),
+            "dropout_rate": tune.uniform(0.118598, 0.423641),
+            "activation_fn": tune.choice(["elu", "selu", "tanh"]),
+            "optimizer": tune.choice([
+                {"name": "Adam", "lr": tune.loguniform(1.00e-06, 1.11e-03)},
+                {"name": "AdamW", "lr": tune.loguniform(1.00e-06, 1.11e-03)},
+                {"name": "RMSprop", "lr": tune.loguniform(1.00e-06, 1.11e-03)},
+            ]),
+            "loss_fn": tune.choice(["BCEWithLogitsLoss", "MultiLabelSoftMarginLoss"]),
+            "threshold": tune.uniform(0.183642, 0.447199),
+            "lr_scheduler": tune.choice([
+                {"name": "CosineAnnealingLR", "T_max": tune.loguniform(10.0, 13.4), "eta_min": tune.choice([0, 1e-06, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])},
+                {"name": "CyclicLR", "base_lr": tune.loguniform(1.00e-05, 1.59e-04), "max_lr": tune.loguniform(1.58e-03, 1.00e-01), "step_size_up": tune.choice([2000, 4000]), "mode_cyclic": tune.choice(["triangular", "triangular2"])},
+                {"name": "None"},
+                {"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform(0.100, 0.459), "patience": tune.choice([5, 10, 15])}
+            ]),
+            "batch_size": tune.choice([8, 16, 32]),
+        }
+    elif encoding_type == "TwoStepHash":
+        search_space = {
+            "output_dim": len(all_two_grams),
+            "num_layers": tune.choice([1]),
+            "hidden_layer_size": tune.choice([2048, 4096]),
+            "dropout_rate": tune.uniform(0.098518, 0.336371),
+            "activation_fn": tune.choice(["elu", "selu", "tanh"]),
+            "optimizer": tune.choice([
+                {"name": "Adam", "lr": tune.loguniform(1.00e-06, 9.42e-04)},
+                {"name": "AdamW", "lr": tune.loguniform(1.00e-06, 9.42e-04)},
+                {"name": "RMSprop", "lr": tune.loguniform(1.00e-06, 9.42e-04)},
+            ]),
+            "loss_fn": tune.choice(["BCEWithLogitsLoss", "MultiLabelSoftMarginLoss"]),
+            "threshold": tune.uniform(0.190302, 0.323547),
+            "lr_scheduler": tune.choice([
+                {"name": "CosineAnnealingLR", "T_max": tune.loguniform(10.0, 26.7), "eta_min": tune.choice([1e-05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])},
+                {"name": "CyclicLR", "base_lr": tune.loguniform(1.00e-05, 6.98e-04), "max_lr": tune.loguniform(2.45e-03, 1.00e-01), "step_size_up": tune.choice([2000, 4000]), "mode_cyclic": tune.choice(["exp_range", "triangular"])},
+                {"name": "None"},
+                {"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform(0.100, 0.210), "patience": tune.choice([10, 15])}
+            ]),
+            "batch_size": tune.choice([8, 16, 32]),
+        }
+    else:
+        # Fallback search space for unknown encodings
+        search_space = {
+            "output_dim": len(all_two_grams),
+            "num_layers": tune.randint(1, 3),
+            "hidden_layer_size": tune.choice([512, 1024, 2048, 4096]),
+            "dropout_rate": tune.uniform(0.1, 0.4),
+            "activation_fn": tune.choice(["elu", "selu", "tanh"]),
+            "optimizer": tune.choice([
+                {"name": "Adam", "lr": tune.loguniform(1e-5, 1e-3)},
+                {"name": "AdamW", "lr": tune.loguniform(1e-5, 1e-3)},
+                {"name": "RMSprop", "lr": tune.loguniform(1e-5, 1e-3)},
+            ]),
+            "loss_fn": tune.choice(["BCEWithLogitsLoss", "MultiLabelSoftMarginLoss", "SoftMarginLoss"]),
+            "threshold": tune.uniform(0.2, 0.7),
+            "lr_scheduler": tune.choice([
+                {"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform(0.1, 0.5), "patience": tune.choice([5, 10, 15])},
+                {"name": "CosineAnnealingLR", "T_max": tune.loguniform(10, 50), "eta_min": tune.choice([1e-5, 1e-6, 0])},
+                {"name": "CyclicLR", "base_lr": tune.loguniform(1e-5, 1e-3), "max_lr": tune.loguniform(1e-3, 1e-1), "step_size_up": tune.choice([2000, 4000]), "mode_cyclic": tune.choice(["triangular", "triangular2", "exp_range"]) },
+                {"name": "None"}
+            ]),
+            "batch_size": tune.choice([8, 16, 32, 64]),
+        }
 
     # Initialize Ray for hyperparameter optimization.
     ray.init(
