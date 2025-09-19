@@ -3,8 +3,8 @@
         "model_params": {
             "num_layers": 1,
             "hidden_layer_size": 4096,
-            "dropout_rate": 0.21035487024071262,
-            "activation_fn": "selu"
+            "dropout_rate": 0.19952307639299344,
+            "activation_fn": "elu"
         },
         "optimizer": {
             "name": "RMSprop",
@@ -16,7 +16,7 @@
         "batch_size": 8,
         "lr_scheduler": {
             "name": "CosineAnnealingLR",
-            "T_max": 10.0,
+            "T_max": 18.397841828924214,
             "eta_min": 0.0
         }
     },
@@ -24,7 +24,7 @@
         "model_params": {
             "num_layers": 1,
             "hidden_layer_size": 4096,
-            "dropout_rate": 0.28878814039681466,
+            "dropout_rate": 0.2246793440479418,
             "activation_fn": "selu"
         },
         "optimizer": {
@@ -33,32 +33,33 @@
             "alpha": 0.99
         },
         "loss_fn": "BCEWithLogitsLoss",
-        "threshold": 0.33553926179444615,
+        "threshold": 0.37236166863785114,
         "batch_size": 8,
         "lr_scheduler": {
-            "name": "ReduceLROnPlateau",
-            "mode": "min",
-            "factor": 0.1,
-            "patience": 10.0
+            "name": "CosineAnnealingLR",
+            "T_max": 10.0,
+            "eta_min": 0.0
         }
     },
     "TwoStepHash": {
         "model_params": {
             "num_layers": 1,
-            "hidden_layer_size": 2048,
-            "dropout_rate": 0.21308460739859203,
-            "activation_fn": "elu"
+            "hidden_layer_size": 4096,
+            "dropout_rate": 0.1686543544300557,
+            "activation_fn": "selu"
         },
         "optimizer": {
             "name": "RMSprop",
-            "lr": 0.00012839550484383913,
+            "lr": 1.1654775929806996e-05,
             "alpha": 0.99
         },
         "loss_fn": "MultiLabelSoftMarginLoss",
-        "threshold": 0.2310137807907125,
+        "threshold": 0.2646958183752904,
         "batch_size": 8,
         "lr_scheduler": {
-            "name": "None"
+            "name": "CosineAnnealingLR",
+            "T_max": 22.56888396892121,
+            "eta_min": 0.0
         }
     }
 }
