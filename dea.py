@@ -444,7 +444,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         elif encoding_type == "TwoStepHash" and use_narrow_searchspace:
             search_space = {
                 "output_dim": len(all_two_grams),
-                "num_layers": tune.choice([1]),
+                "num_layers": tune.choice([1, 2]),
                 "hidden_layer_size": tune.choice([2048, 4096]),
                 "dropout_rate": tune.uniform(0.142205, 0.304562),
                 "activation_fn": tune.choice(["elu", "selu", "tanh"]),
