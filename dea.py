@@ -398,7 +398,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
 
         # Define the search space for the hyperparameters based on encoding type
         encoding_type = ENC_CONFIG["AliceAlgo"]
-        use_narrow_searchspace = DEA_CONFIG.get("HPO_Narrow_Searchspace", True)
+        use_narrow_searchspace = DEA_CONFIG["HPO_Narrow_Searchspace"]
         
         if encoding_type == "BloomFilter" and use_narrow_searchspace:
             search_space = {
@@ -464,7 +464,7 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
                 "batch_size": tune.choice([8, 16]),
             }
         else:
-            # Fallback search space for unknown encodings
+            # Fallback search space
             search_space = {
                 "output_dim": len(all_two_grams),
                 "num_layers": tune.randint(1, 3),
