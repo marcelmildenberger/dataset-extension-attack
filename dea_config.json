@@ -94,14 +94,14 @@
         "Wasserstein": true
     },
     "DEA_CONFIG": {
-        "HPO": false,
+        "HPO": true,
         "HPO_Narrow_Searchspace": true,
         "TrainSize": 0.8,
         "Patience": 5,
         "MinDelta": 0.0001,
-        "NumSamples": 15,
+        "NumSamples": 5,
         "ParallelTrials": 5,
-        "Epochs": 20,
+        "Epochs": 10,
         "MetricToOptimize": "average_dice",
         "MatchingTechnique": "greedy"
     }

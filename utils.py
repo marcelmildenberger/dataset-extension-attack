@@ -789,7 +789,28 @@ def load_experiment_datasets(
     if ENC_CONFIG["AliceAlgo"] == "TwoStepHash":
         # Calculate unique integers from the complete dataset to ensure consistent tensor dimensions
         # Using df_all ensures we capture all possible hash values that could appear in any subset
-        unique_ints = sorted(set().union(*df_all["twostephash"]))
+        
+        # Parse the string representation of sets to extract actual integers
+        def parse_twostephash_string(twostephash_str):
+            # Remove curly braces and split by comma
+            # Handle both string format "{1, 2, 3}" and actual set objects
+            if isinstance(twostephash_str, str):
+                # Remove curly braces and split by comma
+                content = twostephash_str.strip('{}')
+                if content:  # Handle empty sets
+                    return [int(x.strip()) for x in content.split(',')]
+                else:
+                    return []
+            else:
+                # If it's already a set or list, convert to list of ints
+                return [int(x) for x in twostephash_str]
+        
+        # Extract all unique integers from all twostephash entries
+        all_ints = []
+        for twostephash_entry in df_all["twostephash"]:
+            all_ints.extend(parse_twostephash_string(twostephash_entry))
+        
+        unique_ints = sorted(set(all_ints))
         print(f"DEBUG UNIQUE INTS: {unique_ints}")
         dataset_args = {"all_integers": unique_ints}
     else:

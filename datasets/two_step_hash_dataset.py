@@ -12,7 +12,7 @@ class TwoStepHashDataset(Dataset):
         self.allTwoGrams = all_two_grams
         self.devMode = dev_mode
 
-        self.hashTensors = data['twostephash'].apply(lambda row: self.hash_list_to_tensor(list(row)))
+        self.hashTensors = data['twostephash'].apply(lambda row: self.hash_list_to_tensor(self.parse_twostephash_string(row)))
         self.uids = data['uid']
 
         if self.isLabeled:
@@ -31,6 +31,20 @@ class TwoStepHashDataset(Dataset):
             return self.hashTensors[idx], self.labelTensors[idx], self.uids[idx]
         else:
             return self.hashTensors[idx], self.uids[idx]
+
+    def parse_twostephash_string(self, twostephash_str):
+        """Parse the string representation of a set to extract actual integers."""
+        # Handle both string format "{1, 2, 3}" and actual set objects
+        if isinstance(twostephash_str, str):
+            # Remove curly braces and split by comma
+            content = twostephash_str.strip('{}')
+            if content:  # Handle empty sets
+                return [int(x.strip()) for x in content.split(',')]
+            else:
+                return []
+        else:
+            # If it's already a set or list, convert to list of ints
+            return [int(x) for x in twostephash_str]
 
     def hash_list_to_tensor(self, hash_list):
         hash_array = np.zeros(len(self.allIntegers), dtype=np.float32)
