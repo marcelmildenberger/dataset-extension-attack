@@ -787,7 +787,9 @@ def load_experiment_datasets(
         DatasetClass = TwoStepHashDataset
 
     if ENC_CONFIG["AliceAlgo"] == "TwoStepHash":
-        unique_ints = sorted(set().union(*df_reidentified["twostephash"]))
+        # Calculate unique integers from the complete dataset to ensure consistent tensor dimensions
+        # Using df_all ensures we capture all possible hash values that could appear in any subset
+        unique_ints = sorted(set().union(*df_all["twostephash"]))
         dataset_args = {"all_integers": unique_ints}
     else:
         dataset_args = {}

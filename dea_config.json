@@ -95,7 +95,7 @@
     },
     "DEA_CONFIG": {
         "HPO": true,
-        "HPO_Narrow_Searchspace": false,
+        "HPO_Narrow_Searchspace": true,
         "TrainSize": 0.8,
         "Patience": 5,
         "MinDelta": 0.0001,
