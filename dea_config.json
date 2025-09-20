@@ -1,6 +1,6 @@
 {
     "GLOBAL_CONFIG": {
-        "Data": "./data/datasets/fakename_5k.tsv",
+        "Data": "./data/datasets/fakename_2k.tsv",
         "Overlap": 0.85,
         "DropFrom": "Eve",
         "Verbose": false,
@@ -15,7 +15,7 @@
         "UseGPU": false,
         "SaveModel": false,
         "SavePredictions": true,
-        "GraphMatchingAttack": false
+        "GraphMatchingAttack": true
     },
     "ENC_CONFIG": {
         "AliceAlgo": "TwoStepHash",
@@ -94,14 +94,14 @@
         "Wasserstein": true
     },
     "DEA_CONFIG": {
-        "HPO": true,
+        "HPO": false,
         "HPO_Narrow_Searchspace": true,
         "TrainSize": 0.8,
         "Patience": 5,
         "MinDelta": 0.0001,
-        "NumSamples": 25,
+        "NumSamples": 15,
         "ParallelTrials": 5,
-        "Epochs": 25,
+        "Epochs": 20,
         "MetricToOptimize": "average_dice",
         "MatchingTechnique": "greedy"
     }

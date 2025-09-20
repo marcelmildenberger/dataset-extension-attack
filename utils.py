@@ -790,6 +790,7 @@ def load_experiment_datasets(
         # Calculate unique integers from the complete dataset to ensure consistent tensor dimensions
         # Using df_all ensures we capture all possible hash values that could appear in any subset
         unique_ints = sorted(set().union(*df_all["twostephash"]))
+        print(f"DEBUG UNIQUE INTS: {unique_ints}")
         dataset_args = {"all_integers": unique_ints}
     else:
         dataset_args = {}
