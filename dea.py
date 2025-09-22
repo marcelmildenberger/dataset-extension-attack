@@ -446,20 +446,19 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
                 "output_dim": len(all_two_grams),
                 "num_layers": tune.choice([1]),
                 "hidden_layer_size": tune.choice([2048, 4096]),
-                "dropout_rate": tune.uniform(0.142205, 0.304562),
+                "dropout_rate": tune.uniform(0.133335, 0.267276),
                 "activation_fn": tune.choice(["elu", "selu", "tanh"]),
                 "optimizer": tune.choice([
-                    {"name": "Adam", "lr": tune.loguniform(1.00e-06, 3.76e-04)},
-                    {"name": "AdamW", "lr": tune.loguniform(1.00e-06, 3.76e-04)},
-                    {"name": "RMSprop", "lr": tune.loguniform(1.00e-06, 3.76e-04)},
+                    {"name": "AdamW", "lr": tune.loguniform(1.00e-06, 3.33e-04)},
+                    {"name": "RMSprop", "lr": tune.loguniform(1.00e-06, 3.33e-04)},
                 ]),
                 "loss_fn": tune.choice(["BCEWithLogitsLoss", "MultiLabelSoftMarginLoss"]),
-                "threshold": tune.uniform(0.197056, 0.308036),
+                "threshold": tune.uniform(0.187054, 0.318405),
                 "lr_scheduler": tune.choice([
-                    {"name": "CosineAnnealingLR", "T_max": tune.loguniform(10.0, 26.7), "eta_min": tune.choice([1e-05, 1e-06, 0])},
-                    {"name": "CyclicLR", "base_lr": tune.loguniform(1.00e-05, 8.99e-05), "max_lr": tune.loguniform(2.45e-03, 1.00e-01), "step_size_up": tune.choice([2000, 4000]), "mode_cyclic": tune.choice(["exp_range", "triangular"])},
+                    {"name": "CosineAnnealingLR", "T_max": tune.loguniform(10.0, 26.7), "eta_min": tune.choice([1e-05, 1e-05, 0])},
+                    {"name": "CyclicLR", "base_lr": tune.loguniform(1.00e-05, 3.31e-05), "max_lr": tune.loguniform(2.05e-02, 1.00e-01), "step_size_up": tune.choice([2000, 4000]), "mode_cyclic": tune.choice(["triangular"])},
                     {"name": "None"},
-                    {"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform(0.100, 0.210), "patience": tune.choice([10, 15])}
+                    {"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform(0.100, 0.160), "patience": tune.choice([10])}
                 ]),
                 "batch_size": tune.choice([8, 16]),
             }
