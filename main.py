@@ -330,15 +330,15 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             "output_dim": len(all_two_grams),
             "num_layers": tune.choice([1]),
             "hidden_layer_size": tune.choice([2048]),
-            "dropout_rate": tune.uniform(0.16917619617780422, 0.16917619617780422),
+            "dropout_rate": tune.choice([0.16917619617780422]),
             "activation_fn": tune.choice(["tanh"]),
             "optimizer": tune.choice([
-                {"name": "RMSprop", "lr": tune.uniform(0.0003675203141843443, 0.0003675203141843443), "alpha": tune.choice([0.99])}
+                {"name": "RMSprop", "lr": tune.choice([0.0003675203141843443]), "alpha": tune.choice([0.99])}
             ]),
             "loss_fn": tune.choice(["BCEWithLogitsLoss"]),
-            "threshold": tune.uniform(0.27663843843242203, 0.27663843843242203),
+            "threshold": tune.choice([0.27663843843242203]),
             "lr_scheduler": tune.choice([
-                {"name": "CosineAnnealingLR", "T_max": tune.uniform(26.04822017187056, 26.04822017187056), "eta_min": tune.choice([0.0])}
+                {"name": "CosineAnnealingLR", "T_max": tune.choice([26.04822017187056]), "eta_min": tune.choice([0.0])}
             ]),
             "batch_size": tune.choice([8]),
         }
@@ -347,15 +347,15 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             "output_dim": len(all_two_grams),
             "num_layers": tune.choice([1]),
             "hidden_layer_size": tune.choice([4096]),
-            "dropout_rate": tune.uniform(0.15892248503872536, 0.15892248503872536),
+            "dropout_rate": tune.choice([0.15892248503872536]),
             "activation_fn": tune.choice(["selu"]),
             "optimizer": tune.choice([
-                {"name": "RMSprop", "lr": tune.uniform(5.885498399323093e-06, 5.885498399323093e-06), "alpha": tune.choice([0.99])}
+                {"name": "RMSprop", "lr": tune.choice([5.885498399323093e-06]), "alpha": tune.choice([0.99])}
             ]),
             "loss_fn": tune.choice(["BCEWithLogitsLoss"]),
-            "threshold": tune.uniform(0.3487455998428984, 0.3487455998428984),
+            "threshold": tune.choice([0.3487455998428984]),
             "lr_scheduler": tune.choice([
-                {"name": "CosineAnnealingLR", "T_max": tune.uniform(12.39063482213561, 12.39063482213561), "eta_min": tune.choice([0.0])}
+                {"name": "CosineAnnealingLR", "T_max": tune.choice([12.39063482213561]), "eta_min": tune.choice([0.0])}
             ]),
             "batch_size": tune.choice([8]),
         }
@@ -364,15 +364,15 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
             "output_dim": len(all_two_grams),
             "num_layers": tune.choice([1]),
             "hidden_layer_size": tune.choice([4096]),
-            "dropout_rate": tune.uniform(0.21706571087068358, 0.21706571087068358),
+            "dropout_rate": tune.choice([0.21706571087068358]),
             "activation_fn": tune.choice(["elu"]),
             "optimizer": tune.choice([
-                {"name": "RMSprop", "lr": tune.uniform(1.9875702593793717e-05, 1.9875702593793717e-05), "alpha": tune.choice([0.99])}
+                {"name": "RMSprop", "lr": tune.choice([1.9875702593793717e-05]), "alpha": tune.choice([0.99])}
             ]),
             "loss_fn": tune.choice(["MultiLabelSoftMarginLoss"]),
-            "threshold": tune.uniform(0.26995331913458265, 0.26995331913458265),
+            "threshold": tune.choice([0.26995331913458265]),
             "lr_scheduler": tune.choice([
-                {"name": "CyclicLR", "base_lr": tune.choice([1e-05]), "max_lr": tune.choice([0.1]), "step_size_up": tune.choice([2000.0]), "mode": tune.choice(["triangular"])}
+                {"name": "CyclicLR", "base_lr": tune.choice([1e-05]), "max_lr": tune.choice([0.1]), "step_size_up": tune.choice([2000.0]), "mode_cyclic": tune.choice(["triangular"])}
             ]),
             "batch_size": tune.choice([16]),
         }
