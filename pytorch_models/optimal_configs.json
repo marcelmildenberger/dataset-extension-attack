@@ -2,8 +2,8 @@
     "BloomFilter": {
         "model_params": {
             "num_layers": 1,
-            "hidden_layer_size": 4096,
-            "dropout_rate": 0.18173007996358329,
+            "hidden_layer_size": 2048,
+            "dropout_rate": 0.16917619617780422,
             "activation_fn": "tanh"
         },
         "optimizer": {
@@ -12,30 +12,28 @@
             "alpha": 0.99
         },
         "loss_fn": "BCEWithLogitsLoss",
-        "threshold": 0.2849347751287876,
-        "batch_size": 32,
+        "threshold": 0.27663843843242203,
+        "batch_size": 8,
         "lr_scheduler": {
-            "name": "CyclicLR",
-            "base_lr": 1e-05,
-            "max_lr": 0.1,
-            "step_size_up": 2000.0,
-            "mode": "triangular"
+            "name": "CosineAnnealingLR",
+            "T_max": 26.04822017187056,
+            "eta_min": 0.0
         }
     },
     "TabMinHash": {
         "model_params": {
             "num_layers": 1,
             "hidden_layer_size": 4096,
-            "dropout_rate": 0.18959917623510758,
+            "dropout_rate": 0.15892248503872536,
             "activation_fn": "selu"
         },
         "optimizer": {
             "name": "RMSprop",
-            "lr": 5.801204926617864e-06,
+            "lr": 5.885498399323093e-06,
             "alpha": 0.99
         },
         "loss_fn": "BCEWithLogitsLoss",
-        "threshold": 0.3057495563339427,
+        "threshold": 0.3487455998428984,
         "batch_size": 8,
         "lr_scheduler": {
             "name": "CosineAnnealingLR",
