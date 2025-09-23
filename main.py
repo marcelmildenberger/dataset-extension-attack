@@ -329,64 +329,52 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         search_space = {
             "output_dim": len(all_two_grams),
             "num_layers": tune.choice([1]),
-            "hidden_layer_size": tune.choice([2048, 4096]),
-            "dropout_rate": tune.uniform(0.071774, 0.413868),
-            "activation_fn": tune.choice(["elu", "selu", "tanh"]),
+            "hidden_layer_size": tune.choice([2048]),
+            "dropout_rate": tune.uniform(0.16917619617780422, 0.16917619617780422),
+            "activation_fn": tune.choice(["tanh"]),
             "optimizer": tune.choice([
-                {"name": "Adam", "lr": tune.loguniform(1.00e-06, 6.92e-04)},
-                {"name": "RMSprop", "lr": tune.loguniform(1.00e-06, 6.92e-04)},
+                {"name": "RMSprop", "lr": tune.uniform(0.0003675203141843443, 0.0003675203141843443), "alpha": tune.choice([0.99])}
             ]),
-            "loss_fn": tune.choice(["BCEWithLogitsLoss", "MultiLabelSoftMarginLoss"]),
-            "threshold": tune.uniform(0.173806, 0.532556),
+            "loss_fn": tune.choice(["BCEWithLogitsLoss"]),
+            "threshold": tune.uniform(0.27663843843242203, 0.27663843843242203),
             "lr_scheduler": tune.choice([
-                {"name": "CosineAnnealingLR", "T_max": tune.loguniform(10.0, 44.7), "eta_min": tune.choice([1e-05, 0, 1e-06, 0, 0, 0, 0, 0])},
-                {"name": "CyclicLR", "base_lr": tune.loguniform(1.00e-05, 6.41e-04), "max_lr": tune.loguniform(1.05e-03, 1.00e-01), "step_size_up": tune.choice([2000, 4000]), "mode_cyclic": tune.choice(["triangular", "triangular2"])},
-                {"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform(0.100, 0.338), "patience": tune.choice([5, 10, 15])}
+                {"name": "CosineAnnealingLR", "T_max": tune.uniform(26.04822017187056, 26.04822017187056), "eta_min": tune.choice([0.0])}
             ]),
-            "batch_size": tune.choice([8, 16, 32]),
+            "batch_size": tune.choice([8]),
         }
     elif encoding_type == "TabMinHash":
         search_space = {
             "output_dim": len(all_two_grams),
             "num_layers": tune.choice([1]),
-            "hidden_layer_size": tune.choice([2048, 4096]),
-            "dropout_rate": tune.uniform(0.129846, 0.417310),
-            "activation_fn": tune.choice(["elu", "selu", "tanh"]),
+            "hidden_layer_size": tune.choice([4096]),
+            "dropout_rate": tune.uniform(0.15892248503872536, 0.15892248503872536),
+            "activation_fn": tune.choice(["selu"]),
             "optimizer": tune.choice([
-                {"name": "AdamW", "lr": tune.loguniform(1.00e-06, 9.59e-04)},
-                {"name": "RMSprop", "lr": tune.loguniform(1.00e-06, 9.59e-04)},
+                {"name": "RMSprop", "lr": tune.uniform(5.885498399323093e-06, 5.885498399323093e-06), "alpha": tune.choice([0.99])}
             ]),
-            "loss_fn": tune.choice(["BCEWithLogitsLoss", "MultiLabelSoftMarginLoss"]),
-            "threshold": tune.uniform(0.220297, 0.434076),
+            "loss_fn": tune.choice(["BCEWithLogitsLoss"]),
+            "threshold": tune.uniform(0.3487455998428984, 0.3487455998428984),
             "lr_scheduler": tune.choice([
-                {"name": "CosineAnnealingLR", "T_max": tune.loguniform(10.0, 13.4), "eta_min": tune.choice([0, 1e-06, 0, 0, 0, 0, 0])},
-                {"name": "CyclicLR", "base_lr": tune.loguniform(1.00e-05, 1.50e-04), "max_lr": tune.loguniform(1.58e-03, 1.00e-01), "step_size_up": tune.choice([2000, 4000]), "mode_cyclic": tune.choice(["triangular", "triangular2"])},
-                {"name": "None"},
-                {"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform(0.100, 0.459), "patience": tune.choice([5, 10])}
+                {"name": "CosineAnnealingLR", "T_max": tune.uniform(12.39063482213561, 12.39063482213561), "eta_min": tune.choice([0.0])}
             ]),
-            "batch_size": tune.choice([8, 16]),
+            "batch_size": tune.choice([8]),
         }
     elif encoding_type == "TwoStepHash":
         search_space = {
             "output_dim": len(all_two_grams),
             "num_layers": tune.choice([1]),
-            "hidden_layer_size": tune.choice([2048, 4096]),
-            "dropout_rate": tune.uniform(0.142205, 0.304562),
-            "activation_fn": tune.choice(["elu", "selu", "tanh"]),
+            "hidden_layer_size": tune.choice([4096]),
+            "dropout_rate": tune.uniform(0.21706571087068358, 0.21706571087068358),
+            "activation_fn": tune.choice(["elu"]),
             "optimizer": tune.choice([
-                {"name": "Adam", "lr": tune.loguniform(1.00e-06, 3.76e-04)},
-                {"name": "AdamW", "lr": tune.loguniform(1.00e-06, 3.76e-04)},
-                {"name": "RMSprop", "lr": tune.loguniform(1.00e-06, 3.76e-04)},
+                {"name": "RMSprop", "lr": tune.uniform(1.9875702593793717e-05, 1.9875702593793717e-05), "alpha": tune.choice([0.99])}
             ]),
-            "loss_fn": tune.choice(["BCEWithLogitsLoss", "MultiLabelSoftMarginLoss"]),
-            "threshold": tune.uniform(0.197056, 0.308036),
+            "loss_fn": tune.choice(["MultiLabelSoftMarginLoss"]),
+            "threshold": tune.uniform(0.26995331913458265, 0.26995331913458265),
             "lr_scheduler": tune.choice([
-                {"name": "CosineAnnealingLR", "T_max": tune.loguniform(10.0, 26.7), "eta_min": tune.choice([1e-05, 0, 0, 0, 0, 0])},
-                {"name": "CyclicLR", "base_lr": tune.loguniform(1.00e-05, 8.99e-05), "max_lr": tune.loguniform(2.45e-03, 1.00e-01), "step_size_up": tune.choice([2000, 4000]), "mode_cyclic": tune.choice(["exp_range", "triangular"])},
-                {"name": "None"},
-                {"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform(0.100, 0.210), "patience": tune.choice([10, 15])}
+                {"name": "CyclicLR", "base_lr": tune.choice([1e-05]), "max_lr": tune.choice([0.1]), "step_size_up": tune.choice([2000.0]), "mode": tune.choice(["triangular"])}
             ]),
-            "batch_size": tune.choice([8, 16]),
+            "batch_size": tune.choice([16]),
         }
     else:
         # Fallback search space for unknown encodings
@@ -433,13 +421,13 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         identifier=identifier,
         patience=DEA_CONFIG["Patience"],
         min_delta=DEA_CONFIG["MinDelta"],
-        workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
+        workers=GLOBAL_CONFIG["Workers"] // 2 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
 
     # Wrap the trainable function with resources for 10 trials
     trainable_with_resources = tune.with_resources(
         trainable,
-        resources={"cpu": GLOBAL_CONFIG["Workers"] // 10, "gpu": 0.2} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"] // 10, "gpu": 0}
+        resources={"cpu": GLOBAL_CONFIG["Workers"] // 2, "gpu": 0.5} if GLOBAL_CONFIG["UseGPU"] else {"cpu": GLOBAL_CONFIG["Workers"] // 2, "gpu": 0}
     )
 
     # Initialize the tuner.
@@ -487,21 +475,21 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=True,
         pin_memory=True,
-        num_workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
+        num_workers=GLOBAL_CONFIG["Workers"] // 2 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
     dataloader_val = DataLoader(
         data_val,
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=False,
         pin_memory=True,
-        num_workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
+        num_workers=GLOBAL_CONFIG["Workers"] // 2 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
     dataloader_test = DataLoader(
         data_test,
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=False,
         pin_memory=True,
-        num_workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
+        num_workers=GLOBAL_CONFIG["Workers"] // 2 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
