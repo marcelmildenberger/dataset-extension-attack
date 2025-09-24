@@ -129,9 +129,21 @@ failed_experiments = []
 
 encs = ["TwoStepHash"]
 
-datasets = ["fakename_20k.tsv", "fakename_50k.tsv", "euro_person.tsv"]
+# Current config: fakename_50k.tsv with overlap 0.6
+# Plus all datasets with overlap 0.2
+datasets = [
+    "fakename_50k.tsv",  # Current config
+    "euro_person_5k.tsv",
+    "euro_person.tsv", 
+    "fakename_10k.tsv",
+    "fakename_1k.tsv",
+    "fakename_20k.tsv",
+    "fakename_2k.tsv",
+    "fakename_5k.tsv",
+    "titanic_full.tsv"
+]
 
-overlap = [0.6]
+# Overlap values are determined per dataset in the loop below
 
 for dataset in datasets:
     for encoding in encs:
@@ -139,7 +151,16 @@ for dataset in datasets:
         ENC_CONFIG["EveAlgo"] = "None"
         if encoding == "BloomFilter":
             ENC_CONFIG["EveAlgo"] = encoding
-        for ov in overlap:
+        
+        # Determine overlap value for this dataset
+        if dataset == "fakename_50k.tsv":
+            # Current config: fakename_50k.tsv with overlap 0.6
+            dataset_overlaps = [0.6]
+        else:
+            # All other datasets with overlap 0.2
+            dataset_overlaps = [0.2]
+        
+        for ov in dataset_overlaps:
             GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
             GLOBAL_CONFIG["Overlap"] = ov
             try:
