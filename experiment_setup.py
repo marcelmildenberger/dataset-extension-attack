@@ -129,10 +129,9 @@ failed_experiments = []
 
 encs = ["TwoStepHash"]
 
-datasets = ["titanic_full.tsv", "fakename_1k.tsv", "fakename_2k.tsv", "fakename_5k.tsv", "fakename_10k.tsv",
-            "fakename_20k.tsv", "fakename_50k.tsv", "euro_person.tsv"]
+datasets = ["fakename_50k.tsv", "euro_person.tsv"]
 
-overlap = [0.2, 0.4, 0.6, 0.8]
+overlap = [0.6]
 
 for dataset in datasets:
     for encoding in encs:
