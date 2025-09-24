@@ -24,11 +24,11 @@ GLOBAL_CONFIG = {
 # === DEA Training Parameters ===
 DEA_CONFIG = {
     "ParallelTrials": 10,
-    "HPO": False,
+    "HPO": True,
     "TrainSize": 0.8,
     "Patience": 5,
     "MinDelta": 1e-4,
-    "NumSamples": 30,
+    "NumSamples": 50,
     "Epochs": 25,
     "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
     "MatchingTechnique": "fuzzy_and_greedy",  # Options: "ai", "greedy", "fuzzy", ...,
