@@ -1,5 +1,4 @@
 Dataset,Encoding,DropFrom,Overlap
-euro_person.tsv,BloomFilter,Both,0.6
-euro_person.tsv,BloomFilter,Eve,0.6
-
-
+fakename_1k.tsv,TabMinHash,Eve,0.2
+fakename_1k.tsv,BloomFilter,Both,0.2
+fakename_2k.tsv,TabMinHash,Eve,0.2
