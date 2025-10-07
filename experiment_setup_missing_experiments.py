@@ -24,7 +24,7 @@ GLOBAL_CONFIG = {
 # === DEA Training Parameters ===
 DEA_CONFIG = {
     "ParallelTrials": 5,
-    "HPO": True,
+    "HPO": False,
     "TrainSize": 0.8,
     "Patience": 5,
     "MinDelta": 1e-4,
