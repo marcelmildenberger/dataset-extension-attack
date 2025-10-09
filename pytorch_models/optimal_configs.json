@@ -2,42 +2,44 @@
     "BloomFilter": {
         "model_params": {
             "num_layers": 1,
-            "hidden_layer_size": 2048,
-            "dropout_rate": 0.16917619617780422,
+            "hidden_layer_size": 4096,
+            "dropout_rate": 0.07684923430207283,
             "activation_fn": "tanh"
         },
         "optimizer": {
             "name": "RMSprop",
-            "lr": 0.0003675203141843443,
+            "lr": 9.374834802195405e-05,
             "alpha": 0.99
         },
-        "loss_fn": "BCEWithLogitsLoss",
+        "loss_fn": "MultiLabelSoftMarginLoss",
         "threshold": 0.27663843843242203,
         "batch_size": 8,
         "lr_scheduler": {
-            "name": "CosineAnnealingLR",
-            "T_max": 26.04822017187056,
-            "eta_min": 0.0
+            "name": "CyclicLR",
+            "base_lr": 1.2511806523278877e-05,
+            "max_lr": 0.07605839217430453,
+            "step_size_up": 2000.0,
+            "mode": "triangular"
         }
     },
     "TabMinHash": {
         "model_params": {
             "num_layers": 1,
             "hidden_layer_size": 4096,
-            "dropout_rate": 0.15892248503872536,
-            "activation_fn": "selu"
+            "dropout_rate": 0.22470550497231004,
+            "activation_fn": "elu"
         },
         "optimizer": {
             "name": "RMSprop",
-            "lr": 5.885498399323093e-06,
+            "lr": 8.246932103481514e-06,
             "alpha": 0.99
         },
         "loss_fn": "BCEWithLogitsLoss",
-        "threshold": 0.3487455998428984,
+        "threshold": 0.3057495563339427,
         "batch_size": 8,
         "lr_scheduler": {
             "name": "CosineAnnealingLR",
-            "T_max": 12.39063482213561,
+            "T_max": 11.077585268274532,
             "eta_min": 0.0
         }
     },
@@ -45,23 +47,19 @@
         "model_params": {
             "num_layers": 1,
             "hidden_layer_size": 4096,
-            "dropout_rate": 0.21706571087068358,
+            "dropout_rate": 0.1960351040919514,
             "activation_fn": "elu"
         },
         "optimizer": {
             "name": "RMSprop",
-            "lr": 1.9875702593793717e-05,
+            "lr": 8.805472517845028e-06,
             "alpha": 0.99
         },
         "loss_fn": "MultiLabelSoftMarginLoss",
-        "threshold": 0.26995331913458265,
-        "batch_size": 16,
+        "threshold": 0.2751986720501119,
+        "batch_size": 8,
         "lr_scheduler": {
-            "name": "CyclicLR",
-            "base_lr": 1e-05,
-            "max_lr": 0.1,
-            "step_size_up": 2000.0,
-            "mode": "triangular"
+            "name": "None"
         }
     }
 }

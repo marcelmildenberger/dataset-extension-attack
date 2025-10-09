@@ -405,18 +405,18 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
                 "output_dim": len(all_two_grams),
                 "num_layers": tune.choice([1]),
                 "hidden_layer_size": tune.choice([2048, 4096]),
-                "dropout_rate": tune.uniform(0.022013, 0.334609),
+                "dropout_rate": tune.uniform(0.022683, 0.327244),
                 "activation_fn": tune.choice(["elu", "selu", "tanh"]),
                 "optimizer": tune.choice([
-                    {"name": "Adam", "lr": tune.loguniform(1.00e-06, 6.45e-04)},
-                    {"name": "RMSprop", "lr": tune.loguniform(1.00e-06, 6.45e-04)},
+                    {"name": "Adam", "lr": tune.loguniform(1.00e-06, 6.89e-04)},
+                    {"name": "RMSprop", "lr": tune.loguniform(1.00e-06, 6.89e-04)},
                 ]),
                 "loss_fn": tune.choice(["BCEWithLogitsLoss", "MultiLabelSoftMarginLoss"]),
-                "threshold": tune.uniform(0.143826, 0.513970),
+                "threshold": tune.uniform(0.141873, 0.535459),
                 "lr_scheduler": tune.choice([
-                    {"name": "CosineAnnealingLR", "T_max": tune.loguniform(10.0, 43.7), "eta_min": tune.choice([0, 1e-05])},
+                    {"name": "CosineAnnealingLR", "T_max": tune.loguniform(10.0, 43.6), "eta_min": tune.choice([0, 1e-05, 1e-06])},
                     {"name": "CyclicLR", "base_lr": tune.loguniform(1.00e-05, 6.41e-04), "max_lr": tune.loguniform(4.52e-03, 1.00e-01), "step_size_up": tune.choice([2000, 4000]), "mode_cyclic": tune.choice(["triangular", "triangular2"])},
-                    {"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform(0.100, 0.287), "patience": tune.choice([5, 10])}
+                    {"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform(0.100, 0.193), "patience": tune.choice([5, 10])}
                 ]),
                 "batch_size": tune.choice([8, 16, 32]),
             }
@@ -444,17 +444,17 @@ def run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG):
                 "output_dim": len(all_two_grams),
                 "num_layers": tune.choice([1]),
                 "hidden_layer_size": tune.choice([2048, 4096]),
-                "dropout_rate": tune.uniform(0.133341, 0.267216),
+                "dropout_rate": tune.uniform(0.132929, 0.267254),
                 "activation_fn": tune.choice(["elu", "selu", "tanh"]),
                 "optimizer": tune.choice([
-                    {"name": "AdamW", "lr": tune.loguniform(1.00e-06, 3.33e-04)},
-                    {"name": "RMSprop", "lr": tune.loguniform(1.00e-06, 3.33e-04)},
+                    {"name": "AdamW", "lr": tune.loguniform(1.00e-06, 3.76e-04)},
+                    {"name": "RMSprop", "lr": tune.loguniform(1.00e-06, 3.76e-04)},
                 ]),
                 "loss_fn": tune.choice(["BCEWithLogitsLoss", "MultiLabelSoftMarginLoss"]),
                 "threshold": tune.uniform(0.187054, 0.318405),
                 "lr_scheduler": tune.choice([
                     {"name": "CosineAnnealingLR", "T_max": tune.loguniform(10.0, 26.7), "eta_min": tune.choice([0, 1e-05])},
-                    {"name": "CyclicLR", "base_lr": tune.loguniform(1.00e-05, 8.99e-05), "max_lr": tune.loguniform(2.45e-03, 1.00e-01), "step_size_up": tune.choice([2000, 4000]), "mode_cyclic": tune.choice(["'exp_range'", "triangular"])},
+                    {"name": "CyclicLR", "base_lr": tune.loguniform(1.00e-05, 2.29e-05), "max_lr": tune.loguniform(6.37e-03, 1.00e-01), "step_size_up": tune.choice([2000]), "mode_cyclic": tune.choice(["exp_range", "triangular"])},
                     {"name": "None"},
                     {"name": "ReduceLROnPlateau", "mode": "min", "factor": tune.uniform(0.100, 0.160), "patience": tune.choice([10])}
                 ]),
