@@ -18,7 +18,7 @@ GLOBAL_CONFIG = {
     "UseGPU": True,
     "SaveModel": False,
     "SavePredictions": False,
-    "GraphMatchingAttack": False,
+    "GraphMatchingAttack": True,
 }
 
 # === DEA Training Parameters ===
