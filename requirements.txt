@@ -31,3 +31,4 @@ seaborn
 groq
 python-dotenv~=1.0.1
 networkx
+pyarrow==14.0.1
