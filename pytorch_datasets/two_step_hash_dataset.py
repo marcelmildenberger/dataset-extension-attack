@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from datasets.dataset_utils import *
+from utils.pytorch_dataset_utils import *
 from torch.utils.data import Dataset
 
 from string_utils import extract_two_grams
