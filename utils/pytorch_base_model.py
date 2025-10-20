@@ -33,6 +33,3 @@ class BaseModel(nn.Module):
         # Forward pass through the model
         output = self.model(x)
         return output
-
-
-# Best hyperparameters BF 250 trial: {'num_layers': 1, 'hidden_layer_size': 2048, 'dropout_rate': 0.220451802221184, 'activation_fn': 'relu', 'optimizer': 'Adam', 'loss_fn': 'BCEWithLogitsLoss', 'lr': 0.0005149157768571977, 'epochs': 27}

@@ -155,7 +155,7 @@ def extract_experiment_data(exp_dir):
         record.update({
             "HypOpOutputDim": best_result.get("output_dim"),
             "HypOpNumLayers": best_result.get("num_layers"),
-            "HypOpHiddenSize": best_result.get("hidden_layer_size"),
+            "HypOpHiddenSize": best_result.get("hidden_layer"),
             "HypOpDropout": best_result.get("dropout_rate"),
             "HypOpActivation": best_result.get("activation_fn"),
             "HypOpOptimizer": best_result.get("optimizer"),

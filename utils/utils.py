@@ -160,17 +160,17 @@ def run_epoch(model, dataloader, criterion, optimizer, device, is_training, verb
 
 
 
-def map_probabilities_to_two_grams(two_gram_dict, probabilities):
+def map_probabilities_to_bi_grams(bi_gram_dict, probabilities):
     return [
-        {two_gram_dict[j]: prob.item() for j, prob in enumerate(sample)}
+        {bi_gram_dict[j]: prob.item() for j, prob in enumerate(sample)}
         for sample in probabilities
     ]
 
 
 
-def filter_high_scoring_two_grams(two_gram_scores, threshold, max_grams=33):
+def filter_high_scoring_bi_grams(bi_gram_scores, threshold, max_grams=33):
     filtered = []
-    for score_dict in two_gram_scores:
+    for score_dict in bi_gram_scores:
         # Filter by threshold
         filtered_grams = [(gram, score) for gram, score in score_dict.items() if score > threshold]
         # Sort by score descending and keep only top `max_grams`
@@ -194,9 +194,9 @@ def calculate_performance_metrics(actual_batch, predicted_batch):
     return total_dice, total_precision, total_recall, total_f1
 
 
-def decode_labels_to_two_grams(two_gram_dict, label_batch):
+def decode_labels_to_bi_grams(bi_gram_dict, label_batch):
     return [
-        [two_gram_dict[i] for i, val in enumerate(label_tensor) if val == 1]
+        [bi_gram_dict[i] for i, val in enumerate(label_tensor) if val == 1]
         for label_tensor in label_batch
     ]
 
@@ -209,7 +209,7 @@ def reconstruct_identities_with_llm(result, columns=["GivenName", "Surname", "Bi
 
     def format_input(batch):
         return "\n".join(
-            f'"{entry["uid"]}": ["{", ".join(sorted(entry["predicted_two_grams"]))}"]'
+            f'"{entry["uid"]}": ["{", ".join(sorted(entry["predicted_bi_grams"]))}"]'
             for entry in batch
         )
 
@@ -342,7 +342,7 @@ def find_most_likely_birthday(entry, all_birthday_records, similarity_metric='ja
 
     best_birthday, best_score, best_grams = max(
         (
-            (birthday, similarity_func(entry['predicted_two_grams'], grams), grams)
+            (birthday, similarity_func(entry['predicted_bi_grams'], grams), grams)
             for birthday, grams in all_birthday_records
         ),
         key=lambda x: x[1],
@@ -350,10 +350,10 @@ def find_most_likely_birthday(entry, all_birthday_records, similarity_metric='ja
     )
 
     filtered_grams = [
-        gram for gram in entry['predicted_two_grams'] if gram not in best_grams
+        gram for gram in entry['predicted_bi_grams'] if gram not in best_grams
     ]
 
-    entry["predicted_two_grams"] = filtered_grams
+    entry["predicted_bi_grams"] = filtered_grams
 
     return best_birthday, best_score
 
@@ -368,7 +368,7 @@ def find_most_likely_given_name(entry, all_givenname_records, similarity_metric=
 
     best_name, best_score, best_name_grams = max(
         (
-            (name, similarity_func(entry['predicted_two_grams'], grams), grams)
+            (name, similarity_func(entry['predicted_bi_grams'], grams), grams)
             for name, grams in all_givenname_records
         ),
         key=lambda x: x[1],
@@ -376,10 +376,10 @@ def find_most_likely_given_name(entry, all_givenname_records, similarity_metric=
     )
 
     filtered_grams = [
-        gram for gram in entry['predicted_two_grams'] if gram not in best_name_grams
+        gram for gram in entry['predicted_bi_grams'] if gram not in best_name_grams
     ]
 
-    entry["predicted_two_grams"] = filtered_grams
+    entry["predicted_bi_grams"] = filtered_grams
 
     return best_name, best_score, filtered_grams
 
@@ -394,7 +394,7 @@ def find_most_likely_surname(entry, all_surname_records, similarity_metric='jacc
 
     best_name, best_score, best_grams = max(
         (
-            (name, similarity_func(entry['predicted_two_grams'], grams), grams)
+            (name, similarity_func(entry['predicted_bi_grams'], grams), grams)
             for name, grams in all_surname_records
         ),
         key=lambda x: x[1],
@@ -402,26 +402,26 @@ def find_most_likely_surname(entry, all_surname_records, similarity_metric='jacc
     )
 
     filtered_grams = [
-        gram for gram in entry['predicted_two_grams'] if gram not in best_grams
+        gram for gram in entry['predicted_bi_grams'] if gram not in best_grams
     ]
 
-    entry["predicted_two_grams"] = filtered_grams
+    entry["predicted_bi_grams"] = filtered_grams
 
     return best_name, best_score, filtered_grams
 
 
 
-def greedy_reconstruction(result):
+def greedy_reconstruction(results):
     reconstructed_results = []
 
-    for entry in result:
+    for entry in results:
         uid = entry["uid"]
-        two_grams = entry["predicted_two_grams"]
+        bi_grams = entry["predicted_bi_grams"]
 
 
         # Build directed graph from 2-grams
         G = nx.DiGraph()
-        G.add_edges_from((gram[0], gram[1]) for gram in two_grams)
+        G.add_edges_from((gram[0], gram[1]) for gram in bi_grams)
 
         if nx.is_directed_acyclic_graph(G):
             path = nx.dag_longest_path(G)
@@ -441,7 +441,7 @@ def greedy_reconstruction(result):
                         visited_edges.remove(edge)
 
             longest_sequence = ""
-            for gram in two_grams:
+            for gram in bi_grams:
                 dfs(gram[1], {(gram[0], gram[1])}, gram[0] + gram[1])
 
             reconstructed = longest_sequence
@@ -466,13 +466,13 @@ def load_givenname_and_surname_records(min_count=10, use_filtered=True):
             for row in reader:
                 if int(row['count']) >= min_count:
                     name = row['name'].lower()
-                    grams = extract_two_grams(name)
+                    grams = extract_bi_grams(name)
                     all_surname_records.append((name, set(grams)))
 
     # Load and preprocess all given names into 2-grams
     with open('data/names/givenname/unique_names.txt', 'r', encoding='utf-8') as f:
         all_givenname_records = [
-            (name.strip(), extract_two_grams(name.strip()))
+            (name.strip(), extract_bi_grams(name.strip()))
             for name in f if name.strip()
         ]
     return all_givenname_records, all_surname_records
@@ -480,7 +480,7 @@ def load_givenname_and_surname_records(min_count=10, use_filtered=True):
 def load_birthday_2gram_records():
     date_range = pd.date_range(start="1900-01-01", end="2004-12-31", freq='D')
     return [
-        (d.strftime("%#m/%#d/%Y"), extract_two_grams(d.strftime("%#m/%#d/%Y")))
+        (d.strftime("%#m/%#d/%Y"), extract_bi_grams(d.strftime("%#m/%#d/%Y")))
         for d in date_range
     ]
 
@@ -492,14 +492,13 @@ def create_identifier_column_dynamic(df, components):
     return pd.Series(map(''.join, zip(*cleaned_cols)), index=df.index).str.lower()
 
 
-def reidentification_analysis(df_1, df_2, merge_on, len_not_reidentified, method_name=None, save_path=None):
+def reidentification_analysis(df_1, df_2, merge_on, len_not_reidentified, save_path=None):
     merged = pd.merge(df_1, df_2, on=merge_on, how='inner', suffixes=('_df1', '_df2'))
 
     total_reidentified = len(merged)
     total_not_reidentified = len_not_reidentified
 
     print("Reidentification Analysis:")
-    print(f"Technique: {method_name}")
     print(f"Total Reidentified Individuals: {total_reidentified}")
     print(f"Total Not Reidentified Individuals: {total_not_reidentified}")
 
@@ -514,16 +513,16 @@ def reidentification_analysis(df_1, df_2, merge_on, len_not_reidentified, method
         os.makedirs(save_path, exist_ok=True)
 
         # Save merged reidentified individuals
-        result_csv_path = os.path.join(save_path, f"result_{method_name or 'unknown'}.csv")
+        result_csv_path = os.path.join(save_path, f"result_greedy.csv")
         merged.to_csv(result_csv_path, index=False)
 
         # Save summary as CSV for better analysis
         summary_data = {
             "metric": ["reidentification_method", "total_reidentified_individuals", "total_not_reidentified_individuals", "reidentification_rate"],
-            "value": [method_name or 'Unknown', total_reidentified, total_not_reidentified, f"{reidentification_rate:.2f}%" if reidentification_rate is not None else "N/A"]
+            "value": ['greedy', total_reidentified, total_not_reidentified, f"{reidentification_rate:.2f}%" if reidentification_rate is not None else "N/A"]
         }
         summary_df = pd.DataFrame(summary_data)
-        summary_csv_path = os.path.join(save_path, f"summary_{method_name or 'unknown'}.csv")
+        summary_csv_path = os.path.join(save_path, f"summary_greedy.csv")
         summary_df.to_csv(summary_csv_path, index=False)
 
     return merged
@@ -599,8 +598,8 @@ def reconstruct_single_entry(entry, all_givenname_records, all_surname_records, 
     # Avoid mutating the input entry
     entry_dict = {
         'uid': entry['uid'],
-        'actual_two_grams': entry["actual_two_grams"],
-        'predicted_two_grams': list(entry['predicted_two_grams'])  # ensure copy
+        'actual_bi_grams': entry["actual_bi_grams"],
+        'predicted_bi_grams': list(entry['predicted_bi_grams'])  # ensure copy
     }
 
     # Given name
@@ -680,12 +679,6 @@ def create_synthetic_data_splits(GLOBAL_CONFIG, ENC_CONFIG, data_dir, alice_enc_
     Loads the encoded dataset and samples based on overlap percentage.
     """
     
-    # Check if files already exist
-    if (os.path.isfile(path_reidentified) and 
-        os.path.isfile(path_not_reidentified) and 
-        os.path.isfile(path_all)):
-        return
-    
     # Load the encoded dataset
     dataset_name = GLOBAL_CONFIG["Data"].split("/")[-1].replace(".tsv", "")
     algo = ENC_CONFIG["AliceAlgo"]
@@ -705,7 +698,7 @@ def create_synthetic_data_splits(GLOBAL_CONFIG, ENC_CONFIG, data_dir, alice_enc_
     # Load the encoded data
     data, uids, header = read_tsv(encoded_file, skip_header=True, as_dict=False)
 
-    # Convert to DataFrame-like format (list of lists with header)
+    # Handle Case for titanic (no birthday)
     if dataset_name != "titanic_full":
         all_data = [header] + [[row[0], row[1], row[2], row[3], uid] for row, uid in zip(data, uids)]
     else:
@@ -717,7 +710,6 @@ def create_synthetic_data_splits(GLOBAL_CONFIG, ENC_CONFIG, data_dir, alice_enc_
     n_reidentified = int(n_total * overlap_ratio)
     
     # Random sampling
-    random.seed(42)  # For reproducibility
     indices = list(range(1, len(all_data)))  # Skip header
     reidentified_indices = random.sample(indices, n_reidentified)
     not_reidentified_indices = [i for i in indices if i not in reidentified_indices]
@@ -727,10 +719,6 @@ def create_synthetic_data_splits(GLOBAL_CONFIG, ENC_CONFIG, data_dir, alice_enc_
     for idx in reidentified_indices:
         reidentified_data.append(all_data[idx])
     
-    # Create not reidentified data (test data) - match GMA format
-    # GMA creates not_reidentified_individuals with alice_header and alice_entry format
-    # where alice_entry is [encoding_column, uid] (last 2 columns)
-    # But we need to create a header that matches the 2-column data structure
     not_reidentified_header = [header[-2], header[-1]]  # Last 2 column names: encoding, uid
     not_reidentified_data = [not_reidentified_header]
     for idx in not_reidentified_indices:
@@ -747,26 +735,17 @@ def create_synthetic_data_splits(GLOBAL_CONFIG, ENC_CONFIG, data_dir, alice_enc_
     hkl.dump(reidentified_data, path_reidentified, mode="w")
     hkl.dump(not_reidentified_data, path_not_reidentified, mode="w")
     hkl.dump(all_data, path_all, mode="w")
-    
-    print(f"Created synthetic data splits:")
-    print(f"  Total records: {n_total}")
-    print(f"  Reidentified (training): {n_reidentified} ({overlap_ratio:.1%})")
-    print(f"  Not reidentified (test): {n_total - n_reidentified} ({1-overlap_ratio:.1%})")
 
 
 def load_experiment_datasets(
-    data_directory, alice_enc_hash, identifier, ENC_CONFIG, DEA_CONFIG, GLOBAL_CONFIG, all_two_grams, splits=("train", "val", "test")
+    data_directory, alice_enc_hash, identifier, ENC_CONFIG, DEA_CONFIG, GLOBAL_CONFIG, all_bi_grams, splits=("train", "val", "test")
 ):
     cache_path = get_cache_path(data_directory, identifier, alice_enc_hash)
     # Try to load from cache if all splits are present
     if os.path.exists(cache_path):
         with open(cache_path, 'rb') as f:
             cached = pickle.load(f)
-            if isinstance(cached, dict):
-                return {k: cached.get(k) for k in splits}
-            else:
-                train, val, test = cached
-                return {"train": train, "val": val, "test": test}
+            return {k: cached.get(k) for k in splits}
 
     # Otherwise, create datasets
     df_reidentified = load_dataframe(f"{data_directory}/available_to_eve/reidentified_individuals_{identifier}.h5")
@@ -814,7 +793,7 @@ def load_experiment_datasets(
         dataset_args = {}
     common_args = {
         "is_labeled": True,
-        "all_two_grams": all_two_grams,
+        "all_bi_grams": all_bi_grams,
         "dev_mode": GLOBAL_CONFIG["DevMode"]
     }
 
@@ -875,134 +854,22 @@ def create_identifier(df: pd.DataFrame, components):
     return df[["uid", "identifier"]]
 
 
-def run_reidentification_once(reconstructed_identities, df_not_reidentified, merge_cols, technique, current_experiment_directory, identifier_components=None):
-    """
-    Runs the reidentification analysis for a single technique.
-    Args:
-        reconstructed_identities (list/dict): Reconstructed identities.
-        df_not_reidentified (pd.DataFrame): Not re-identified DataFrame.
-        merge_cols (list): Columns to merge on.
-        technique (str): Name of the technique.
-        current_experiment_directory (str): Directory to save results.
-        identifier_components (list, optional): Components for identifier creation.
-    Returns:
-        dict: Result of reidentification_analysis.
-    """
-    # Convert reconstructed identities to DataFrame and lowercase
+def run_reidentification_greedy(results, header, df_not_reidentified, current_experiment_directory):
+    
+    
+    reconstructed_identities = greedy_reconstruction(results)
 
-    df_reconstructed = lowercase_df(pd.DataFrame(reconstructed_identities, columns=merge_cols))
+    df_reconstructed = lowercase_df(pd.DataFrame(reconstructed_identities, columns=["uid", "identifier"]))
     # If identifier components are provided, create identifier column in not-reidentified DataFrame
-    if identifier_components:
-        df_not_reidentified = create_identifier(df_not_reidentified, identifier_components)
+    df_not_reidentified = create_identifier(df_not_reidentified, header[:-1])
     return reidentification_analysis(
         df_reconstructed,
         df_not_reidentified,
-        merge_cols,
+        ["uid", "identifier"],
         len(df_not_reidentified),
-        technique,
         save_path=f"{current_experiment_directory}/re_identification_results"
     )
-
-
-def get_reidentification_techniques(header, include_birthday):
-    """
-    Returns the dictionary of available reidentification techniques and their configurations.
-    Args:
-        header (list): List of column names from the dataset.
-        include_birthday (bool): Whether to include birthday in the merge columns for fuzzy technique.
-    Returns:
-        dict: Dictionary mapping technique names to their configs.
-    """
-    return {
-        "ai": {
-            "fn": reconstruct_identities_with_llm,
-            "merge_cols": header[:3] + [header[-1]],
-            "identifier_comps": None,
-        },
-        "greedy": {
-            "fn": greedy_reconstruction,
-            "merge_cols": ["uid", "identifier"],
-            "identifier_comps": header[:-1],
-        },
-        "fuzzy": {
-            "fn": fuzzy_reconstruction_approach,
-            "merge_cols": (header[:3] if include_birthday else header[:2]) + [header[-1]],
-            "identifier_comps": None,
-        },
-    }
-
-
-def run_selected_reidentification(
-    selected,
-    techniques,
-    results,
-    df_not_reid_cached,
-    GLOBAL_CONFIG,
-    current_experiment_directory,
-    data_dir,
-    identifier,
-    save_dir
-):
-    if selected == "fuzzy_and_greedy":
-        reidentified = {}
-        for name in ("greedy", "fuzzy"):
-            info = techniques[name]
-            if name == "fuzzy":
-                # Fuzzy needs extra arguments
-                reconstructed_identities = info["fn"](results, GLOBAL_CONFIG["Workers"], not (GLOBAL_CONFIG["Data"] == "./data/datasets/titanic_full.tsv"))
-            else:
-                reconstructed_identities = info["fn"](results)
-            reidentified[name] = run_reidentification_once(
-                reconstructed_identities,
-                df_not_reid_cached,
-                info["merge_cols"],
-                name,
-                current_experiment_directory,
-                info["identifier_comps"],
-            )
-        # Combine UIDs from both methods
-        uids_greedy = set(reidentified["greedy"]["uid"])
-        uids_fuzzy = set(reidentified["fuzzy"]["uid"])
-        combined_uids = uids_greedy.union(uids_fuzzy)
-        total_reidentified_combined = len(combined_uids)
-        len_not_reidentified = len(df_not_reid_cached)
-        reidentification_rate_combined = (total_reidentified_combined / len_not_reidentified) * 100
-        print("Combined Reidentification (greedy ∪ fuzzy):")
-        print(f"Total not re-identified individuals: {len_not_reidentified}")
-        print(f"Total Unique Reidentified Individuals: {total_reidentified_combined}")
-        print(f"Combined Reidentification Rate: {reidentification_rate_combined:.2f}%")
-        os.makedirs(save_dir, exist_ok=True)
-        pd.DataFrame({"uid": list(combined_uids)}).to_csv(
-            os.path.join(save_dir, "result_fuzzy_and_greedy.csv"),
-            index=False
-        )
-        # Save combined summary as CSV for better analysis
-        combined_summary_data = {
-            "metric": ["Reidentification Method", "Total not re-identified individuals", "Total Unique Reidentified Individuals", "Combined Reidentification Rate"],
-            "value": ["fuzzy_and_greedy", len_not_reidentified, total_reidentified_combined, f"{reidentification_rate_combined:.2f}%"]
-        }
-        combined_summary_df = pd.DataFrame(combined_summary_data)
-        combined_summary_csv_path = os.path.join(save_dir, "summary_fuzzy_and_greedy.csv")
-        combined_summary_df.to_csv(combined_summary_csv_path, index=False)
     
-    else:
-        if selected not in techniques:
-            raise ValueError(f"Unsupported matching technique: {selected}")
-        info = techniques[selected]
-        if selected == "fuzzy":
-            reconstructed_identities = info["fn"](results, GLOBAL_CONFIG["Workers"], not (GLOBAL_CONFIG["Data"] == "./data/datasets/titanic_full.tsv"))
-        elif selected == "ai":
-            reconstructed_identities = info["fn"](results, info["merge_cols"][:-1])
-        else:
-            reconstructed_identities = info["fn"](results)
-        run_reidentification_once(
-            reconstructed_identities,
-            df_not_reid_cached,
-            info["merge_cols"],
-            selected,
-            current_experiment_directory,
-            info["identifier_comps"],
-        )
 
 def log_epoch_metrics(epoch, total_epochs, train_loss, val_loss, tb_writer=None, save_results=False):
     """
