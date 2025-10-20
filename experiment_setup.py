@@ -129,8 +129,8 @@ failed_experiments = []
 encs = ["TwoStepHash", "BloomFilter", "TabMinHash"]
 
 datasets = [
-    "titanic_full.tsv"  
-    "fakename_1k.tsv"
+    "titanic_full.tsv",  
+    "fakename_1k.tsv",
     "fakename_2k.tsv",
     "fakename_5k.tsv",
     "fakename_10k.tsv",
