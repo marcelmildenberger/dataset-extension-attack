@@ -20,12 +20,12 @@ from torch.utils.data import DataLoader, Subset, random_split
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.notebook import tqdm
 import warnings
-from early_stopping.early_stopping import EarlyStopping
+from utils.early_stopping import EarlyStopping
 from graphMatching.gma import run_gma
 from datasets.bloom_filter_dataset import BloomFilterDataset
 from datasets.tab_min_hash_dataset import TabMinHashDataset
 from datasets.two_step_hash_dataset import TwoStepHashDataset
-from pytorch_models.base_model import BaseModel
+from utils.pytorch_base_model import BaseModel
 from utils import (
     calculate_performance_metrics,
     decode_labels_to_two_grams,
@@ -54,7 +54,7 @@ try:
     from ray import air, train, tune
     from ray.tune.schedulers import ASHAScheduler
     from ray.tune.search.optuna import OptunaSearch
-    from pytorch_models_hyperparameter_optimization.base_model_hyperparameter_optimization import BaseModelHyperparameterOptimization
+    from base_model_hyperparameter_optimization import BaseModelHyperparameterOptimization
     HPO_AVAILABLE = True
 except ImportError:
     HPO_AVAILABLE = False
