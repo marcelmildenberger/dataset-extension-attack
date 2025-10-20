@@ -59,6 +59,58 @@ def extract_metrics(metrics_df):
         metrics[metric_name] = value
     return metrics
 
+def extract_reidentification_info(results_dir, matching_technique=None):
+    """Extract re-identification summary matching the configured technique, if available."""
+    info = {
+        "ReidentificationMethod": None,
+        "ReidentificationRate": None,
+        "TotalReidentifiedIndividuals": None,
+        "TotalNotReidentifiedIndividuals": None,
+    }
+    if not results_dir.exists():
+        return info
+
+    summary_files = sorted(results_dir.glob("summary_*.csv"))
+    if not summary_files:
+        return info
+
+    target_file = None
+    if matching_technique:
+        candidate = results_dir / f"summary_{matching_technique.lower()}.csv"
+        if candidate.exists():
+            target_file = candidate
+    if target_file is None:
+        target_file = summary_files[0]
+
+    summary_df = read_csv_file(target_file)
+    if summary_df is None:
+        return info
+
+    metric_map = {}
+    for _, row in summary_df.iterrows():
+        metric = str(row.get("metric", "")).strip().lower()
+        metric_map[metric] = row.get("value")
+
+    rate = extract_reidentification_rate(summary_df)
+    method = metric_map.get("reidentification_method")
+    total_reidentified = metric_map.get("total_reidentified_individuals")
+    total_not_reidentified = metric_map.get("total_not_reidentified_individuals")
+
+    def _to_int(value):
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str):
+            value = value.strip()
+            if value.isdigit():
+                return int(value)
+        return None
+
+    info["ReidentificationMethod"] = method if isinstance(method, str) and method else target_file.stem.replace("summary_", "")
+    info["ReidentificationRate"] = rate
+    info["TotalReidentifiedIndividuals"] = _to_int(total_reidentified)
+    info["TotalNotReidentifiedIndividuals"] = _to_int(total_not_reidentified)
+    return info
+
 def extract_runtime(runtime_df):
     """Extract runtime information from DEA runtime log"""
     if runtime_df is None:
@@ -99,29 +151,19 @@ def extract_experiment_data(exp_dir):
     if not config:
         return None
     
+    global_config = config.get("GLOBAL_CONFIG", {})
+    enc_config = config.get("ENC_CONFIG", {})
+    nepal_config = config.get("NEPAL_CONFIG", {})
+
     # Read metrics
     metrics_df = read_csv_file(exp_path / "trained_model" / "metrics.csv")
     metrics = extract_metrics(metrics_df)
     if not metrics:
         return None
     
-    # Read reidentification results (may not exist for all experiments)
-    reid_summary_df = read_csv_file(exp_path / "re_identification_results" / "summary_fuzzy_and_greedy.csv")
-    reid_rate_combined = extract_reidentification_rate(reid_summary_df)
-    
-    reid_fuzzy_df = read_csv_file(exp_path / "re_identification_results" / "summary_fuzzy.csv")
-    reid_rate_fuzzy = extract_reidentification_rate(reid_fuzzy_df)
-    
-    reid_greedy_df = read_csv_file(exp_path / "re_identification_results" / "summary_greedy.csv")
-    reid_rate_greedy = extract_reidentification_rate(reid_greedy_df)
-    
-    # Prefer the greedy rate as the canonical re-identification rate
-    if reid_rate_greedy is not None:
-        reid_rate = reid_rate_greedy
-    elif reid_rate_fuzzy is not None:
-        reid_rate = reid_rate_fuzzy
-    else:
-        reid_rate = reid_rate_combined
+    # Read re-identification results based on configured matching technique
+    matching_technique = nepal_config.get("MatchingTechnique") or global_config.get("MatchingTechnique")
+    reid_info = extract_reidentification_info(exp_path / "re_identification_results", matching_technique)
     
     # Read runtime data (may not exist if BenchMode was disabled)
     runtime_df = read_csv_file(exp_path / "dea_runtime_log.csv")
@@ -135,20 +177,19 @@ def extract_experiment_data(exp_dir):
     # Create record with basic information
     record = {
         "ExperimentFolder": exp_path.name,
-        "Encoding": config["ENC_CONFIG"]["AliceAlgo"],
-        "Dataset": os.path.basename(config["GLOBAL_CONFIG"]["Data"]),
-        "DropFrom": config["GLOBAL_CONFIG"]["DropFrom"],
-        "Overlap": config["GLOBAL_CONFIG"]["Overlap"],
-        "GraphMatchingAttack": config["GLOBAL_CONFIG"].get("GraphMatchingAttack", True),
-        "HPO": config["DEA_CONFIG"].get("HPO", True),
+        "Encoding": enc_config.get("AliceAlgo"),
+        "Dataset": os.path.basename(global_config.get("Data", "")),
+        "DropFrom": global_config.get("DropFrom"),
+        "Overlap": global_config.get("Overlap"),
+        "GraphMatchingAttack": global_config.get("GraphMatchingAttack", True),
+        "MatchingTechnique": matching_technique,
+        "MatchingMetric": global_config.get("MatchingMetric"),
         "TrainedPrecision": metrics.get("avg_precision"),
         "TrainedRecall": metrics.get("avg_recall"),
         "TrainedF1": metrics.get("avg_f1"),
         "TrainedDice": metrics.get("avg_dice"),
-        "ReidentificationRate": reid_rate,
-        "ReidentificationRateFuzzy": reid_rate_fuzzy,
-        "ReidentificationRateGreedy": reid_rate_greedy,
     }
+    record.update(reid_info)
     
     # Add hyperparameter optimization results (only if HPO was enabled)
     if best_result:
@@ -172,16 +213,6 @@ def extract_experiment_data(exp_dir):
             "LenTrain": best_result.get("len_train"),
             "LenVal": best_result.get("len_val"),
         })
-    else:
-        # Add empty HPO fields when HPO was disabled
-        hpo_fields = [
-            "HypOpOutputDim", "HypOpNumLayers", "HypOpHiddenSize", "HypOpDropout",
-            "HypOpActivation", "HypOpOptimizer", "HypOpLossFn", "HypOpThreshold",
-            "HypOpLRScheduler", "HypOpBatchSize", "HypOpValLoss", "HypOpEpochs",
-            "HypOpF1", "HypOpPrecision", "HypOpRecall", "HypOpDice", "LenTrain", "LenVal"
-        ]
-        for field in hpo_fields:
-            record[field] = None
     
     # Add runtime information (only if BenchMode was enabled)
     if runtime:
@@ -222,8 +253,6 @@ def main():
     # Track experiment configurations
     gma_enabled_count = 0
     gma_disabled_count = 0
-    hpo_enabled_count = 0
-    hpo_disabled_count = 0
     
     for exp_dir in experiment_dirs:
         print(f"Processing {exp_dir.name}...")
@@ -254,11 +283,6 @@ def main():
             gma_enabled_count += 1
         else:
             gma_disabled_count += 1
-            
-        if record.get("HPO", True):
-            hpo_enabled_count += 1
-        else:
-            hpo_disabled_count += 1
         
         data_records.append(record)
         print(f"  Successfully extracted: {exp_dir.name}")
@@ -277,8 +301,6 @@ def main():
         print(f"\nExperiment Configuration Summary:")
         print(f"GraphMatchingAttack enabled: {gma_enabled_count}")
         print(f"GraphMatchingAttack disabled: {gma_disabled_count}")
-        print(f"HPO enabled: {hpo_enabled_count}")
-        print(f"HPO disabled: {hpo_disabled_count}")
         
         # Show encoding algorithm distribution
         if "Encoding" in df.columns:
