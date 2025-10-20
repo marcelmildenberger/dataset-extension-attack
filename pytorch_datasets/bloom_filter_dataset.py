@@ -1,7 +1,8 @@
 from utils.pytorch_dataset_utils import *
+from utils.string_utils import *
 from torch.utils.data import Dataset
 
-from string_utils import extract_two_grams
+
 
 class BloomFilterDataset(Dataset):
     def __init__(self, data, is_labeled=False, all_two_grams=None, dev_mode=False, reversed=False):

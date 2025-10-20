@@ -1,4 +1,4 @@
-from main import run_dea
+from nepal import run_nepal
 import pandas as pd
 
 # === General Parameters ===
@@ -18,21 +18,20 @@ GLOBAL_CONFIG = {
     "UseGPU": True,
     "SaveModel": False,
     "SavePredictions": False,
-    "GraphMatchingAttack": False,
+    # If Graph Matching Attack is disabled, remove the DropFrom loop. Overlap will instead be used as the NEPAL training proportion.
+    "GraphMatchingAttack": True,
 }
 
-# === DEA Training Parameters ===
-DEA_CONFIG = {
+# === NEPAL Training Parameters ===
+NEPAL_CONFIG = {
     "ParallelTrials": 5,
-    "HPO": True,
     "TrainSize": 0.8,
     "Patience": 5,
     "MinDelta": 1e-4,
     "NumSamples": 50,
     "Epochs": 25,
     "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
-    "MatchingTechnique": "fuzzy_and_greedy",  # Options: "ai", "greedy", "fuzzy", ...,
-    "HPO_Narrow_Searchspace": True,
+    "MatchingTechnique": "greedy",  # Options: "greedy"
 }
 
 # === Encoding Parameters for Alice & Eve ===
@@ -127,61 +126,54 @@ ALIGN_CONFIG = {
 # List to store failed experiments
 failed_experiments = []
 
-encs = ["TwoStepHash"]
+encs = ["TwoStepHash", "BloomFilter", "TabulationMinHash"]
 
-# Current config: fakename_50k.tsv with overlap 0.6
-# Plus all datasets with overlap 0.2
 datasets = [
-    "fakename_50k.tsv",  # Current config
-    "euro_person_5k.tsv",
-    "euro_person.tsv", 
-    "fakename_10k.tsv",
-    "fakename_1k.tsv",
-    "fakename_20k.tsv",
+    "titanic_full.tsv"  
+    "fakename_1k.tsv"
     "fakename_2k.tsv",
     "fakename_5k.tsv",
-    "titanic_full.tsv"
+    "fakename_10k.tsv",
+    "fakename_20k.tsv",
+    "euro_person.tsv", 
+    "fakename_50k.tsv", 
 ]
 
-# Overlap values are determined per dataset in the loop below
+dataset_overlaps = [0.2, 0.4, 0.6, 0.8]
+
+drop_from = ["Eve", "Both"]
 
 for dataset in datasets:
     for encoding in encs:
-        ENC_CONFIG["AliceAlgo"] = encoding
-        ENC_CONFIG["EveAlgo"] = "None"
-        if encoding == "BloomFilter":
-            ENC_CONFIG["EveAlgo"] = encoding
-        
-        # Determine overlap value for this dataset
-        if dataset == "fakename_50k.tsv":
-            # Current config: fakename_50k.tsv with overlap 0.6
-            dataset_overlaps = [0.6]
-        else:
-            # All other datasets with overlap 0.2
-            dataset_overlaps = [0.2]
-        
         for ov in dataset_overlaps:
-            GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
-            GLOBAL_CONFIG["Overlap"] = ov
-            try:
-                run_dea(
-                    GLOBAL_CONFIG.copy(),
-                    ENC_CONFIG.copy(),
-                    EMB_CONFIG.copy(),
-                    ALIGN_CONFIG.copy(),
-                    DEA_CONFIG.copy()
-                )
-            except Exception as e:
-                # Record failed experiment
-                failed_experiments.append({
-                    "encoding": encoding,
-                    "dataset": dataset,
-                    "overlap": ov,
-                    "error_message": str(e),
-                    "error_type": type(e).__name__,
-                })
-                print(f"Failed: {encoding} - {dataset} - {ov}: {e}")
-                continue
+            for df in drop_from:
+                GLOBAL_CONFIG["DropFrom"] = df
+                ENC_CONFIG["AliceAlgo"] = encoding
+                ENC_CONFIG["EveAlgo"] = "None"
+                if encoding == "BloomFilter":
+                    ENC_CONFIG["EveAlgo"] = encoding
+                GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
+                GLOBAL_CONFIG["Overlap"] = ov
+                try:
+                    run_nepal(
+                        GLOBAL_CONFIG.copy(),
+                        ENC_CONFIG.copy(),
+                        EMB_CONFIG.copy(),
+                        ALIGN_CONFIG.copy(),
+                        NEPAL_CONFIG.copy()
+                    )
+                except Exception as e:
+                    # Record failed experiment
+                    failed_experiments.append({
+                        "encoding": encoding,
+                        "dataset": dataset,
+                        "overlap": ov,
+                        "error_message": str(e),
+                        "drop_from": df,
+                        "error_type": type(e).__name__,
+                    })
+                    print(f"Failed: {encoding} - {dataset} - {ov}: {e}")
+                    continue
 
 # Save failed experiments to CSV
 if failed_experiments:

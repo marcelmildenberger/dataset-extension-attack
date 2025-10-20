@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 """
-Main entry point for the Dataset Extension Attack (DEA) system.
-
-This script provides a unified interface to run the combined dea.py module
-with or without hyperparameter optimization.
-
-The choice is determined by the DEA_CONFIG["HPO"] setting in dea_config.json.
+Main entry point for the Attack.
 """
 
 import json
@@ -13,9 +8,10 @@ import os
 import sys
 import argparse
 from typing import Dict, Any
+from nepal import run_nepal
 
 
-def load_config(config_path: str = "dea_config.json") -> Dict[str, Any]:
+def load_config(config_path: str = "nepal_config.json") -> Dict[str, Any]:
     """
     Load configuration from JSON file.
     
@@ -32,39 +28,7 @@ def load_config(config_path: str = "dea_config.json") -> Dict[str, Any]:
         config = json.load(f)
     
     return config
-
-
-def run_dea(GLOBAL_CONFIG: Dict[str, Any], 
-           ENC_CONFIG: Dict[str, Any], 
-           EMB_CONFIG: Dict[str, Any], 
-           ALIGN_CONFIG: Dict[str, Any], 
-           DEA_CONFIG: Dict[str, Any]) -> int:
-    """
-    Main entry point for running DEA experiments.
     
-    Args:
-        GLOBAL_CONFIG: Global configuration parameters
-        ENC_CONFIG: Encoding configuration parameters
-        EMB_CONFIG: Embedding configuration parameters
-        ALIGN_CONFIG: Alignment configuration parameters
-        DEA_CONFIG: DEA-specific configuration parameters
-        
-    Returns:
-        Exit code (0 for success)
-    """
-    # Import the combined DEA module
-    from dea import run_dea as run_dea_combined
-    
-    # Determine whether HPO is enabled based on config setting
-    hpo_enabled = DEA_CONFIG.get("HPO", True)
-    
-    if hpo_enabled:
-        print("[INFO] Running with Hyperparameter Optimization (HPO)")
-    else:
-        print("[INFO] Running without Hyperparameter Optimization (Skip HPO)")
-    
-    # Run the combined DEA function
-    return run_dea_combined(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG)
 
 
 def main():
@@ -75,11 +39,11 @@ def main():
         python main.py [--config CONFIG_PATH]
     """
     parser = argparse.ArgumentParser(
-        description="Dataset Extension Attack (DEA) - Main Entry Point",
+        description="NEPAL - Main Entry Point",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-    # Run with default config file (dea_config.json)
+    Examples:
+    # Run with default config file (nepal_config.json)
     python main.py
     
     # Run with custom config file
@@ -90,8 +54,8 @@ Examples:
     parser.add_argument(
         "--config", 
         type=str, 
-        default="dea_config.json",
-        help="Path to configuration file (default: dea_config.json)"
+        default="nepal_config.json",
+        help="Path to configuration file (default: nepal_config.json)"
     )
     
     parser.add_argument(
@@ -114,27 +78,23 @@ Examples:
         ENC_CONFIG = config["ENC_CONFIG"]
         EMB_CONFIG = config["EMB_CONFIG"]
         ALIGN_CONFIG = config["ALIGN_CONFIG"]
-        DEA_CONFIG = config["DEA_CONFIG"]
+        NEPAL_CONFIG = config["NEPAL_CONFIG"]
         
         # Override verbose setting if specified
         if args.verbose:
             GLOBAL_CONFIG["Verbose"] = True
         
         if args.verbose:
-            hpo_enabled = DEA_CONFIG.get('HPO', True)
-            gma_enabled = GLOBAL_CONFIG.get('GraphMatchingAttack', True)
-            print(f"[INFO] HPO enabled: {hpo_enabled}")
-            print(f"[INFO] Skip HPO: {not hpo_enabled}")
-            print(f"[INFO] GMA enabled: {gma_enabled}")
-            print(f"[INFO] Skip GMA: {not gma_enabled}")
-            print(f"[INFO] Parallel Trials: {DEA_CONFIG.get('ParallelTrials', 4)}")
+            print(f"[INFO] GMA enabled: {GLOBAL_CONFIG['GraphMatchingAttack']}")
+            print(f"[INFO] Parallel Trials: {NEPAL_CONFIG.get('ParallelTrials', 0)}")
             print(f"[INFO] GPU Usage: {GLOBAL_CONFIG.get('UseGPU', False)}")
             print(f"[INFO] GPU Count: {GLOBAL_CONFIG.get('GPUCount', 0)}")
             print(f"[INFO] Dataset: {GLOBAL_CONFIG.get('Data', 'Not specified')}")
             print(f"[INFO] Encoding Algorithm: {ENC_CONFIG.get('AliceAlgo', 'Not specified')}")
         
         # Run the experiment
-        exit_code = run_dea(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, DEA_CONFIG)
+        exit_code = run_nepal(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, NEPAL_CONFIG)
+        
         
         if args.verbose:
             print(f"[INFO] Experiment completed with exit code: {exit_code}")

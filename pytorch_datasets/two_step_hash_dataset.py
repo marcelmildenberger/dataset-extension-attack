@@ -1,9 +1,9 @@
 import numpy as np
 import torch
 from utils.pytorch_dataset_utils import *
+from utils.string_utils import *
 from torch.utils.data import Dataset
 
-from string_utils import extract_two_grams
 
 class TwoStepHashDataset(Dataset):
     def __init__(self, data, is_labeled=False, all_integers=None, dev_mode=False, all_two_grams=None):
