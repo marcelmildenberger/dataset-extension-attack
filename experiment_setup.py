@@ -126,7 +126,7 @@ ALIGN_CONFIG = {
 # List to store failed experiments
 failed_experiments = []
 
-encs = ["TwoStepHash", "BloomFilter", "TabulationMinHash"]
+encs = ["TwoStepHash", "BloomFilter", "TabMinHash"]
 
 datasets = [
     "titanic_full.tsv"  
