@@ -19,6 +19,5 @@ analysis/tables/*
 analysis/
 !/analysis/plots/ignore_me
 !/analysis/tables/ignore_me
-/experiment_results_filtered/*
 formatted_results.csv
 venv
