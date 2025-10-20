@@ -26,14 +26,19 @@ def extract_reidentification_rate(summary_df):
         return None
     
     for _, row in summary_df.iterrows():
-        if 'reidentification rate' in str(row.get('metric', '')).lower():
+        metric_raw = str(row.get('metric', '')).strip().lower().replace('_', ' ')
+        if 'reidentification' in metric_raw and 'rate' in metric_raw:
             value = row.get('value', '')
-            if isinstance(value, str) and '%' in value:
-                try:
-                    rate_str = value.replace('%', '').strip()
-                    return float(rate_str) / 100
-                except:
-                    pass
+            is_percent = isinstance(value, str) and '%' in value
+            if isinstance(value, str):
+                value = value.strip().replace('%', '')
+            try:
+                rate = float(value)
+            except (TypeError, ValueError):
+                continue
+            if is_percent or rate > 1:
+                rate /= 100
+            return rate
     return None
 
 def extract_metrics(metrics_df):
@@ -102,13 +107,21 @@ def extract_experiment_data(exp_dir):
     
     # Read reidentification results (may not exist for all experiments)
     reid_summary_df = read_csv_file(exp_path / "re_identification_results" / "summary_fuzzy_and_greedy.csv")
-    reid_rate = extract_reidentification_rate(reid_summary_df)
+    reid_rate_combined = extract_reidentification_rate(reid_summary_df)
     
     reid_fuzzy_df = read_csv_file(exp_path / "re_identification_results" / "summary_fuzzy.csv")
     reid_rate_fuzzy = extract_reidentification_rate(reid_fuzzy_df)
     
     reid_greedy_df = read_csv_file(exp_path / "re_identification_results" / "summary_greedy.csv")
     reid_rate_greedy = extract_reidentification_rate(reid_greedy_df)
+    
+    # Prefer the greedy rate as the canonical re-identification rate
+    if reid_rate_greedy is not None:
+        reid_rate = reid_rate_greedy
+    elif reid_rate_fuzzy is not None:
+        reid_rate = reid_rate_fuzzy
+    else:
+        reid_rate = reid_rate_combined
     
     # Read runtime data (may not exist if BenchMode was disabled)
     runtime_df = read_csv_file(exp_path / "dea_runtime_log.csv")
