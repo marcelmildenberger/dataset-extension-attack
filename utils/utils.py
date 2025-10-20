@@ -22,7 +22,7 @@ from pytorch_datasets.bloom_filter_dataset import BloomFilterDataset
 from pytorch_datasets.tab_min_hash_dataset import TabMinHashDataset
 from pytorch_datasets.two_step_hash_dataset import TwoStepHashDataset
 import seaborn as sns
-from string_utils import *
+from utils.string_utils import *
 import random
 
 
