@@ -93,9 +93,9 @@ If you use this repository or reproduce results from the NEPAL paper, please cit
 
 
 ## Additional Documentation
-	•	docs/parameters.md – Detailed configuration and parameter reference.
-	•	docs/experiment_setup.md – Instructions for orchestrating large experiment batches.
-	•	docs/analysis.md – Guidance for generating analytical figures and performance metrics.
+- docs/parameters.md – Detailed configuration and parameter reference.
+- docs/experiment_setup.md – Instructions for orchestrating large experiment batches.
+- docs/analysis.md – Guidance for generating analytical figures and performance metrics.
 
 
 ## Contact
