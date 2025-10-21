@@ -357,14 +357,14 @@ def to_minutes(seconds):
     return round(seconds / 60, 2)
 
 
-def save_dea_runtime_log(
+def save_nepal_runtime_log(
     elapsed_gma,
     elapsed_hyperparameter_optimization,
     elapsed_model_training,
     elapsed_application_to_encoded_data,
     elapsed_refinement_and_reconstruction,
     elapsed_total,
-    output_dir="dea_runtime_logs"
+    output_dir="nepal_runtime_logs"
 ):
     os.makedirs(output_dir, exist_ok=True)
     
@@ -388,7 +388,7 @@ def save_dea_runtime_log(
         })
     
     runtime_df = pd.DataFrame(runtime_data)
-    runtime_df.to_csv(os.path.join(output_dir, "dea_runtime_log.csv"), index=False)
+    runtime_df.to_csv(os.path.join(output_dir, "nepal_runtime_log.csv"), index=False)
 
 
 def load_dataframe(path):
@@ -469,7 +469,7 @@ def create_synthetic_data_splits(GLOBAL_CONFIG, ENC_CONFIG, data_dir, alice_enc_
 
 
 def load_experiment_datasets(
-    data_directory, alice_enc_hash, identifier, ENC_CONFIG, DEA_CONFIG, GLOBAL_CONFIG, all_bi_grams, splits=("train", "val", "test")
+    data_directory, alice_enc_hash, identifier, ENC_CONFIG, nepal_CONFIG, GLOBAL_CONFIG, all_bi_grams, splits=("train", "val", "test")
 ):
     cache_path = get_cache_path(data_directory, identifier, alice_enc_hash)
     # Try to load from cache if all splits are present
@@ -530,7 +530,7 @@ def load_experiment_datasets(
 
     data_labeled = DatasetClass(df_reidentified, **common_args, **dataset_args)
     data_test = DatasetClass(df_test, **common_args, **dataset_args)
-    train_size = int(DEA_CONFIG["TrainSize"] * len(data_labeled))
+    train_size = int(nepal_CONFIG["TrainSize"] * len(data_labeled))
     val_size = len(data_labeled) - train_size
     data_train, data_val = random_split(data_labeled, [train_size, val_size])
     result = {"train": data_train, "val": data_val, "test": data_test}

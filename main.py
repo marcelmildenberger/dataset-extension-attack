@@ -33,7 +33,7 @@ def load_config(config_path: str = "nepal_config.json") -> Dict[str, Any]:
 
 def main():
     """
-    Command line interface for running DEA experiments.
+    Command line interface for running NEPAL experiments.
     
     Usage:
         python main.py [--config CONFIG_PATH]

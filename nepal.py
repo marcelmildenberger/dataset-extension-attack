@@ -524,7 +524,7 @@ def run_nepal(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, NEPAL_CONFIG)
         if start_refinement_and_reconstruction is not None:
             elapsed_refinement_and_reconstruction = time.time() - start_refinement_and_reconstruction
         elapsed_total = time.time() - start_total
-        save_dea_runtime_log(
+        save_nepal_runtime_log(
             elapsed_gma=elapsed_gma,
             elapsed_hyperparameter_optimization=elapsed_hyperparameter_optimization,
             elapsed_model_training=elapsed_model_training,

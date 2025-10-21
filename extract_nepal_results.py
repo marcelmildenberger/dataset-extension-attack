@@ -112,7 +112,7 @@ def extract_reidentification_info(results_dir, matching_technique=None):
     return info
 
 def extract_runtime(runtime_df):
-    """Extract runtime information from DEA runtime log"""
+    """Extract runtime information from NEPAL runtime log"""
     if runtime_df is None:
         return {}
     
@@ -166,7 +166,7 @@ def extract_experiment_data(exp_dir):
     reid_info = extract_reidentification_info(exp_path / "re_identification_results", matching_technique)
     
     # Read runtime data (may not exist if BenchMode was disabled)
-    runtime_df = read_csv_file(exp_path / "dea_runtime_log.csv")
+    runtime_df = read_csv_file(exp_path / "nepal_runtime_log.csv")
     runtime = extract_runtime(runtime_df)
     
     # Read hyperparameter optimization results (only exists if HPO was enabled)
