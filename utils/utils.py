@@ -1,6 +1,5 @@
 # Standard library imports
 import csv
-from functools import partial
 import json
 import os
 from hashlib import md5
@@ -12,9 +11,6 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
 import torch
-from dotenv import load_dotenv
-from groq import Groq
-from joblib import Parallel, delayed
 from tqdm import tqdm
 import pickle
 from torch.utils.data import random_split, Subset
@@ -25,12 +21,6 @@ import seaborn as sns
 from utils.string_utils import *
 import random
 
-
-
-
-
-load_dotenv()
-groq_api_key = os.getenv("GROQ_API_KEY")
 
 # List of keys to remove
 keys_to_remove = [
@@ -201,61 +191,6 @@ def decode_labels_to_bi_grams(bi_gram_dict, label_batch):
     ]
 
 
-def reconstruct_identities_with_llm(result, columns=["GivenName", "Surname", "Birthday"]):
-    client = Groq(api_key=groq_api_key)
-    all_results = []
-
-    given_name_col, surname_col, birthday_col = columns
-
-    def format_input(batch):
-        return "\n".join(
-            f'"{entry["uid"]}": ["{", ".join(sorted(entry["predicted_bi_grams"]))}"]'
-            for entry in batch
-        )
-
-    batches = [result[i:i + 15] for i in range(0, len(result), 15)]
-
-    for batch in batches:
-        prompt = (
-            f"You are an attacker attempting to reconstruct the {given_name_col}, {surname_col}, "
-            f"and {birthday_col} of multiple individuals based on 2-grams extracted from a dataset extension attack.\n\n"
-            "Each individual is represented by a UID and a list of predicted 2-grams. For each individual, infer:\n"
-            f"- {given_name_col}\n- {surname_col}\n- {birthday_col} (in M/D/YYYY format, without leading zeros)\n\n"
-            "Only return valid JSON in the following format:\n"
-            "[\n"
-            "  {\n"
-            "    \"uid\": \"29995\",\n"
-            f"    \"{given_name_col}\": \"Leslie\",\n"
-            f"    \"{surname_col}\": \"Smith\",\n"
-            f"    \"{birthday_col}\": \"12/22/1974\"\n"
-            "  },\n"
-            "  ...\n"
-            "]\n\n"
-            "Here is the input:\n"
-            "{\n" + format_input(batch) + "\n}"
-        )
-
-
-
-        try:
-            response = client.chat.completions.create(
-                messages=[{"role": "user", "content": prompt}],
-                model="gemma2-9b-it",
-                stream=False,
-            )
-
-            response_text = response.choices[0].message.content
-            json_str = response_text[response_text.find("["):response_text.rfind("]") + 1]
-            all_results.extend(json.loads(json_str))
-
-        except Exception as e:
-            print("Failed to parse JSON:", e)
-            print("Raw response:\n", response_text)
-            continue
-
-    return all_results
-
-
 def print_and_save_result(label, result, save_to):
     print(f"\n {label}")
     print("-" * 40)
@@ -330,87 +265,6 @@ def jaccard_similarity(set1, set2):
     union = len(set1 | set2)
     return intersection / union
 
-
-def find_most_likely_birthday(entry, all_birthday_records, similarity_metric='jaccard'):
-    similarity_func = {
-        'jaccard': jaccard_similarity,
-        'dice': dice_coefficient
-    }.get(similarity_metric)
-
-    if similarity_func is None:
-        raise ValueError("similarity_metric must be 'jaccard' or 'dice'")
-
-    best_birthday, best_score, best_grams = max(
-        (
-            (birthday, similarity_func(entry['predicted_bi_grams'], grams), grams)
-            for birthday, grams in all_birthday_records
-        ),
-        key=lambda x: x[1],
-        default=(None, -1, [])
-    )
-
-    filtered_grams = [
-        gram for gram in entry['predicted_bi_grams'] if gram not in best_grams
-    ]
-
-    entry["predicted_bi_grams"] = filtered_grams
-
-    return best_birthday, best_score
-
-def find_most_likely_given_name(entry, all_givenname_records, similarity_metric='jaccard'):
-    similarity_func = {
-        'jaccard': jaccard_similarity,
-        'dice': dice_coefficient
-    }.get(similarity_metric)
-
-    if similarity_func is None:
-        raise ValueError("similarity_metric must be 'jaccard' or 'dice'")
-
-    best_name, best_score, best_name_grams = max(
-        (
-            (name, similarity_func(entry['predicted_bi_grams'], grams), grams)
-            for name, grams in all_givenname_records
-        ),
-        key=lambda x: x[1],
-        default=(None, -1, [])
-    )
-
-    filtered_grams = [
-        gram for gram in entry['predicted_bi_grams'] if gram not in best_name_grams
-    ]
-
-    entry["predicted_bi_grams"] = filtered_grams
-
-    return best_name, best_score, filtered_grams
-
-def find_most_likely_surname(entry, all_surname_records, similarity_metric='jaccard'):
-    similarity_func = {
-        'jaccard': jaccard_similarity,
-        'dice': dice_coefficient
-    }.get(similarity_metric)
-
-    if similarity_func is None:
-        raise ValueError("similarity_metric must be 'jaccard' or 'dice'")
-
-    best_name, best_score, best_grams = max(
-        (
-            (name, similarity_func(entry['predicted_bi_grams'], grams), grams)
-            for name, grams in all_surname_records
-        ),
-        key=lambda x: x[1],
-        default=(None, -1, set())
-    )
-
-    filtered_grams = [
-        gram for gram in entry['predicted_bi_grams'] if gram not in best_grams
-    ]
-
-    entry["predicted_bi_grams"] = filtered_grams
-
-    return best_name, best_score, filtered_grams
-
-
-
 def greedy_reconstruction(results):
     reconstructed_results = []
 
@@ -453,36 +307,6 @@ def greedy_reconstruction(results):
 
     return reconstructed_results
 
-def load_givenname_and_surname_records(min_count=10, use_filtered=True):
-    file_path = (
-        'data/names/surname/Filtered_Names_2010Census.csv'
-        if use_filtered else 'data/names/surname/Names_2010Census.csv'
-    )
-
-    all_surname_records = []
-    if os.path.isfile(file_path):
-        with open(file_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if int(row['count']) >= min_count:
-                    name = row['name'].lower()
-                    grams = extract_bi_grams(name)
-                    all_surname_records.append((name, set(grams)))
-
-    # Load and preprocess all given names into 2-grams
-    with open('data/names/givenname/unique_names.txt', 'r', encoding='utf-8') as f:
-        all_givenname_records = [
-            (name.strip(), extract_bi_grams(name.strip()))
-            for name in f if name.strip()
-        ]
-    return all_givenname_records, all_surname_records
-
-def load_birthday_2gram_records():
-    date_range = pd.date_range(start="1900-01-01", end="2004-12-31", freq='D')
-    return [
-        (d.strftime("%#m/%#d/%Y"), extract_bi_grams(d.strftime("%#m/%#d/%Y")))
-        for d in date_range
-    ]
 
 def create_identifier_column_dynamic(df, components):
     cleaned_cols = [
@@ -571,99 +395,6 @@ def load_dataframe(path):
     data = hkl.load(path)
     return pd.DataFrame(data[1:], columns=data[0])
 
-def fake_name_analysis():
-    dataset_sizes = [1000, 2000, 5000, 10000, 20000, 50000]
-    precisions = [0.2162, 0.2131, 0.2144, 0.2151, 0.2153, 0.2151]
-    recalls = [0.2476, 0.2452, 0.2470, 0.2467, 0.2473, 0.2463]
-    f1_scores = [0.2300, 0.2271, 0.2287, 0.2289, 0.2293, 0.2288]
-
-    plt.plot(dataset_sizes, precisions, label='Precision', marker='o')
-    plt.plot(dataset_sizes, recalls, label='Recall', marker='s')
-    plt.plot(dataset_sizes, f1_scores, label='F1 Score', marker='^')
-    plt.xlabel('Dataset Size')
-    plt.ylabel('Metric Value')
-    plt.title('Baseline Guessing Performance on Fakename Datasets')
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-
-
-def reconstruct_single_entry(entry, all_givenname_records, all_surname_records, all_birthday_records, reconstruct_birthday):
-    """
-    Reconstruct a single entry by matching predicted two-grams to the most likely given name, surname, and optionally birthday.
-    This function is stateless and safe for parallel execution.
-    """
-    # Avoid mutating the input entry
-    entry_dict = {
-        'uid': entry['uid'],
-        'actual_bi_grams': entry["actual_bi_grams"],
-        'predicted_bi_grams': list(entry['predicted_bi_grams'])  # ensure copy
-    }
-
-    # Given name
-    given_name, _, _ = find_most_likely_given_name(
-        entry_dict,
-        all_givenname_records=all_givenname_records,
-        similarity_metric='dice'
-    )
-
-    # Surname
-    surname, _, _ = find_most_likely_surname(
-        entry_dict,
-        all_surname_records=all_surname_records,
-        similarity_metric='dice'
-    )
-
-    if reconstruct_birthday:
-        # Birthday
-        birthday, _ = find_most_likely_birthday(
-            entry_dict,
-            all_birthday_records=all_birthday_records,
-            similarity_metric='dice'
-        )
-        return (given_name, surname, birthday, entry['uid'])
-
-    return (given_name, surname, entry['uid'])
-
-
-def fuzzy_reconstruction_approach(result, workers, reconstruct_birthday):
-    """
-    Reconstructs all entries in parallel using joblib.Parallel.
-    Loads reference records only once and shares them across workers.
-    """
-
-    # Load reference records once (shared, read-only)
-    all_birthday_records = load_birthday_2gram_records()
-    all_givenname_records, all_surname_records = load_givenname_and_surname_records(min_count=150, use_filtered=True)
-
-    # Use partial to avoid repeatedly passing large reference data
-    reconstruct_fn = partial(
-        reconstruct_single_entry,
-        all_givenname_records=all_givenname_records,
-        all_surname_records=all_surname_records,
-        all_birthday_records=all_birthday_records,
-        reconstruct_birthday=reconstruct_birthday
-    )
-
-    # Dynamically choose batch_size for optimal parallel efficiency
-    if len(result) > 5000:
-        batch_size = 500
-    elif len(result) > 2000:
-        batch_size = 200
-    elif len(result) > 1000:
-        batch_size = 100
-    elif len(result) > 200:
-        batch_size = 20
-    else:
-        batch_size = 1
-
-    reconstructed = Parallel(n_jobs=workers, batch_size=batch_size, prefer="processes")(
-        delayed(reconstruct_fn)(entry) for entry in result
-    )
-
-    return reconstructed
 
 def read_header(tsv_path):
     with open(tsv_path, 'r', encoding='utf-8') as f:
@@ -941,20 +672,4 @@ def plot_metric_distributions(results_df, trained_model_directory, save=False):
         plt.savefig(out_path)
     plt.close()
 
-
-@torch.no_grad()
-def estimate_pos_weight(dataloader, output_dim):
-    """Compute per-class pos_weight = (N - pos) / pos, clamped to avoid div-by-zero."""
-    device = torch.device("cpu")
-    total = torch.zeros(output_dim, dtype=torch.float32, device=device)
-    n_samples = 0
-    for _, labels, _ in dataloader:
-        # labels expected shape (B, C) with 0/1
-        total += labels.sum(dim=0).to(device)
-        n_samples += labels.size(0)
-    pos = total
-    neg = n_samples - pos
-    pos = torch.clamp(pos, min=1.0)          # avoid inf
-    pos_weight = neg / pos
-    return pos_weight
 
