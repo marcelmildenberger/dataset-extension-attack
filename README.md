@@ -49,7 +49,16 @@ This command launches the complete NEPAL pipeline, including:
 Results are written to the [experiment_results](experiment_results) directory.
 See [docs/parameters.md](docs/parameters.md) for a detailed explanation of configuration options and schema.
 
+## Prepare your Dataset
+The code expects a tab-separated file with one record per row. The fist row must be a 
+header specifying the column names. 
+Internally, the values stored in the columns are concatenated according to column ordering and normalized (switch to lowercase, remove whitespace and missing values).
+**The last column must contain a unique ID.**
 
+If you have data in `.csv`, `.xls` or `.xlsx` format, you may run ``python preprocessing.py`` for convenient conversion. 
+The script will guide you through the process. 
+
+In the `data` directory, this repository already provides datasets which can be used.
 
 ## Batch Experiment Setup
 
@@ -58,15 +67,13 @@ To run multiple experiments or reproduce the experiments from the paper, use the
 python3 experiment_setup.py
 ```
 This script runs multiple configurations automatically to produce results as in the paper.
-Refer to [docs/experiment_setup.md](docs/experiment_setup.md) for detailed information.
 
 
 ## Analysis and Evaluation
 
 The analysis notebook [analysis.ipnb](analysis.ipnb) reproduce the figures reported in the paper.
 Open the notebook and ensure that the output file from [extract_nepal_results.py](extract_nepal_results.py) is generated correctly.
-
-See [docs/analysis.md](docs/analysis.md) for detailed guidance on generating analytical plots and performance metrics.
+[extract_nepal_results.py](extract_nepal_results.py) uses the results produced in [experiment_results](experiment_results)
 
 
 ## Summary of Key Contributions (from the Paper)
@@ -83,19 +90,16 @@ Bloom Filters (BF), Two-Step Hashing (TSH), and Tabulation MinHash (TMH).
 - Re-identified up to 33.05% of encoded records exactly.
 - Demonstrated that TSH and BF are the most vulnerable encoding schemes, while TMH is more resilient.
 
+## Additional Documentation
+
+Can be found in [docs](docs)
+
 
 ## Citation
 
 If you use this repository or reproduce results from the NEPAL paper, please cite:
 
 (TBD)
-
-
-
-## Additional Documentation
-- docs/parameters.md – Detailed configuration and parameter reference.
-- docs/experiment_setup.md – Instructions for orchestrating large experiment batches.
-- docs/analysis.md – Guidance for generating analytical figures and performance metrics.
 
 
 ## Contact

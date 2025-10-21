@@ -9,7 +9,6 @@ GLOBAL_CONFIG = {
     "Verbose": False,
     "MatchingMetric": "cosine",
     "Matching": "MinWeight",
-    "Workers": 0,
     "SaveAliceEncs": False,
     "SaveEveEncs": False,
     "DevMode": False,
