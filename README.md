@@ -1,10 +1,10 @@
-# Dataset Extension Attack (DEA) Thesis Repository
+# Neural Pattern Learning (NEPAL) Attack Thesis Repository
 
-This repository accompanies the thesis on the Dataset Extension Attack (DEA). It links to the implementation repository and provides documentation for reproducing the experiments that evaluate the attack pipeline against privacy-preserving record linkage (PPRL) systems.
+This repository accompanies the thesis on the Neural Pattern Learning (NEPAL) Attack. It links to the implementation repository and provides documentation for reproducing the experiments that evaluate the attack pipeline against privacy-preserving record linkage (PPRL) systems.
 
 ## Project Overview
 
-The DEA pipeline models an adversary who extends an existing encoded dataset with auxiliary records to recover sensitive information. The attack implementation (referenced in the thesis and hosted at [`marcelmildenberger/dataset-extension-attack`](https://github.com/marcelmildenberger/dataset-extension-attack)) performs four major stages:
+The NEPAL pipeline models an adversary who extends an existing encoded dataset with auxiliary records to recover sensitive information. The attack implementation (referenced in the thesis and hosted at [`marcelmildenberger/dataset-extension-attack`](https://github.com/marcelmildenberger/dataset-extension-attack)) performs four major stages:
 
 1. **Data ingestion and preprocessing** – prepares encoded linkage datasets and auxiliary data.
 2. **Model training and hyperparameter optimisation** – uses Ray Tune and Optuna to search neural architectures that reconstruct plaintext n-grams from encodings.
@@ -22,8 +22,8 @@ git clone https://github.com/marcelmildenberger/dataset-extension-attack.git
 cd dataset-extension-attack
 git submodule update --init --recursive --remote
 
-docker build -t dea .
-docker run --gpus all -it -v $(pwd):/usr/app dea bash
+docker build -t NEPAL .
+docker run --gpus all -it -v $(pwd):/usr/app NEPAL bash
 ```
 
 > **Note:** GPU access is optional but strongly recommended for the hyperparameter tuning stage. The container exposes the repository at `/usr/app`.
@@ -37,7 +37,7 @@ cd /usr/app
 python main.py --config configs/nepal_config.json
 ```
 
-This launches the full DEA pipeline with default parameters, including preprocessing, model training, and reconstruction. Results are written to the directory configured inside `nepal_config.json` (see [`docs/parameters.md`](docs/parameters.md) for a full description of the configuration schema).
+This launches the full NEPAL pipeline with default parameters, including preprocessing, model training, and reconstruction. Results are written to the directory configured inside `nepal_config.json` (see [`docs/parameters.md`](docs/parameters.md) for a full description of the configuration schema).
 
 ## Batch Experiment Setup
 
