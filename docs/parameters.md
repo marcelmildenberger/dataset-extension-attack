@@ -27,7 +27,7 @@ ___
 | MinDelta | Minimal Improvement required for an epoch to reset Early Stopping Patience. | 1e-4      |
 | NumSamples   | Amount of Hpyerparameter Optimization Trials sampled from the Search space.   | 125      |
 | Epochs   | Number of Epochs for Training   | 25      |
-| MetricToOptinize   | Metric to optimize for in the Hyperparameter Optimization (avgerage_dice, average_precision, average_recall).   | "average_dice      |
+| MetricToOptinize   | Metric to optimize for in the Hyperparameter Optimization (avgerage_dice, average_precision, average_recall).   | "average_dice"      |
 | MatchingTechnique   | Reconstruction Strategy (greedy only options, further extensions possible).   | "greedy"      |
 
 ___
