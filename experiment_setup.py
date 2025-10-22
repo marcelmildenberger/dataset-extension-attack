@@ -18,7 +18,7 @@ GLOBAL_CONFIG = {
     "SaveModel": False,
     "SavePredictions": False,
     # If Graph Matching Attack is disabled, overlap will instead be used as the NEPAL training proportion.
-    "GraphMatchingAttack": True,
+    "GraphMatchingAttack": False,
 }
 
 # === NEPAL Training Parameters ===
