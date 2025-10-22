@@ -1,6 +1,6 @@
 {
     "GLOBAL_CONFIG": {
-        "Data": "./data/datasets/fakename_2k.tsv",
+        "Data": "./data/datasets/fakename_5k.tsv",
         "Overlap": 0.5,
         "DropFrom": "Eve",
         "Verbose": false,
@@ -96,9 +96,9 @@
         "TrainSize": 0.8,
         "Patience": 5,
         "MinDelta": 0.0001,
-        "NumSamples": 5,
+        "NumSamples": 125,
         "ParallelTrials": 5,
-        "Epochs": 10,
+        "Epochs": 25,
         "MetricToOptimize": "average_dice",
         "MatchingTechnique": "greedy"
     }

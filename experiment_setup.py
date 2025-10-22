@@ -134,7 +134,7 @@ datasets = [
     "fakename_5k.tsv",
     "fakename_10k.tsv",
     "fakename_20k.tsv",
-    "euro_person.tsv", 
+#    "euro_person.tsv", 
     "fakename_50k.tsv", 
 ]
 
