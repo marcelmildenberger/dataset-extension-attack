@@ -1,6 +1,6 @@
-# Parameters for Graph Matching Attack
+# Parameters for NEPAL
 ___
-It is necessary to decide on a number of parameters before running the Graph Matching Attack.
+It is necessary to decide on a number of parameters before running the Neural Pattern Learning attack and the Graph Matching Attack.
 The choice of parameter values can significantly impact attack performance, both in
 terms of attack duration and success rate.
 
@@ -9,11 +9,6 @@ your specific experiment might work better with other values.
 
 The tables below describe the individual parameters, along with their default values
 and relevant descriptions.
-
-The `run` method in `main.py` expects four dictionaries as arguments that specify
-the parameters for different stages of the attack.
-`main.py` (Line 667 onwards) as well as the benchmarking scripts already contain the required
-dictionaries, which are filled with default values. You may edit the values freely.
 ___
 
 ## NEPAL Configuration
@@ -21,14 +16,14 @@ ___
 
 | Parameter Name  | Description                                | Default |
 |-----------------|--------------------------------------------|---------|
-| ParallelTrials         | Number of Parallel Trials for Ray Tune Hyperparameter Optimization           | 5   |
-| TrainSize | Determines Training-Validation Split Ration.            | 0.8       |
+| ParallelTrials         | Number of Parallel Trials for Ray Tune Hyperparameter Optimization.          | 5   |
+| TrainSize | Sets Training-Validation Split Ratio.            | 0.8       |
 | Patience | Patience Epochs for Early Stopping.                    | 5      |
-| MinDelta | Minimal Improvement required for an epoch to reset Early Stopping Patience. | 1e-4      |
-| NumSamples   | Amount of Hpyerparameter Optimization Trials sampled from the Search space.   | 125      |
-| Epochs   | Number of Epochs for Training   | 25      |
-| MetricToOptinize   | Metric to optimize for in the Hyperparameter Optimization (avgerage_dice, average_precision, average_recall).   | "average_dice"      |
-| MatchingTechnique   | Reconstruction Strategy (greedy only options, further extensions possible).   | "greedy"      |
+| MinDelta | Minimum improvement in the monitored metric required to reset early stopping patience. | 1e-4      |
+| NumSamples   | Amount of Hpyerparameter Optimization trials sampled from the search space.   | 125      |
+| Epochs   | Maximum number of Epochs for Training.   | 25      |
+| MetricToOptimize   | Metric to optimize for in the Hyperparameter Optimization (avgerage_dice, average_precision, average_recall).   | "average_dice"      |
+| MatchingTechnique   | Reconstruction Strategy (greedy only option, further extensions possible).   | "greedy"      |
 
 ___
 
@@ -38,15 +33,15 @@ ___
 | Parameter Name | Description                                                                                                                                                                                     | Default                   |
 |----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------|
 | Data           | Dataset to run the attack on.                                                                                                                                                                   | "./data/titanic_full.tsv" |
-| Overlap        | If GMA enabled: The share of overlapping records between the attacker's and the victim's data. Must be >0 and <=1. If GMA disabled: the randomly sampled training proportion from the dataset (syntethic datasplit)                                                                                     | 1                         |
+| Overlap        | If GMA enabled: The share of overlapping records between the attacker's and the victim's data. Must be >0 and <=1. If GMA is disabled: the randomly sampled training proportion from the dataset (syntethic datasplit)                                                                                     | 1                         |
 | DropFrom       | Which dataset should records be dropped from to achieve the desired overlap? One of "Eve" (Attacker), "Alice" (Victim) or "Both".                                                               | "Alice"                   |
 | DevMode        | If True, additional dev data is saved                                              | False                     |
 | BenchMode      | If True, the NEPAL attack is timed and duration of the attack is reported.                                          | True                     |
 | Verbose        | If True, prints detailed status messages.                                                                                                                | True                      |
 | MatchingMetric | Similarity metric to be computed on aligned embeddings during bipartite graph matching.                                                                  | "cosine"                  |
 | Matching       | Matching algorithm for bipartite graph matching. Must be "MinWeight", "Stable", "Symmetric" or "NearestNeighbor".                                        | "MinWeight"               |                       |
-| SaveAliceEncs | Stores a pickled dictionary containing UIDs as keys and encodings as values in `./data/encoded/` for Alice's (victim) dataset.                            | False                     |
-| SaveEveEncs   | Stores a pickled dictionary containing UIDs as keys and encodings as values in `./data/encoded/` for Eve's (attacker) dataset.                            | False                     |
+| SaveAliceEncs | Stores a pickled dictionary containing UIDs as keys and encodings for Alice's Dataset.                            | False                     |
+| SaveEveEncs   | Stores a pickled dictionary containing UIDs as keys and encodings for Eve's Dataset.                            | False                     |
 | SaveResults   | Save NEPAL results for analysis script.   | True      |
 | UseGPU   | Use GPU for CUDA.   | True      |
 | SaveModel   | Save the final trained neural network model.   | False      |

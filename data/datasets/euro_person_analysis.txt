@@ -1,7 +1,0 @@
-Used columns: ['PERNAME1', 'PERNAME2', 'DOB_FULL']
-Average entry length: 20
-Maximum entry length: 29
-Top 19 2-grams: ['19', '11', 'ar', 'll', 'er', 'ha', 'on', '12', '20', 'so', 'el', '21', 'am', '98', 'li', '91', 'le', 'an', '97']
-Precision: 0.2197
-Recall: 0.2446
-F1 Score: 0.2306

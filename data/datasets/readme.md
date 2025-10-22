@@ -1,5 +1,5 @@
 # Copyright Notice
-The following datasets are based on identities generated with the [Fake Name Generator :tm:](https://www.fakenamegenerator.com):
+The following datasets are based on identities generated with the [Fake Name Generator](https://www.fakenamegenerator.com):
 ```
 fakename_1k.tsv     fakename_2k.tsv     fakename_5k.tsv     fakename_10k.tsv 
 fakename_20k.tsv    fakename_50k.tsv

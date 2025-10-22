@@ -105,3 +105,6 @@ If you use this repository or reproduce results from the NEPAL paper, please cit
 ## Contact
 
 For questions or clarifications regarding the implementation or replication of experiments, please refer to the code repository or contact the paper authors.
+
+## License
+This code is licensed under [GPLv3](LICENSE.txt)

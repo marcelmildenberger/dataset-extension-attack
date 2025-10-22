@@ -31,13 +31,18 @@ fakename_20k.tsv    fakename_50k.tsv    euro_person.tsv     titanic_full.tsv
 ```
 
 Remember to [prepare](../readme.md) the dataset so it fits the correct file format.
+**Note:** To run the attack on a synthetic dataset, you need to provide an encoded version of the dataset for BF, TMH and TSH (see fakename datasets for reference) where the encoding is provided before the uid columng. This is provided for all datasets mentioned above except for euro_person.
+
+The Euro Person dataset needs to be downloaded and prepared accordingly using the dataset provided here: [Download](https://wayback.archive-it.org/12090/20231229131836/http://ec.europa.eu/eurostat/cros/system/files/Transfer%20to%20Istat.zip)
+
+
 ___
 ### Run the Benchmarks
 To reproduce the results we reported in our paper, you may simply run
 
 ``python3 experiment_setup.py``
 
-Note: Set the flag in the global config to enable the graph-matching attack or to generate synthetic data splits.
+**Note:** Per default snythetic created datasplits will be used. To enable the scenario GMA-NEPAL the Graph Matching Attack needs to be enabled (see [parameters.md](parameters.md))
 ___
 ### Reproduce Plots
 Once the benchmark is complete, you can generate the result plots used in our paper.
