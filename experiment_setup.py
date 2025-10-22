@@ -17,8 +17,8 @@ GLOBAL_CONFIG = {
     "UseGPU": True,
     "SaveModel": False,
     "SavePredictions": False,
-    # If Graph Matching Attack is disabled, comment out the DropFrom loop. Overlap will instead be used as the NEPAL training proportion.
-    "GraphMatchingAttack": False,
+    # If Graph Matching Attack is disabled, overlap will instead be used as the NEPAL training proportion.
+    "GraphMatchingAttack": True,
 }
 
 # === NEPAL Training Parameters ===
@@ -140,12 +140,12 @@ datasets = [
 
 dataset_overlaps = [0.2, 0.4, 0.6, 0.8]
 
-#drop_from = ["Eve", "Both"]
+drop_from = ["Eve", "Both"] if GLOBAL_CONFIG["GraphMatchingAttack"] else [""]
 
 for dataset in datasets:
     for encoding in encs:
         for ov in dataset_overlaps:
-            #for df in drop_from:
+            for df in drop_from:
                 GLOBAL_CONFIG["DropFrom"] = df
                 ENC_CONFIG["AliceAlgo"] = encoding
                 ENC_CONFIG["EveAlgo"] = "None"
@@ -168,7 +168,7 @@ for dataset in datasets:
                         "dataset": dataset,
                         "overlap": ov,
                         "error_message": str(e),
-                        #"drop_from": df,
+                        "drop_from": df,
                         "error_type": type(e).__name__,
                     })
                     print(f"Failed: {encoding} - {dataset} - {ov}: {e}")
