@@ -28,7 +28,5 @@ ray[tune]~=2.9.3
 optuna~=3.6.1
 tensorboard~=2.13.0
 seaborn
-groq
-python-dotenv~=1.0.1
 networkx
 pyarrow==14.0.1
