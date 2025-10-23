@@ -113,6 +113,7 @@ def run_nepal(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, NEPAL_CONFIG)
     path_not_reidentified = f"{data_dir}/available_to_eve/not_reidentified_individuals_{identifier}.h5"
     path_all = f"{data_dir}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5"
 
+
     # Check if Data is Available or Needs to be Generated
     if not(os.path.isfile(path_reidentified) and os.path.isfile(path_not_reidentified) and os.path.isfile(path_all)):
         if GLOBAL_CONFIG["GraphMatchingAttack"]:
