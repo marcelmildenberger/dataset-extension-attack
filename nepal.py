@@ -213,7 +213,9 @@ def run_nepal(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, NEPAL_CONFIG)
         resources={"cpu": cpu_per_trial, "gpu": gpu_per_trial}
     )
 
-    # Initialize the tuner.
+    # Add early stopping based on optimization metric threshold (default 0.99, configurable)
+    early_stop_threshold = NEPAL_CONFIG.get("EarlyStopThreshold", 0.99)
+
     tuner = tune.Tuner(
         trainable_with_resources,
         tune_config=tune.TuneConfig(
@@ -222,7 +224,12 @@ def run_nepal(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, NEPAL_CONFIG)
             num_samples=NEPAL_CONFIG["NumSamples"],
         ),
         param_space=search_space,
-        run_config=air.RunConfig(name="nepal_hpo")
+        run_config=air.RunConfig(
+            name="nepal_hpo",
+            # Stop a trial as soon as the optimization metric reaches the
+            # desired threshold (e.g., Dice >= 0.99).
+            stop={NEPAL_CONFIG["MetricToOptimize"]: early_stop_threshold},
+        ),
     )
 
     # Run the hyperparameter optimization.

@@ -32,6 +32,7 @@ NEPAL_CONFIG = {
     "Epochs": 25,
     "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
     "MatchingTechnique": "greedy",  # Options: "greedy"
+    "EarlyStopThreshold": 0.99
 }
 
 # === Encoding Parameters for Alice & Eve ===
