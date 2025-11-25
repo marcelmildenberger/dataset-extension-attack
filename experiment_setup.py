@@ -17,6 +17,7 @@ GLOBAL_CONFIG = {
     "UseGPU": True,
     "SaveModel": False,
     "SavePredictions": False,
+    "UseNoisyDatasets": True,
     # If Graph Matching Attack is disabled, overlap will instead be used as the NEPAL training proportion.
     "GraphMatchingAttack": False,
 }
@@ -128,7 +129,7 @@ failed_experiments = []
 encs = ["TwoStepHash", "BloomFilter", "TabMinHash"]
 
 datasets = [
-    "titanic_full.tsv",  
+#    "titanic_full.tsv",  
     "fakename_1k.tsv",
     "fakename_2k.tsv",
     "fakename_5k.tsv",
@@ -142,6 +143,8 @@ dataset_overlaps = [0.2, 0.4, 0.6, 0.8]
 
 drop_from = ["Eve", "Both"] if GLOBAL_CONFIG["GraphMatchingAttack"] else [""]
 
+datasets_path = "./data/datasets/" + "noisy/" if GLOBAL_CONFIG["UseNoisyDatasets"] else ""
+
 for dataset in datasets:
     for encoding in encs:
         for ov in dataset_overlaps:
@@ -151,7 +154,7 @@ for dataset in datasets:
                 ENC_CONFIG["EveAlgo"] = "None"
                 if encoding == "BloomFilter":
                     ENC_CONFIG["EveAlgo"] = encoding
-                GLOBAL_CONFIG["Data"] = f"./data/datasets/{dataset}"
+                GLOBAL_CONFIG["Data"] = f"{datasets_path}{dataset}"
                 GLOBAL_CONFIG["Overlap"] = ov
                 try:
                     run_nepal(
