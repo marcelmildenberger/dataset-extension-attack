@@ -410,31 +410,33 @@ def create_synthetic_data_splits(GLOBAL_CONFIG, ENC_CONFIG, data_dir, alice_enc_
     Loads the encoded dataset and samples based on overlap percentage.
     """
     
+    import os
+
     # Load the encoded dataset
-    dataset_name = GLOBAL_CONFIG["Data"].split("/")[-1].replace(".tsv", "")
+    data_path = GLOBAL_CONFIG["Data"]          # e.g. "./data/datasets/noisy/fakename_1k.tsv"
+    base_path, _ = os.path.splitext(data_path) # "./data/datasets/noisy/fakename_1k"
+
     algo = ENC_CONFIG["AliceAlgo"]
-    
+
     if algo == "BloomFilter":
-        encoded_file = f"data/datasets/{dataset_name}_bf_encoded.tsv"
+        encoded_file = f"{base_path}_bf_encoded.tsv"
     elif algo == "TabMinHash":
-        encoded_file = f"data/datasets/{dataset_name}_tmh_encoded.tsv"
+        encoded_file = f"{base_path}_tmh_encoded.tsv"
     elif algo == "TwoStepHash":
-        encoded_file = f"data/datasets/{dataset_name}_tsh_encoded.tsv"
+        encoded_file = f"{base_path}_tsh_encoded.tsv"
     else:
         raise ValueError(f"Unsupported encoding algorithm: {algo}")
-    
+
     if not os.path.isfile(encoded_file):
         raise FileNotFoundError(f"Encoded dataset not found: {encoded_file}")
-    
+
     print("Loading Dataset: " + encoded_file)
     # Load the encoded data
     data, uids, header = read_tsv(encoded_file, skip_header=True, as_dict=False)
 
-    # Handle Case for titanic (no birthday)
-    if dataset_name != "titanic_full":
-        all_data = [header] + [[row[0], row[1], row[2], row[3], uid] for row, uid in zip(data, uids)]
-    else:
-        all_data = [header] + [[row[0], row[1], row[2], uid] for row, uid in zip(data, uids)]
+    # Reconstruct full data rows by re-attaching the uid as the last column.
+    # This works for any dataset shape (with or without a birthday column).
+    all_data = [header] + [row + [uid] for row, uid in zip(data, uids)]
     
     # Sample based on overlap percentage
     overlap_ratio = GLOBAL_CONFIG["Overlap"]
