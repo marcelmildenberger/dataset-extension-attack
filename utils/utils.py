@@ -426,6 +426,7 @@ def create_synthetic_data_splits(GLOBAL_CONFIG, ENC_CONFIG, data_dir, alice_enc_
     if not os.path.isfile(encoded_file):
         raise FileNotFoundError(f"Encoded dataset not found: {encoded_file}")
     
+    print("Loading Dataset: " + encoded_file)
     # Load the encoded data
     data, uids, header = read_tsv(encoded_file, skip_header=True, as_dict=False)
 
