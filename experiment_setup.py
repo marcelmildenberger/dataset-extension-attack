@@ -28,7 +28,7 @@ NEPAL_CONFIG = {
     "TrainSize": 0.8,
     "Patience": 5,
     "MinDelta": 1e-4,
-    "NumSamples": 25,
+    "NumSamples": 150,
     "Epochs": 25,
     "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
     "MatchingTechnique": "greedy",  # Options: "greedy"
