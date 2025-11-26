@@ -181,4 +181,4 @@ def hyperparameter_training(config, data_dir, output_dim, alice_enc_hash, identi
             "len_val": len(dataloader_val.dataset),
             "epochs": epochs
     }
-    tune.report(**metrics)
+    tune.report(metrics)
