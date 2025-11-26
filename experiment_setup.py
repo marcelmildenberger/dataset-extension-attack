@@ -17,7 +17,7 @@ GLOBAL_CONFIG = {
     "UseGPU": True,
     "SaveModel": False,
     "SavePredictions": False,
-    "UseNoisyDatasets": True,
+    "UseNoisyDatasets": True, #Not Tested For GMA
     # If Graph Matching Attack is disabled, overlap will instead be used as the NEPAL training proportion.
     "GraphMatchingAttack": False,
 }

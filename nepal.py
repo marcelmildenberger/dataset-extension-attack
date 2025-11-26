@@ -107,11 +107,12 @@ def run_nepal(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, NEPAL_CONFIG)
     gma_enabled = GLOBAL_CONFIG["GraphMatchingAttack"]
     data_dir = os.path.abspath("./data")
     suffix = "" if gma_enabled else "_synthetic"
-    alice_enc_hash = alice_enc_hash + suffix
+    noisy = "_noisy" if GLOBAL_CONFIG["UseNoisyDatasets"] else ""
+    alice_enc_hash = alice_enc_hash + suffix + noisy
     identifier = f"{eve_enc_hash}_{alice_enc_hash}_{eve_emb_hash}_{alice_emb_hash}"
-    path_reidentified = f"{data_dir}/available_to_eve/reidentified_individuals_{identifier}" + "_noisy" if GLOBAL_CONFIG["UseNoisyDatasets"] else "" + ".h5"
-    path_not_reidentified = f"{data_dir}/available_to_eve/not_reidentified_individuals_{identifier}" + "_noisy" if GLOBAL_CONFIG["UseNoisyDatasets"] else "" + ".h5"
-    path_all = f"{data_dir}/dev/alice_data_complete_with_encoding_{alice_enc_hash}" + "_noisy" if GLOBAL_CONFIG["UseNoisyDatasets"] else "" + ".h5"
+    path_reidentified = f"{data_dir}/available_to_eve/reidentified_individuals_{identifier}.h5"
+    path_not_reidentified = f"{data_dir}/available_to_eve/not_reidentified_individuals_{identifier}.h5"
+    path_all = f"{data_dir}/dev/alice_data_complete_with_encoding_{alice_enc_hash}.h5"
 
 
     # Check if Data is Available or Needs to be Generated
