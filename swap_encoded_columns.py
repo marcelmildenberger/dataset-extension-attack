@@ -7,7 +7,7 @@ to the wrong record (while the UID stays the same in the encoded file).
 Example:
     python swap_encoded_rows.py \
         --input-dir data/datasets/ \
-        --output-dir data/datasets/encoding_swapped \
+        --output-dir data/datasets/ \
         --swap-prob 0.005
 """
 
@@ -115,7 +115,6 @@ def process_encoded_file(
     output_dir: pathlib.Path,
     rng: random.Random,
     swap_prob: float,
-    suffix: str = "_swapped",
 ) -> pathlib.Path:
     """
     Load an encoded TSV, apply encoding swaps, and write to output_dir
@@ -131,7 +130,7 @@ def process_encoded_file(
     if not rows:
         # just copy the header to the new file
         output_path = output_dir / path.with_suffix("").name
-        output_path = output_path.with_name(output_path.name + suffix).with_suffix(".tsv")
+        output_path = output_path.with_name(output_path.name).with_suffix(".tsv")
         with output_path.open("w", newline="") as dst:
             if fieldnames:
                 writer = csv.DictWriter(dst, fieldnames=fieldnames, delimiter="\t")
@@ -145,7 +144,7 @@ def process_encoded_file(
 
     # Write out the corrupted encoded dataset
     output_path = output_dir / path.with_suffix("").name
-    output_path = output_path.with_name(output_path.name + suffix).with_suffix(".tsv")
+    output_path = output_path.with_name(output_path.name).with_suffix(".tsv")
 
     with output_path.open("w", newline="") as dst:
         writer = csv.DictWriter(dst, fieldnames=fieldnames, delimiter="\t")
@@ -186,12 +185,6 @@ def main() -> None:
         default=123,
         help="Random seed for reproducibility.",
     )
-    parser.add_argument(
-        "--suffix",
-        type=str,
-        default="_encswap",
-        help="Suffix to add before the extension of generated files.",
-    )
     args = parser.parse_args()
 
     rng = random.Random(args.seed)
@@ -213,8 +206,7 @@ def main() -> None:
             path=path,
             output_dir=args.output_dir,
             rng=rng,
-            swap_prob=args.swap_prob,
-            suffix=args.suffix,
+            swap_prob=args.swap_prob
         )
         try:
             pretty = out_path.relative_to(pathlib.Path.cwd())
