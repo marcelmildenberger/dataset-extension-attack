@@ -2,7 +2,7 @@
 Utility script to create noisier FakeName datasets.
 
 Example:
-python generate_noisy_fakename.py --noise-level 0.8 --source-dir data/datasets/synthetic/ --output-dir data/datasets/noisy
+python pre_generate_noisy_fakename.py --noise-level 0.8 --source-dir data/datasets/synthetic/ --output-dir data/datasets/noisy
 """
 import argparse
 import csv
@@ -167,10 +167,10 @@ def iter_fakename_files(source_dir: pathlib.Path) -> Iterable[pathlib.Path]:
         yield path
 
 
-def process_file(path: pathlib.Path, output_dir: pathlib.Path, rng: random.Random, config: Dict[str, float], suffix: str) -> pathlib.Path:
+def process_file(path: pathlib.Path, output_dir: pathlib.Path, rng: random.Random, config: Dict[str, float]) -> pathlib.Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / path.with_suffix("").name
-    output_path = output_path.with_name(output_path.name + suffix).with_suffix(".tsv")
+    output_path = output_path.with_name(output_path.name).with_suffix(".tsv")
 
     with path.open(newline="") as src:
         reader = csv.DictReader(src, delimiter="\t")
@@ -191,7 +191,6 @@ def main() -> None:
     parser.add_argument("--output-dir", type=pathlib.Path, default=pathlib.Path(__file__).resolve().parent / "noisy", help="Where to write noisy copies.")
     parser.add_argument("--noise-level", type=float, default=1.0, help="Scales how aggressive the corruption is (0 = none, 1 = default, >1 = heavier).")
     parser.add_argument("--seed", type=int, default=42, help="Seed for reproducibility.")
-    parser.add_argument("--suffix", type=str, default="_noisy", help="Suffix to add before the extension of generated files.")
     args = parser.parse_args()
 
     rng = random.Random(args.seed)
@@ -207,7 +206,7 @@ def main() -> None:
 
     print(f"Writing noisy datasets to {args.output_dir} (noise level={args.noise_level})")
     for path in files:
-        out_path = process_file(path, args.output_dir, rng, config, args.suffix)
+        out_path = process_file(path, args.output_dir, rng, config)
         if out_path.is_absolute():
             try:
                 pretty = out_path.relative_to(pathlib.Path.cwd())
