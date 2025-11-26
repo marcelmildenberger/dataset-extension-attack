@@ -175,7 +175,7 @@ for dataset in datasets:
                         "drop_from": df,
                         "error_type": type(e).__name__,
                     })
-                    print(f"Failed: {encoding} - {dataset} - {ov}: {e}")
+                    print(f"Failed: {encoding} - {dataset} - {ov}: {str(e)}")
                     continue
 
 # Save failed experiments to CSV
