@@ -5,10 +5,7 @@ It simulates a bug where the encoded representations are occasionally attached
 to the wrong record (while the UID stays the same in the encoded file).
 
 Example:
-    python swap_encoded_rows.py \
-        --input-dir data/datasets/ \
-        --output-dir data/datasets/ \
-        --swap-prob 0.005
+    python swap_encoded_rows.py --input-dir data/datasets/noisy --output-dir data/datasets/noisy --swap-prob 0.01
 """
 
 import argparse
