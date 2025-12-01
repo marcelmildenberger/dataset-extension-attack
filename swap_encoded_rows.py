@@ -27,6 +27,7 @@ def iter_encoded_files(input_dir: pathlib.Path) -> Iterable[pathlib.Path]:
     """
     patterns = [
         "fakename_*_bf_encoded.tsv",
+        "fakename_*_bfd_encoded.tsv",
         "fakename_*_tmh_encoded.tsv",
         "fakename_*_tsh_encoded.tsv",
     ]

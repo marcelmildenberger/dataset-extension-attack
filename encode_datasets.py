@@ -55,15 +55,15 @@ def write_tsv(header: Sequence[str], rows: Sequence[Sequence], out_path: Path) -
             writer.writerow([str(val) for val in row])
 
 
-def encode_with_bf(data: List[List[str]], uids: List[str], args: argparse.Namespace):
+def encode_with_bf(data: List[List[str]], uids: List[str], args: argparse.Namespace, diffusion=False, bf_t=10):
     encoder = BFEncoder(
         args.secret,
         args.bf_length,
         args.bf_bits,
         args.ngram_size,
-        args.bf_diffusion,
-        args.bf_eld_length,
-        args.bf_t,
+        diffusion,
+        args.bf_length,
+        bf_t,
         workers=args.jobs,
     )
     _, combined = encoder.encode_and_compare_and_append(data, uids, metric="dice", sim=True, store_encs=False)
@@ -103,7 +103,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Encode all non-encoded datasets under data/datasets.")
     parser.add_argument("--source-dir", type=Path, default=Path("data/datasets"), help="Where to look for .tsv files.")
     parser.add_argument("--recursive", action="store_true", help="Recurse into subdirectories.")
-    parser.add_argument("--encoders", nargs="+", choices=["bf", "tmh", "tsh"], default=["bf", "tmh", "tsh"],
+    parser.add_argument("--encoders", nargs="+", choices=["bf", "tmh", "tsh", "bfd"], default=["bf", "tmh", "tsh", "bfd"],
                         help="Which encoders to run.")
     parser.add_argument("--overwrite", action="store_true", help="Regenerate even if encoded files already exist.")
     parser.add_argument("--jobs", type=int, default=-1, help="Parallel workers for TMH/TSH (-1 = all cores).")
@@ -144,6 +144,17 @@ def main() -> None:
                 bf_header.insert(-1, "bloomfilter")
                 write_tsv(bf_header, bf_rows, bf_out)
                 print(f"- Wrote {bf_out}")
+        
+        if "bfd" in args.encoders:
+            bfd_out = ds_path.with_name(ds_path.stem + "_bfd_encoded.tsv")
+            if bfd_out.exists() and not args.overwrite:
+                print(f"- Skipping BF (exists): {bfd_out}")
+            else:
+                bfd_rows = encode_with_bf(data, uids, args, True, 10)
+                bfd_header = list(header)
+                bfd_header.insert(-1, "bloomfilter")
+                write_tsv(bfd_header, bfd_rows, bfd_out)
+                print(f"- Wrote {bfd_out}")
 
         if "tmh" in args.encoders:
             tmh_out = ds_path.with_name(ds_path.stem + "_tmh_encoded.tsv")
