@@ -420,6 +420,8 @@ def create_synthetic_data_splits(GLOBAL_CONFIG, ENC_CONFIG, data_dir, alice_enc_
 
     if algo == "BloomFilter":
         encoded_file = f"{base_path}_bf_encoded.tsv"
+        if ENC_CONFIG["AliceDiffuse"]:
+            encoded_file = f"{base_path}_bfd_encoded.tsv"
     elif algo == "TabMinHash":
         encoded_file = f"{base_path}_tmh_encoded.tsv"
     elif algo == "TwoStepHash":

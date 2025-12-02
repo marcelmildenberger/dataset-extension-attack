@@ -20,6 +20,7 @@ def iter_encoded_files(input_dir: pathlib.Path) -> Iterable[pathlib.Path]:
     Yield encoded fakename files under input_dir.
 
     We treat files matching:
+        fakename_*_bfd_encoded.tsv
         fakename_*_bf_encoded.tsv
         fakename_*_tmh_encoded.tsv
         fakename_*_tsh_encoded.tsv

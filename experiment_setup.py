@@ -17,7 +17,7 @@ GLOBAL_CONFIG = {
     "UseGPU": True,
     "SaveModel": False,
     "SavePredictions": False,
-    "UseNoisyDatasets": True, #Not Tested For GMA
+    "UseNoisyDatasets": False, #Not Tested For GMA
     # If Graph Matching Attack is disabled, overlap will instead be used as the NEPAL training proportion.
     "GraphMatchingAttack": False,
 }
@@ -50,12 +50,12 @@ ENC_CONFIG = {
     # Bloom Filter specific
     "AliceBFLength": 1024,
     "AliceBits": 10,
-    "AliceDiffuse": False,
+    "AliceDiffuse": True,
     "AliceT": 10,
     "AliceEldLength": 1024,
     "EveBFLength": 1024,
     "EveBits": 10,
-    "EveDiffuse": False,
+    "EveDiffuse": True,
     "EveT": 10,
     "EveEldLength": 1024,
 
@@ -127,7 +127,7 @@ ALIGN_CONFIG = {
 # List to store failed experiments
 failed_experiments = []
 
-encs = ["TwoStepHash", "BloomFilter", "TabMinHash"]
+encs = ["BloomFilter"]
 
 datasets = [
 #    "titanic_full.tsv",  
