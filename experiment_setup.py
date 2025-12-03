@@ -127,7 +127,7 @@ ALIGN_CONFIG = {
 # List to store failed experiments
 failed_experiments = []
 
-encs = ["BloomFilter"]
+encs = ["BloomFilter", "TwoStepHash", "TabMinHash"]
 
 datasets = [
 #    "titanic_full.tsv",  
@@ -148,7 +148,6 @@ datasets_path = "./data/datasets/"
 datasets_path += "noisy/" if GLOBAL_CONFIG["UseNoisyDatasets"] else ""
 
 for dataset in datasets:
-    print(datasets_path)
     for encoding in encs:
         for ov in dataset_overlaps:
             for df in drop_from:
