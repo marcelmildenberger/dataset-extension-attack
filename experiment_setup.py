@@ -144,9 +144,11 @@ dataset_overlaps = [0.2, 0.4, 0.6, 0.8]
 
 drop_from = ["Eve", "Both"] if GLOBAL_CONFIG["GraphMatchingAttack"] else [""]
 
-datasets_path = "./data/datasets/" + "noisy/" if GLOBAL_CONFIG["UseNoisyDatasets"] else ""
+datasets_path = "./data/datasets/"
+datasets_path += "noisy/" if GLOBAL_CONFIG["UseNoisyDatasets"] else ""
 
 for dataset in datasets:
+    print(datasets_path)
     for encoding in encs:
         for ov in dataset_overlaps:
             for df in drop_from:
