@@ -148,7 +148,7 @@ def main() -> None:
         if "bfd" in args.encoders:
             bfd_out = ds_path.with_name(ds_path.stem + "_bfd_encoded.tsv")
             if bfd_out.exists() and not args.overwrite:
-                print(f"- Skipping BF (exists): {bfd_out}")
+                print(f"- Skipping BFD (exists): {bfd_out}")
             else:
                 bfd_rows = encode_with_bf(data, uids, args, True, 10)
                 bfd_header = list(header)
