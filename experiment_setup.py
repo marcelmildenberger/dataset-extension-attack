@@ -17,7 +17,7 @@ GLOBAL_CONFIG = {
     "UseGPU": True,
     "SaveModel": False,
     "SavePredictions": False,
-    "UseNoisyDatasets": False, #Not Tested For GMA
+    "UseNoisyDatasets": True, #Not Tested For GMA
     # If Graph Matching Attack is disabled, overlap will instead be used as the NEPAL training proportion.
     "GraphMatchingAttack": False,
 }
@@ -50,12 +50,12 @@ ENC_CONFIG = {
     # Bloom Filter specific
     "AliceBFLength": 1024,
     "AliceBits": 10,
-    "AliceDiffuse": True,
+    "AliceDiffuse": False,
     "AliceT": 10,
     "AliceEldLength": 1024,
     "EveBFLength": 1024,
     "EveBits": 10,
-    "EveDiffuse": True,
+    "EveDiffuse": False,
     "EveT": 10,
     "EveEldLength": 1024,
 
