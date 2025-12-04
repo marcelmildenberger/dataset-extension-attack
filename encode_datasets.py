@@ -39,7 +39,7 @@ def iter_plain_datasets(root: Path, recursive: bool) -> Iterable[Path]:
     pattern = "**/*.tsv" if recursive else "*.tsv"
     for path in root.glob(pattern):
         name = path.name
-        if any(tag in name for tag in ("_bf_encoded", "_tmh_encoded", "_tsh_encoded")):
+        if any(tag in name for tag in ("_bf_encoded", "_tmh_encoded", "_tsh_encoded", "_bfd_encoded")):
             continue
         if name.endswith("_analysis.txt"):
             continue
