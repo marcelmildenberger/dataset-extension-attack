@@ -196,7 +196,7 @@ def run_nepal(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, NEPAL_CONFIG)
         identifier=identifier,
         patience=NEPAL_CONFIG["Patience"],
         min_delta=NEPAL_CONFIG["MinDelta"],
-        workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
+        workers=GLOBAL_CONFIG["Workers"] // 15 if GLOBAL_CONFIG["UseGPU"] else 0,
         ENC_CONFIG=ENC_CONFIG,
         NEPAL_CONFIG=NEPAL_CONFIG,
         GLOBAL_CONFIG=GLOBAL_CONFIG,
@@ -267,21 +267,21 @@ def run_nepal(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, NEPAL_CONFIG)
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=True,
         pin_memory=True,
-        num_workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
+        num_workers=GLOBAL_CONFIG["Workers"] // 15 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
     dataloader_val = DataLoader(
         data_val,
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=False,
         pin_memory=True,
-        num_workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
+        num_workers=GLOBAL_CONFIG["Workers"] // 15 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
     dataloader_test = DataLoader(
         data_test,
         batch_size=int(best_config.get("batch_size", 32)),
         shuffle=False,
         pin_memory=True,
-        num_workers=GLOBAL_CONFIG["Workers"] // 10 if GLOBAL_CONFIG["UseGPU"] else 0,
+        num_workers=GLOBAL_CONFIG["Workers"] // 15 if GLOBAL_CONFIG["UseGPU"] else 0,
     )
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

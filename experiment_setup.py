@@ -24,11 +24,11 @@ GLOBAL_CONFIG = {
 
 # === NEPAL Training Parameters ===
 NEPAL_CONFIG = {
-    "ParallelTrials": 5,
+    "ParallelTrials": 10,
     "TrainSize": 0.8,
     "Patience": 5,
     "MinDelta": 1e-4,
-    "NumSamples": 150,
+    "NumSamples": 175,
     "Epochs": 25,
     "MetricToOptimize": "average_dice",  # Options: "average_dice", "average_precision", ...
     "MatchingTechnique": "greedy",  # Options: "greedy"
