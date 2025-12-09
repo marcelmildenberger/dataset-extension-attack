@@ -8,6 +8,7 @@ import os
 import sys
 import argparse
 from typing import Dict, Any
+import traceback
 from nepal import run_nepal
 
 
@@ -103,15 +104,15 @@ def main():
         
     except FileNotFoundError as e:
         print(f"[ERROR] {e}")
+        traceback.print_exception(type(e), e, e.__traceback__)
         return 1
     except KeyError as e:
         print(f"[ERROR] Missing required configuration section: {e}")
+        traceback.print_exception(type(e), e, e.__traceback__)
         return 1
     except Exception as e:
         print(f"[ERROR] Unexpected error: {e}")
-        if args.verbose:
-            import traceback
-            traceback.print_exc()
+        traceback.print_exception(type(e), e, e.__traceback__)
         return 1
 
 
