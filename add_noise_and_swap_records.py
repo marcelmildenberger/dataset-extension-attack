@@ -190,7 +190,7 @@ def process_encoded_file(path: pathlib.Path, output_dir: pathlib.Path, rng: rand
     if enc_col:
         apply_encoding_swaps(noisy_rows, enc_col, rng, swap_prob)
 
-    output_path = output_dir / f"{path.stem}_noisy_swapped.tsv"
+    output_path = output_dir / f"{path.stem}.tsv"
     with output_path.open("w", newline="") as dst:
         writer = csv.DictWriter(dst, fieldnames=fieldnames, delimiter="\t")
         writer.writeheader()
@@ -204,7 +204,7 @@ def main() -> None:
     parser.add_argument("--input-dir", type=pathlib.Path, required=True, help="Directory containing fakename_*_*_encoded.tsv files.")
     parser.add_argument("--output-dir", type=pathlib.Path, required=True, help="Directory to write noisy+swapped copies.")
     parser.add_argument("--noise-level", type=float, default=1.0, help="Scales noise aggressiveness (same as pre_generate_noisy_fakename).")
-    parser.add_argument("--swap-prob", type=float, default=0.005, help="Probability per random pair of rows to swap encodings.")
+    parser.add_argument("--swap-prob", type=float, default=0.01, help="Probability per random pair of rows to swap encodings.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
     args = parser.parse_args()
 
