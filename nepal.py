@@ -18,7 +18,7 @@ from graphMatching.gma import run_gma
 from utils.pytorch_base_model import BaseModel
 from utils.utils import *
 import ray
-from ray import tune
+from ray import tune, train
 from ray.tune.schedulers import ASHAScheduler
 from ray.tune.search.optuna import OptunaSearch
 
@@ -225,7 +225,7 @@ def run_nepal(GLOBAL_CONFIG, ENC_CONFIG, EMB_CONFIG, ALIGN_CONFIG, NEPAL_CONFIG)
             num_samples=NEPAL_CONFIG["NumSamples"],
         ),
         param_space=search_space,
-        run_config=tune.RunConfig(
+        run_config=train.RunConfig(
             name="nepal_hpo",
             # Stop a trial as soon as the optimization metric reaches the
             # desired threshold (e.g., Dice >= 0.99).
