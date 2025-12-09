@@ -1,6 +1,6 @@
 {
     "GLOBAL_CONFIG": {
-        "Data": "./data/datasets/fakename_1k.tsv",
+        "Data": "./data/datasets/noisy/fakename_1k.tsv",
         "Overlap": 0.5,
         "DropFrom": "Eve",
         "Verbose": false,
