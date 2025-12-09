@@ -2,6 +2,7 @@
 import csv
 import json
 import os
+from pathlib import Path
 from hashlib import md5
 from typing import Sequence
 
@@ -397,7 +398,18 @@ def load_dataframe(path):
 
 
 def read_header(tsv_path):
-    with open(tsv_path, 'r', encoding='utf-8') as f:
+    path = Path(tsv_path)
+
+    # If the noisy copy is missing, try the parent datasets directory.
+    if not path.exists() and path.parent.name == "noisy":
+        fallback = path.parent.parent / path.name
+        if fallback.exists():
+            path = fallback
+
+    if not path.exists():
+        raise FileNotFoundError(f"TSV file not found for header: {tsv_path}")
+
+    with path.open('r', encoding='utf-8') as f:
         header_line = f.readline().strip()
         columns = header_line.split('\t')
         return columns
@@ -676,5 +688,4 @@ def plot_metric_distributions(results_df, trained_model_directory, save=False):
         out_path = os.path.join(trained_model_directory, "metric_distributions.png")
         plt.savefig(out_path)
     plt.close()
-
 
