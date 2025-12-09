@@ -396,21 +396,7 @@ def load_dataframe(path):
     return pd.DataFrame(data[1:], columns=data[0])
 
 
-def read_header(tsv_path, GLOBAL_CONFIG=None):
-    """Read the header (first line) from a TSV file.
-
-    If GLOBAL_CONFIG is provided and GLOBAL_CONFIG["UseNoisyDatasets"] is True,
-    and the path points into "data/datasets/noisy/", the path is rewritten
-    to point to the corresponding file in "data/datasets/" instead.
-    """
-    # Optionally rewrite the path when using noisy datasets
-    if GLOBAL_CONFIG is not None and GLOBAL_CONFIG.get("UseNoisyDatasets", False):
-        noisy_prefix = os.path.join("data", "datasets", "noisy")
-        clean_prefix = os.path.join("data", "datasets")
-        # Only rewrite when the path actually contains the noisy prefix
-        if noisy_prefix in tsv_path:
-            tsv_path = tsv_path.replace(noisy_prefix, clean_prefix, 1)
-
+def read_header(tsv_path):
     with open(tsv_path, 'r', encoding='utf-8') as f:
         header_line = f.readline().strip()
         columns = header_line.split('\t')
